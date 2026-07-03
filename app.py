@@ -27,10 +27,10 @@ item_weight = st.sidebar.number_input("Item Weight (kg)", value=10)
 fragility = st.sidebar.selectbox(
     "Fragility Level",
     [
-        "🟢 Normal",
-        "🟡 Medium",
-        "🟠 Fragile",
-        "🔴 Extremely Fragile"
+        "Normal",
+        "Medium",
+        "Fragile",
+        "Extremely Fragile"
     ]
 )
 add_item = st.sidebar.button("Add Item to Manifest")
@@ -88,7 +88,9 @@ if 'last_packer' in st.session_state:
                 x for x in st.session_state.manifest
                 if x["name"] == item.name
             )
-            if item_data["fragile"] == "No":
+            fragility = item_data["fragility"]
+            
+            if item_data["fragility"] == "Normal":
                 continue
         
             pos = item.position
@@ -103,6 +105,7 @@ if 'last_packer' in st.session_state:
                 if float(opos[2]) >= top:
                     overloaded = True
                     break
+                
         
             fragility_report.append({
                 "name": item.name,
@@ -140,14 +143,6 @@ if 'last_packer' in st.session_state:
         if st.button("📊 Visualize Packing Layout"):
             fig = go.Figure()
 
-        # Detail Report
-        st.subheader("Fragility Report") 
-        for r in fragility_report:
-            if r["safe"]:
-                st.success(f"✅ {r['name']} SAFE")
-            else:
-                st.error(f"⚠️ {r['name']} 0VERLOADED")
-
             # --- Function for consistent colors ---
             def get_color(level):
                 colors = {
@@ -157,7 +152,7 @@ if 'last_packer' in st.session_state:
                     "Extremely Fragile": "red"
                 }
 
-            return colors[level]
+                return colors[level]
 
             # Draw the Truck container (Wireframe)
             tw, th, td = float(truck_w), float(truck_h), float(truck_d)
@@ -188,15 +183,15 @@ if 'last_packer' in st.session_state:
 
                 # 1. Add the solid Mesh (the box body)
                 fig.add_trace(go.Mesh3d(
-                    x=x_c
-                    y=y_c
-                    z=z_c
-                    i=i
-                    j=j    
-                    k=k
-                    opacity=0.6,
-                    color=get_color(fragility),
-                    name=item.name
+                    x = x_c,
+                    y = y_c,
+                    z = z_c,
+                    i = i,
+                    j = j,   
+                    k = k,
+                    opacity = 0.6,
+                    color = get_color(fragility),
+                    name = item.name
                 ))
                 
                 # 2. Add the wireframe lines (the outlines)
@@ -218,3 +213,11 @@ if 'last_packer' in st.session_state:
                 zaxis=dict(range=[0, th])
             ))
             st.plotly_chart(fig)
+
+        # Detail Report
+        st.subheader("Fragility Report") 
+        for r in fragility_report:
+            if r["safe"]:
+                st.success(f"✅ {r['name']} SAFE")
+            else:
+                st.error(f"⚠️ {r['name']} OVERLOADED")
