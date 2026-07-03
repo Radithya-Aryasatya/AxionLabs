@@ -4,7 +4,7 @@ import plotly.graph_objects as go
 import hashlib
 
 # --- HALO ARKAN, ARYA, AXEL TUNG TUNG ---
-# - Mari kita menangkan lomba ini! -
+# - Mari kita menangkan lomba ini! SemangaTT -
 
 
 # --- UI Setup ---
@@ -24,6 +24,15 @@ item_w = st.sidebar.number_input("Item Width", value=50)
 item_h = st.sidebar.number_input("Item Height", value=50)
 item_d = st.sidebar.number_input("Item Depth", value=50)
 item_weight = st.sidebar.number_input("Item Weight (kg)", value=10)
+fragility = st.sidebar.selectbox(
+    "Fragility Level",
+    [
+        "🟢 Normal",
+        "🟡 Medium",
+        "🟠 Fragile",
+        "🔴 Extremely Fragile"
+    ]
+)
 add_item = st.sidebar.button("Add Item to Manifest")
 
 # --- Session State (Memory for the web app) ---
@@ -32,7 +41,7 @@ if 'manifest' not in st.session_state:
 
 if add_item:
     st.session_state.manifest.append({
-        "name": item_name, "w": item_w, "h": item_h, "d": item_d, "weight": item_weight
+        "name": item_name, "w": item_w, "h": item_h, "d": item_d, "weight": item_weight, "fragility": fragility
     })
     st.sidebar.success(f"Added {item_name}!")
 
@@ -71,6 +80,49 @@ if 'last_packer' in st.session_state:
         st.write(f"**Vehicle Used:** {b.partno}")
         st.write(f"**Total Items Packed:** {len(b.items)}")
         
+        # Fragility validation
+        fragility_report = []
+        for item in b.items:
+            # Search data in manifest
+            item_data = next(
+                x for x in st.session_state.manifest
+                if x["name"] == item.name
+            )
+            if item_data["fragile"] == "No":
+                continue
+        
+            pos = item.position
+            dim = item.getDimension()
+            top = float(pos[2]) + float(dim[1])
+            overloaded = False
+        
+            for other in b.items:
+                if other == item:
+                    continue
+                opos = other.position
+                if float(opos[2]) >= top:
+                    overloaded = True
+                    break
+        
+            fragility_report.append({
+                "name": item.name,
+                "safe": not overloaded
+            })
+
+        # Counting Safety Rate
+        safe = sum(r["safe"] for r in fragility_report)
+
+        if len(fragility_report) > 0:
+            rate = safe / len(fragility_report) * 100
+        else:
+            rate = 100
+
+        # Show Metric
+        st.metric(
+            "Fragility Safety Rate",
+            f"{rate:.1f}%"
+        )
+        
         # 1. Show coordinates list
         for item in b.items:
             pos = item.position
@@ -88,10 +140,24 @@ if 'last_packer' in st.session_state:
         if st.button("📊 Visualize Packing Layout"):
             fig = go.Figure()
 
+        # Detail Report
+        st.subheader("Fragility Report") 
+        for r in fragility_report:
+            if r["safe"]:
+                st.success(f"✅ {r['name']} SAFE")
+            else:
+                st.error(f"⚠️ {r['name']} 0VERLOADED")
+
             # --- Function for consistent colors ---
-            def get_color(name):
-                hash_obj = hashlib.md5(name.encode())
-                return f"#{hash_obj.hexdigest()[:6]}"
+            def get_color(level):
+                colors = {
+                    "Normal": "green",
+                    "Medium": "yellow",
+                    "Fragile": "orange",
+                    "Extremely Fragile": "red"
+                }
+
+            return colors[level]
 
             # Draw the Truck container (Wireframe)
             tw, th, td = float(truck_w), float(truck_h), float(truck_d)
@@ -122,10 +188,14 @@ if 'last_packer' in st.session_state:
 
                 # 1. Add the solid Mesh (the box body)
                 fig.add_trace(go.Mesh3d(
-                    x=x_c, y=y_c, z=z_c,
-                    i=i, j=j, k=k,
+                    x=x_c
+                    y=y_c
+                    z=z_c
+                    i=i
+                    j=j    
+                    k=k
                     opacity=0.6,
-                    color=get_color(item.name),
+                    color=get_color(fragility),
                     name=item.name
                 ))
                 
