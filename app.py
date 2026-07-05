@@ -40,10 +40,21 @@ if 'manifest' not in st.session_state:
     st.session_state.manifest = []
 
 if add_item:
-    st.session_state.manifest.append({
-        "name": item_name, "w": item_w, "h": item_h, "d": item_d, "weight": item_weight, "fragility": fragility
-    })
-    st.sidebar.success(f"Added {item_name}!")
+    # Checks duplicate
+    exists = False
+    for item in st.session_state.manifest:
+        if item["name"] == item_name:
+            exists = True
+            break
+
+    if (exists):
+        st.sidebar.error("Package name has already exist!s")
+        
+    else:
+        st.session_state.manifest.append({
+            "name": item_name, "w": item_w, "h": item_h, "d": item_d, "weight": item_weight, "fragility": fragility
+        })
+        st.sidebar.success(f"Added {item_name}!")
 
 # --- Main Dashboard ---
 st.subheader("Current Cargo Manifest")
@@ -181,6 +192,13 @@ if 'last_packer' in st.session_state:
                 j = [1, 2, 4, 5, 2, 6, 3, 7, 0, 4, 5, 6]
                 k = [2, 3, 5, 6, 6, 2, 7, 3, 4, 0, 6, 5]
 
+                
+                # Get fragility colour
+                item_data = next(
+                    x for x in st.session_state.manifest
+                    if x["name"] == item.name
+                )
+
                 # 1. Add the solid Mesh (the box body)
                 fig.add_trace(go.Mesh3d(
                     x = x_c,
@@ -190,7 +208,7 @@ if 'last_packer' in st.session_state:
                     j = j,   
                     k = k,
                     opacity = 0.6,
-                    color = get_color(fragility),
+                    color = get_color(item_data["fragility"]),
                     name = item.name
                 ))
                 
