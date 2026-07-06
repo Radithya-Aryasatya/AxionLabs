@@ -1,241 +1,296 @@
 import streamlit as st
 from py3dbp import Packer, Bin, Item
 import plotly.graph_objects as go
-import hashlib
+from dataclasses import dataclass
 
-# --- HALO ARKAN, ARYA, AXEL TUNG TUNG ---
-# - Mari kita menangkan lomba ini! SemangaTT -
+# --- CONSTANTS & CONFIGURATION ---
+LOAD_LIMITS = {
+    "Normal": float("inf"),
+    "Medium": 80.0,
+    "Fragile": 30.0,
+    "Extremely Fragile": 10.0
+}
 
+# --- DATA STRUCTURE ARCHITECTURE ---
+@dataclass
+class PackedItem:
+    name: str
+    x: float
+    y: float
+    z: float
+    w: float
+    h: float
+    d: float
+    weight: float
+    fragility: str
+    limit: float
 
-# --- UI Setup ---
+# --- MODULAR BUSINESS LOGIC LAYER ---
+def get_color(level: str) -> str:
+    colors = {
+        "Normal": "green",
+        "Medium": "yellow",
+        "Fragile": "orange",
+        "Extremely Fragile": "red"
+    }
+    return colors.get(level, "blue")
+
+def calculate_overlap_area(c_x: float, c_w: float, c_z: float, c_d: float, 
+                           s_x: float, s_w: float, s_z: float, s_d: float) -> float:
+    """Calculates the 2D intersection area (X-Z plane) between two items."""
+    x_overlap = max(0.0, min(c_x + c_w, s_x + s_w) - max(c_x, s_x))
+    z_overlap = max(0.0, min(c_z + c_d, s_z + s_d) - max(c_z, s_z))
+    return x_overlap * z_overlap
+
+def calculate_utilization(items: list[PackedItem], truck_volume: float) -> float:
+    if truck_volume <= 0:
+        return 0.0
+    used_volume = sum((item.w * item.h * item.d) for item in items)
+    return (used_volume / truck_volume) * 100
+
+def calculate_load_distribution(items: list[PackedItem]) -> tuple[dict[str, float], dict[str, list[str]]]:
+    EPS = 1e-3
+    sorted_items = sorted(items, key=lambda item: item.y, reverse=True)
+    
+    weight_on_top = {item.name: 0.0 for item in items}
+    support_graph = {item.name: [] for item in items}
+    
+    for current in sorted_items:
+        total_downward_force = current.weight + weight_on_top[current.name]
+        
+        # Identify supporters and their respective contact areas
+        supporters = []
+        total_contact_area = 0.0
+        
+        for other in items:
+            if other.name == current.name:
+                continue
+            
+            # Check for strict vertical physical contact
+            if abs(current.y - (other.y + other.h)) < EPS:
+                area = calculate_overlap_area(
+                    current.x, current.w, current.z, current.d,
+                    other.x, other.w, other.z, other.d
+                )
+                if area > 0:
+                    supporters.append((other, area))
+                    total_contact_area += area
+                    support_graph[other.name].append(current.name)
+        
+        # Propagate loads proportionally based on contact surface area
+        if supporters and total_contact_area > 0:
+            for sup, area in supporters:
+                area_ratio = area / total_contact_area
+                distributed_force = total_downward_force * area_ratio
+                weight_on_top[sup.name] += distributed_force
+                
+    return weight_on_top, support_graph
+
+# --- VISUALIZATION ENGINE ---
+def render_3d_packing_plot(items: list[PackedItem], truck_dims: tuple[float, float, float]) -> go.Figure:
+    fig = go.Figure()
+    truck_w, truck_h, truck_d = truck_dims
+
+    for item in items:
+        vx = [item.x, item.x+item.w, item.x+item.w, item.x, item.x, item.x+item.w, item.x+item.w, item.x]
+        vy = [item.y, item.y, item.y+item.h, item.y+item.h, item.y, item.y, item.y+item.h, item.y+item.h]
+        vz = [item.z, item.z, item.z, item.z, item.z+item.d, item.z+item.d, item.z+item.d, item.z+item.d]
+
+        i_cube = [7, 0, 0, 0, 4, 4, 6, 6, 4, 0, 3, 2]
+        j_cube = [3, 4, 1, 2, 5, 6, 5, 2, 0, 1, 6, 3]
+        k_cube = [0, 7, 2, 3, 6, 7, 1, 1, 5, 5, 7, 6]
+
+        hover_info = (
+            f"<b>Item:</b> {item.name}<br>"
+            f"<b>Weight:</b> {item.weight} kg<br>"
+            f"<b>Fragility:</b> {item.fragility}<br>"
+            f"<b>Dimensions:</b> {item.w}x{item.h}x{item.d} cm"
+        )
+
+        fig.add_trace(go.Mesh3d(
+            x=vx, y=vy, z=vz,
+            i=i_cube, j=j_cube, k=k_cube,
+            opacity=0.85,  
+            flatshading=True,
+            color=get_color(item.fragility),
+            name=item.name,
+            hoverinfo="text",
+            text=hover_info
+        ))
+       
+        x_lines = [
+            item.x, item.x+item.w, None, item.x+item.w, item.x+item.w, None, item.x+item.w, item.x, None, item.x, item.x, None,
+            item.x, item.x+item.w, None, item.x+item.w, item.x+item.w, None, item.x+item.w, item.x, None, item.x, item.x, None,
+            item.x, item.x, None, item.x+item.w, item.x+item.w, None, item.x+item.w, item.x+item.w, None, item.x, item.x, None
+        ]
+        y_lines = [
+            item.y, item.y, None, item.y, item.y+item.h, None, item.y+item.h, item.y+item.h, None, item.y+item.h, item.y, None,
+            item.y, item.y, None, item.y, item.y+item.h, None, item.y+item.h, item.y+item.h, None, item.y+item.h, item.y, None,
+            item.y, item.y, None, item.y, item.y, None, item.y+item.h, item.y+item.h, None, item.y+item.h, item.y+item.h, None
+        ]
+        z_lines = [
+            item.z, item.z, None, item.z, item.z, None, item.z, item.z, None, item.z, item.z, None,
+            item.z+item.d, item.z+item.d, None, item.z+item.d, item.z+item.d, None, item.z+item.d, item.z+item.d, None, item.z+item.d, item.z+item.d, None,
+            item.z, item.z+item.d, None, item.z, item.z+item.d, None, item.z, item.z+item.d, None, item.z, item.z+item.d, None
+        ]
+
+        fig.add_trace(go.Scatter3d(
+            x=x_lines, y=y_lines, z=z_lines,
+            mode='lines', 
+            line=dict(color='black', width=4), 
+            showlegend=False,
+            hoverinfo="skip"
+        ))
+
+    fig.update_layout(
+        scene=dict(
+            xaxis=dict(range=[0, truck_w], title="Width (X)"),
+            yaxis=dict(range=[0, truck_h], title="Height (Y)"), 
+            zaxis=dict(range=[0, truck_d], title="Depth (Z)")  
+        ),
+        margin=dict(l=0, r=0, b=0, t=0)
+    )
+    return fig
+
+def render_support_tree(graph: dict, node: str, level: int = 0):
+    """Recursively prints the load-path tree in Streamlit."""
+    indent = "&nbsp;" * 8 * level
+    st.markdown(f"{indent}↳ **{node}**")
+    for child in graph.get(node, []):
+        render_support_tree(graph, child, level + 1)
+
+# --- USER INTERFACE PRESENTATION LAYER ---
 st.set_page_config(page_title="Axion Labs Fleet Optimizer", layout="wide")
 st.title("Axion Labs: Fleet Space Optimization")
 
-# --- Sidebar Inputs (User Controls) ---
 st.sidebar.header("1. Define Vehicle Space")
 truck_w = st.sidebar.number_input("Truck Width (cm)", value=600)
-truck_h = st.sidebar.number_input("Truck Height (cm)", value=260)
-truck_d = st.sidebar.number_input("Truck Depth (cm)", value=240)
+truck_h = st.sidebar.number_input("Truck Height (cm)", value=600)
+truck_d = st.sidebar.number_input("Truck Depth (cm)", value=600)
 truck_weight = st.sidebar.number_input("Max Weight Capacity (kg)", value=4000)
 
 st.sidebar.header("2. Add Cargo Item")
 item_name = st.sidebar.text_input("Item Name", value="Generic Box")
-item_w = st.sidebar.number_input("Item Width", value=50)
-item_h = st.sidebar.number_input("Item Height", value=50)
-item_d = st.sidebar.number_input("Item Depth", value=50)
-item_weight = st.sidebar.number_input("Item Weight (kg)", value=10)
-fragility = st.sidebar.selectbox(
-    "Fragility Level",
-    [
-        "Normal",
-        "Medium",
-        "Fragile",
-        "Extremely Fragile"
-    ]
-)
+item_w = st.sidebar.number_input("Item Width", value=200)
+item_h = st.sidebar.number_input("Item Height", value=200)
+item_d = st.sidebar.number_input("Item Depth", value=200)
+item_weight = st.sidebar.number_input("Item Weight (kg)", value=15)
+fragility = st.sidebar.selectbox("Fragility Level", list(LOAD_LIMITS.keys()))
 add_item = st.sidebar.button("Add Item to Manifest")
 
-# --- Session State (Memory for the web app) ---
 if 'manifest' not in st.session_state:
     st.session_state.manifest = []
 
 if add_item:
-    # Checks duplicate
-    exists = False
-    for item in st.session_state.manifest:
-        if item["name"] == item_name:
-            exists = True
-            break
-
-    if (exists):
-        st.sidebar.error("Package name has already exist!s")
-        
+    if any(item["name"] == item_name for item in st.session_state.manifest):
+        st.sidebar.error("Package name already exists!")
     else:
         st.session_state.manifest.append({
-            "name": item_name, "w": item_w, "h": item_h, "d": item_d, "weight": item_weight, "fragility": fragility
+            "name": item_name, "w": item_w, "h": item_h, "d": item_d,
+            "weight": item_weight, "fragility": fragility,
+            "load_limit": LOAD_LIMITS[fragility] 
         })
         st.sidebar.success(f"Added {item_name}!")
 
-# --- Main Dashboard ---
 st.subheader("Current Cargo Manifest")
 st.write(st.session_state.manifest)
 
+# --- RUN EXECUTION SOLVER ---
 if st.button("🚀 Run AI Optimization"):
-    packer = Packer()
-    # Add the truck
-    packer.addBin(Bin('Truck', (truck_w, truck_h, truck_d), truck_weight))
-    
-    # Add all items from the user's list
-    for idx, obj in enumerate(st.session_state.manifest):
-        packer.addItem(Item(
-            partno=f"ITEM-{idx}", 
-            name=obj["name"], 
-            typeof='cube', 
-            WHD=(obj["w"], obj["h"], obj["d"]), 
-            weight=obj["weight"], 
-            level=1, loadbear=100, updown=True, color='blue'
-        ))
-    
-    # Run the math
-    with st.spinner("Calculating optimal layout..."):
-        packer.pack(bigger_first=True, fix_point=True, check_stable=True, support_surface_ratio=0.75)
-        packer.putOrder()
-        # Save results to session state so they persist
-        st.session_state.last_packer = packer
-        st.success("Optimization Complete!")
+    if not st.session_state.manifest:
+        st.error("Your cargo manifest is completely empty!")
+    else:
+        packer = Packer()
+        packer.addBin(Bin('Truck', (truck_w, truck_h, truck_d), truck_weight))
+       
+        for idx, obj in enumerate(st.session_state.manifest):
+            packer.addItem(Item(
+                partno=f"ITEM-{idx}",
+                name=obj["name"],
+                typeof='cube',
+                WHD=(obj["w"], obj["h"], obj["d"]),
+                weight=obj["weight"],
+                level=1,
+                loadbear=obj["load_limit"], 
+                updown=True,
+                color=get_color(obj["fragility"])
+            ))
 
-# --- Display Results ---
+        with st.spinner("Calculating Realistic Layout Matrix..."):
+            packer.pack(
+                bigger_first=True,
+                fix_point=True,      
+                check_stable=True,   
+                support_surface_ratio=0.75 
+            )
+            packer.putOrder()
+            st.session_state.last_packer = packer
+
+# --- VISUALIZATION AND REPORTING OUTPUT LAYER ---
 if 'last_packer' in st.session_state:
     packer = st.session_state.last_packer
+    manifest_lookup = {item["name"]: item for item in st.session_state.manifest}
+    truck_vol = float(truck_w * truck_h * truck_d)
+   
     for b in packer.bins:
-        st.write(f"**Vehicle Used:** {b.partno}")
-        st.write(f"**Total Items Packed:** {len(b.items)}")
+        st.markdown("---")
+        st.subheader(f"Optimal Layout Assignment: Compartment Box ({b.partno})")
         
-        # Fragility validation
-        fragility_report = []
+        packed_geometries = []
         for item in b.items:
-            # Search data in manifest
-            item_data = next(
-                x for x in st.session_state.manifest
-                if x["name"] == item.name
-            )
-            fragility = item_data["fragility"]
-            
-            if item_data["fragility"] == "Normal":
+            m_data = manifest_lookup.get(item.name)
+            if m_data is None:
                 continue
-        
-            pos = item.position
-            dim = item.getDimension()
-            top = float(pos[2]) + float(dim[1])
-            overloaded = False
-        
-            for other in b.items:
-                if other == item:
-                    continue
-                opos = other.position
-                if float(opos[2]) >= top:
-                    overloaded = True
-                    break
-                
-        
-            fragility_report.append({
-                "name": item.name,
-                "safe": not overloaded
-            })
-
-        # Counting Safety Rate
-        safe = sum(r["safe"] for r in fragility_report)
-
-        if len(fragility_report) > 0:
-            rate = safe / len(fragility_report) * 100
-        else:
-            rate = 100
-
-        # Show Metric
-        st.metric(
-            "Fragility Safety Rate",
-            f"{rate:.1f}%"
-        )
-        
-        # 1. Show coordinates list
-        for item in b.items:
-            pos = item.position
-            x, y, z = float(pos[0]), float(pos[1]), float(pos[2])
-    
-            # Explicitly convert dimensions to float here
-            dim = item.getDimension()
-            w, h, d = float(dim[0]), float(dim[1]), float(dim[2])
-    
-            x_coords = [x, x+w, x+w, x, x, x+w, x+w, x]
-            y_coords = [y, y, y+d, y+d, y, y, y+d, y+d]
-            z_coords = [z, z, z, z, z+h, z+h, z+h, z+h]
-
-        # 2. Single Visualization Button
-        if st.button("📊 Visualize Packing Layout"):
-            fig = go.Figure()
-
-            # --- Function for consistent colors ---
-            def get_color(level):
-                colors = {
-                    "Normal": "green",
-                    "Medium": "yellow",
-                    "Fragile": "orange",
-                    "Extremely Fragile": "red"
-                }
-
-                return colors[level]
-
-            # Draw the Truck container (Wireframe)
-            tw, th, td = float(truck_w), float(truck_h), float(truck_d)
-            fig.add_trace(go.Mesh3d(
-                x=[0, tw, tw, 0, 0, tw, tw, 0],
-                y=[0, 0, td, td, 0, 0, td, td],
-                z=[0, 0, 0, 0, th, th, th, th],
-                opacity=0.1, color='cyan', name='Truck'
+            pos, dim = item.position, item.getDimension()
+            packed_geometries.append(PackedItem(
+                name=item.name,
+                x=float(pos[0]), y=float(pos[1]), z=float(pos[2]),
+                w=float(dim[0]), h=float(dim[1]), d=float(dim[2]),
+                weight=float(item.weight),
+                fragility=m_data["fragility"],
+                limit=m_data["load_limit"] 
             ))
 
-            # Add each packed item
-            for item in b.items:
-                pos = item.position
-                x, y, z = float(pos[0]), float(pos[1]), float(pos[2])
+        utilization_rate = calculate_utilization(packed_geometries, truck_vol)
+        load_distribution, support_graph = calculate_load_distribution(packed_geometries)
+        
+        safe_count = sum(1 for item in packed_geometries if load_distribution[item.name] <= item.limit)
+        safety_rate = (safe_count / len(packed_geometries) * 100) if packed_geometries else 100.0
+        
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.metric("Total Packed Count", f"{len(b.items)} / {len(st.session_state.manifest)}")
+        with col2:
+            st.metric("Space Volume Utilization", f"{utilization_rate:.1f}%")
+        with col3:
+            st.metric("Structural Safety Score", f"{safety_rate:.1f}%")
+       
+        unfitted = getattr(b, 'unfitted_items', [])
+        if unfitted:
+            st.subheader("⚠️ Unpacked Items (Rejected By Constraints)")
+            for item in unfitted:
+                st.error(f"**{item.name}** could not be packed securely. Adjust dimensions or stack settings.")
                 
-                dim = item.getDimension() # Use underscore version
-                w, h, d = float(dim[0]), float(dim[1]), float(dim[2])
-                
-                # 8 corners
-                x_c = [x, x+w, x+w, x, x, x+w, x+w, x]
-                y_c = [y, y, y+d, y+d, y, y, y+d, y+d]
-                z_c = [z, z, z, z, z+h, z+h, z+h, z+h]
-                
-                # Face indices
-                i = [0, 0, 0, 0, 1, 1, 2, 2, 3, 3, 4, 4]
-                j = [1, 2, 4, 5, 2, 6, 3, 7, 0, 4, 5, 6]
-                k = [2, 3, 5, 6, 6, 2, 7, 3, 4, 0, 6, 5]
+        col_report, col_graph = st.columns(2)
+        
+        with col_report:
+            st.subheader("Structural Load Distribution Analysis")
+            for item in packed_geometries:
+                current_load = load_distribution[item.name]
+                if current_load <= item.limit:
+                    st.success(f"✅ **{item.name}** | Capacity: {current_load:.1f} kg / {item.limit} kg")
+                else:
+                    st.error(f"⚠️ **{item.name}** OVERLOADED | Capacity: {current_load:.1f} kg / {item.limit} kg")
 
-                
-                # Get fragility colour
-                item_data = next(
-                    x for x in st.session_state.manifest
-                    if x["name"] == item.name
-                )
+        with col_graph:
+            st.subheader("Structural Support Chain (Load Path)")
+            base_items = [item.name for item in packed_geometries if item.y == 0.0]
+            if not base_items:
+                st.write("No items packed.")
+            for base in base_items:
+                render_support_tree(support_graph, base)
 
-                # 1. Add the solid Mesh (the box body)
-                fig.add_trace(go.Mesh3d(
-                    x = x_c,
-                    y = y_c,
-                    z = z_c,
-                    i = i,
-                    j = j,   
-                    k = k,
-                    opacity = 0.6,
-                    color = get_color(item_data["fragility"]),
-                    name = item.name
-                ))
-                
-                # 2. Add the wireframe lines (the outlines)
-                # These are the connections between the 8 corners
-                edge_x = [x_c[0], x_c[1], x_c[1], x_c[2], x_c[2], x_c[3], x_c[3], x_c[0], x_c[4], x_c[5], x_c[5], x_c[6], x_c[6], x_c[7], x_c[7], x_c[4], x_c[0], x_c[4], x_c[1], x_c[5], x_c[2], x_c[6], x_c[3], x_c[7]]
-                edge_y = [y_c[0], y_c[1], y_c[1], y_c[2], y_c[2], y_c[3], y_c[3], y_c[0], y_c[4], y_c[5], y_c[5], y_c[6], y_c[6], y_c[7], y_c[7], y_c[4], y_c[0], y_c[4], y_c[1], y_c[5], y_c[2], y_c[6], y_c[3], y_c[7]]
-                edge_z = [z_c[0], z_c[1], z_c[1], z_c[2], z_c[2], z_c[3], z_c[3], z_c[0], z_c[4], z_c[5], z_c[5], z_c[6], z_c[6], z_c[7], z_c[7], z_c[4], z_c[0], z_c[4], z_c[1], z_c[5], z_c[2], z_c[6], z_c[3], z_c[7]]
-
-                fig.add_trace(go.Scatter3d(
-                    x=edge_x, y=edge_y, z=edge_z,
-                    mode='lines',
-                    line=dict(color='black', width=4),
-                    showlegend=False
-                ))
-
-            fig.update_layout(scene=dict(
-                xaxis=dict(range=[0, tw]),
-                yaxis=dict(range=[0, td]),
-                zaxis=dict(range=[0, th])
-            ))
-            st.plotly_chart(fig)
-
-        # Detail Report
-        st.subheader("Fragility Report") 
-        for r in fragility_report:
-            if r["safe"]:
-                st.success(f"✅ {r['name']} SAFE")
-            else:
-                st.error(f"⚠️ {r['name']} OVERLOADED")
+        if st.button("📊 Render 3D Packing Layout Matrix", key=f"render_plot_{b.partno}"):
+            with st.spinner("Building interactive scene graph..."):
+                fig = render_3d_packing_plot(packed_geometries, (truck_w, truck_h, truck_d))
+                st.plotly_chart(fig, use_container_width=True)
