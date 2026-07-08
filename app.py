@@ -175,6 +175,9 @@ item_w = st.sidebar.number_input("Item Width", value=200)
 item_h = st.sidebar.number_input("Item Height", value=200)
 item_d = st.sidebar.number_input("Item Depth", value=200)
 item_weight = st.sidebar.number_input("Item Weight (kg)", value=15)
+quantity = st.sidebar.number_input("Quantity", min_value=1, value=1, step=1)
+orientation = st.sidebar.selectbox("Orientation Rule", ["Any Orientation","Keep Upright"])
+orientation_flag = orientation == "Any Orientation"
 fragility = st.sidebar.selectbox("Fragility Level", list(LOAD_LIMITS.keys()))
 add_item = st.sidebar.button("Add Item to Manifest")
 
@@ -188,7 +191,9 @@ if add_item:
         st.session_state.manifest.append({
             "name": item_name, "w": item_w, "h": item_h, "d": item_d,
             "weight": item_weight, "fragility": fragility,
-            "load_limit": LOAD_LIMITS[fragility] 
+            "load_limit": LOAD_LIMITS[fragility],
+            "quantity": quantity,
+            "orientation": orientation_flag 
         })
         st.sidebar.success(f"Added {item_name}!")
 
@@ -203,18 +208,21 @@ if st.button("🚀 Run AI Optimization"):
         packer = Packer()
         packer.addBin(Bin('Truck', (truck_w, truck_h, truck_d), truck_weight))
        
-        for idx, obj in enumerate(st.session_state.manifest):
-            packer.addItem(Item(
-                partno=f"ITEM-{idx}",
-                name=obj["name"],
-                typeof='cube',
-                WHD=(obj["w"], obj["h"], obj["d"]),
-                weight=obj["weight"],
-                level=1,
-                loadbear=obj["load_limit"], 
-                updown=True,
-                color=get_color(obj["fragility"])
-            ))
+        counter = 0
+        for obj in st.session_state.manifest:
+            for i in range(obj["quantity"]):
+                packer.addItem(Item(
+                    partno=f"ITEM-{counter}",
+                    name=f'{obj["name"]} #{i+1}',
+                    typeof='cube',
+                    WHD=(obj["w"], obj["h"], obj["d"]),
+                    weight=obj["weight"],
+                    level=1,
+                    loadbear=obj["load_limit"],
+                    updown=obj["orientation"],
+                    color=get_color(obj["fragility"])
+                ))
+                counter += 1
 
         with st.spinner("Calculating Realistic Layout Matrix..."):
             packer.pack(
@@ -229,7 +237,7 @@ if st.button("🚀 Run AI Optimization"):
 # --- VISUALIZATION AND REPORTING OUTPUT LAYER ---
 if 'last_packer' in st.session_state:
     packer = st.session_state.last_packer
-    manifest_lookup = {item["name"]: item for item in st.session_state.manifest}
+    manifest_lookup = {f"{item['name']} #{i+1}": item for item in st.session_state.manifest for i in range(item["quantity"])}
     truck_vol = float(truck_w * truck_h * truck_d)
    
     for b in packer.bins:
@@ -259,7 +267,8 @@ if 'last_packer' in st.session_state:
         
         col1, col2, col3 = st.columns(3)
         with col1:
-            st.metric("Total Packed Count", f"{len(b.items)} / {len(st.session_state.manifest)}")
+            total_items = sum(x["quantity"] for x in st.session_state.manifest)
+            st.metric("Total Packed Count", f"{len(b.items)} / {total_items}")
         with col2:
             st.metric("Space Volume Utilization", f"{utilization_rate:.1f}%")
         with col3:
