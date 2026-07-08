@@ -2,6 +2,7 @@ import streamlit as st
 from py3dbp import Packer, Bin, Item
 import plotly.graph_objects as go
 from dataclasses import dataclass
+from orientation_editor import launch_orientation_editor
 
 # --- CONSTANTS & CONFIGURATION ---
 LOAD_LIMITS = {
@@ -183,22 +184,89 @@ add_item = st.sidebar.button("Add Item to Manifest")
 
 if 'manifest' not in st.session_state:
     st.session_state.manifest = []
+if "editing_orientation" not in st.session_state:
+    st.session_state.editing_orientation = None
 
 if add_item:
+
     if any(item["name"] == item_name for item in st.session_state.manifest):
         st.sidebar.error("Package name already exists!")
+
     else:
-        st.session_state.manifest.append({
-            "name": item_name, "w": item_w, "h": item_h, "d": item_d,
-            "weight": item_weight, "fragility": fragility,
-            "load_limit": LOAD_LIMITS[fragility],
-            "quantity": quantity,
-            "orientation": orientation_flag 
-        })
-        st.sidebar.success(f"Added {item_name}!")
+
+        if orientation_flag:
+
+            st.session_state.editing_orientation = {
+
+                "name": item_name,
+                "width": item_w,
+                "height": item_h,
+                "depth": item_d,
+                "weight": item_weight,
+                "fragility": fragility,
+                "quantity": quantity,
+                "load_limit": LOAD_LIMITS[fragility]
+
+            }
+
+            st.rerun()
+            st.write(st.session_state.manifest)
+
+        else:
+
+            st.session_state.manifest.append({
+
+                "name": item_name,
+
+                "w": item_w,
+                "h": item_h,
+                "d": item_d,
+
+                "weight": item_weight,
+
+                "fragility": fragility,
+
+                "load_limit": LOAD_LIMITS[fragility],
+
+                "quantity": quantity,
+
+                "orientation": False
+
+            })
+
+            st.sidebar.success(f"Added {item_name}!")
 
 st.subheader("Current Cargo Manifest")
 st.write(st.session_state.manifest)
+
+# --------------------------------------------------
+# Orientation Editor Popup
+# --------------------------------------------------
+
+if st.session_state.editing_orientation is not None:
+
+    result = launch_orientation_editor(
+        **st.session_state.editing_orientation
+    )
+
+    if result is None:
+        # User cancelled
+        st.session_state.editing_orientation = None
+        st.rerun()
+
+    elif result != "WAITING":
+        # User confirmed orientation
+        result["orientation"] = False   # rotation already fixed
+
+        st.session_state.manifest.append(result)
+
+        st.session_state.editing_orientation = None
+
+        st.success(f"Added {result['name']}!")
+
+        st.rerun()
+
+    st.stop()
 
 # --- RUN EXECUTION SOLVER ---
 if st.button("🚀 Run AI Optimization"):
