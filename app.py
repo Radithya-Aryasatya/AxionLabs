@@ -1,3 +1,4 @@
+#app.py
 import streamlit as st
 from py3dbp import Packer, Bin, Item
 import plotly.graph_objects as go
@@ -27,14 +28,32 @@ class PackedItem:
     limit: float
 
 # --- MODULAR BUSINESS LOGIC LAYER ---
-def get_color(level: str) -> str:
-    colors = {
-        "Normal": "green",
-        "Medium": "yellow",
-        "Fragile": "orange",
-        "Extremely Fragile": "red"
-    }
-    return colors.get(level, "blue")
+def get_color(name):
+
+    palette = [
+        "#1f77b4",   # blue
+        "#ff7f0e",   # orange
+        "#2ca02c",   # green
+        "#d62728",   # red
+        "#9467bd",   # purple
+        "#8c564b",   # brown
+        "#e377c2",   # pink
+        "#17becf",   # cyan
+        "#bcbd22",   # olive
+        "#7f7f7f"    # gray
+    ]
+
+    if "color_map" not in st.session_state:
+        st.session_state.color_map = {}
+
+    # Remove instance number
+    base_name = name.split("#")[0].strip()
+
+    if base_name not in st.session_state.color_map:
+        idx = len(st.session_state.color_map) % len(palette)
+        st.session_state.color_map[base_name] = palette[idx]
+
+    return st.session_state.color_map[base_name]
 
 def calculate_overlap_area(c_x: float, c_w: float, c_z: float, c_d: float, 
                            s_x: float, s_w: float, s_z: float, s_d: float) -> float:
@@ -113,7 +132,7 @@ def render_3d_packing_plot(items: list[PackedItem], truck_dims: tuple[float, flo
             i=i_cube, j=j_cube, k=k_cube,
             opacity=0.85,  
             flatshading=True,
-            color=get_color(item.fragility),
+            color=get_color(item.name),
             name=item.name,
             hoverinfo="text",
             text=hover_info
@@ -143,12 +162,21 @@ def render_3d_packing_plot(items: list[PackedItem], truck_dims: tuple[float, flo
             hoverinfo="skip"
         ))
 
+    m = max(truck_w, truck_h, truck_d)
+
     fig.update_layout(
         scene=dict(
             xaxis=dict(range=[0, truck_w], title="Width (X)"),
-            yaxis=dict(range=[0, truck_h], title="Height (Y)"), 
-            zaxis=dict(range=[0, truck_d], title="Depth (Z)")  
-        ),
+            yaxis=dict(range=[0, truck_h], title="Height (Y)"),
+            zaxis=dict(range=[0, truck_d], title="Depth (Z)"),
+
+            aspectmode="manual",
+            aspectratio=dict(
+                x=truck_w / m,
+                y=truck_h / m,
+                z=truck_d / m
+            )
+        ),  
         margin=dict(l=0, r=0, b=0, t=0)
     )
     return fig
@@ -288,7 +316,7 @@ if st.button("🚀 Run AI Optimization"):
                     level=1,
                     loadbear=obj["load_limit"],
                     updown=obj["orientation"],
-                    color=get_color(obj["fragility"])
+                    color=get_color(obj["name"])
                 ))
                 counter += 1
 

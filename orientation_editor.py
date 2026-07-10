@@ -1,3 +1,4 @@
+#orientation_editor.py
 import streamlit as st
 import plotly.graph_objects as go
 from dataclasses import dataclass
@@ -201,6 +202,8 @@ def build_preview(item):
             b=0,
             t=40
         ),
+        
+        m = max(w, h, d),
 
         scene=dict(
             dragmode="orbit",
@@ -220,7 +223,14 @@ def build_preview(item):
                 range=[0,max(w,h,d)*1.2]
             ),
 
-            aspectmode="data",
+            
+
+            aspectmode="manual",
+            aspectratio=dict(
+                x=w / m,
+                y=h / m,
+                z=d / m
+            ),
             camera=dict(
                 eye=dict(x=1.5, y=1.5, z=1.2)
             ),
@@ -469,4 +479,3 @@ def reset_orientation_editor():
         if key in st.session_state:
 
             del st.session_state[key]
-
