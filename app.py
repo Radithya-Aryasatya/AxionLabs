@@ -106,9 +106,104 @@ def calculate_load_distribution(items: list[PackedItem]) -> tuple[dict[str, floa
                 
     return weight_on_top, support_graph
 
+def calculate_offloading_score(items, manifest_lookup):
+    """
+    Higher score = easier unloading.
+
+    Sequence 1 should be closest to truck door.
+    Sequence 2 slightly deeper.
+    etc.
+    """
+
+    if len(items) == 0:
+        return 100.0
+
+    max_depth = max(i.z + i.d for i in items)
+
+    total_error = 0.0
+
+    max_sequence = max(
+        manifest_lookup[i.name]["sequence"]
+        for i in items
+    )
+
+    if max_sequence == 1:
+        return 100.0
+
+    for item in items:
+
+        desired_position = (
+            (manifest_lookup[item.name]["sequence"] - 1)
+            / (max_sequence - 1)
+        )
+
+        actual_position = 1 - (
+            item.z / max_depth
+        )
+
+        total_error += abs(
+            desired_position - actual_position
+        )
+
+    average_error = total_error / len(items)
+
+    score = max(
+        0,
+        100 - average_error * 100
+    )
+
+    return score
+
+def score_to_stars(score):
+    """
+    Converts a percentage score into a star rating.
+    """
+
+    if score >= 95:
+        return "★★★★★", "Excellent"
+
+    elif score >= 70:
+        return "★★★★☆", "Good"
+
+    elif score >= 45:
+        return "★★★☆☆", "Fair"
+
+    elif score >= 25:
+        return "★★☆☆☆", "Poor"
+
+    else:
+        return "★☆☆☆☆", "Very Poor"
+
 # --- VISUALIZATION ENGINE ---
 def render_3d_packing_plot(items: list[PackedItem], truck_dims: tuple[float, float, float]) -> go.Figure:
+    truck_w, truck_h, truck_d = truck_dims
     fig = go.Figure()
+    rear_depth = truck_d * 0.08   # last 8% of truck
+
+    fig.add_trace(
+        go.Mesh3d(
+            x=[
+                0, truck_w, truck_w, 0
+            ],
+            y=[
+                0, 0, 0, 0
+            ],
+            z=[
+                truck_d - rear_depth,
+                truck_d - rear_depth,
+                truck_d,
+                truck_d
+            ],
+            i=[0,0],
+            j=[1,2],
+            k=[2,3],
+            color="red",
+            opacity=0.35,
+            hovertext="Rear Loading Door",
+            hoverinfo="text",
+            showscale=False
+        )#YEA FIX THIS ONE FOR SURE MAN
+    )
     truck_w, truck_h, truck_d = truck_dims
 
     for item in items:
@@ -194,8 +289,8 @@ st.title("Axion Labs: Fleet Space Optimization")
 
 st.sidebar.header("1. Define Vehicle Space")
 truck_w = st.sidebar.number_input("Truck Width (cm)", value=600)
-truck_h = st.sidebar.number_input("Truck Height (cm)", value=600)
-truck_d = st.sidebar.number_input("Truck Depth (cm)", value=600)
+truck_h = st.sidebar.number_input("Truck Depth (cm)", value=600)
+truck_d = st.sidebar.number_input("Truck Height (cm)", value=600)
 truck_weight = st.sidebar.number_input("Max Weight Capacity (kg)", value=4000)
 
 st.sidebar.header("2. Add Cargo Item")
@@ -205,7 +300,12 @@ item_h = st.sidebar.number_input("Item Height", value=200)
 item_d = st.sidebar.number_input("Item Depth", value=200)
 item_weight = st.sidebar.number_input("Item Weight (kg)", value=15)
 quantity = st.sidebar.number_input("Quantity", min_value=1, value=1, step=1)
-
+unloading_sequence = st.sidebar.number_input(
+    "Unloading Sequence",
+    min_value=1,
+    value=1,
+    step=1
+)
 fragility = st.sidebar.selectbox("Fragility Level", list(LOAD_LIMITS.keys()))
 add_item = st.sidebar.button("Add Item to Manifest")
 
@@ -229,8 +329,8 @@ if add_item:
                 "weight": item_weight,
                 "fragility": fragility,
                 "quantity": quantity,
-                "load_limit": LOAD_LIMITS[fragility]
-
+                "load_limit": LOAD_LIMITS[fragility],
+                "sequence": unloading_sequence
             }
         st.rerun()
         st.write(st.session_state.manifest)
@@ -275,8 +375,15 @@ if st.button("🚀 Run AI Optimization"):
         packer = Packer()
         packer.addBin(Bin('Truck', (truck_w, truck_h, truck_d), truck_weight))
        
+        sorted_manifest = sorted(
+            st.session_state.manifest,
+            key=lambda obj: obj["sequence"],
+            reverse=True
+        )
+
         counter = 0
-        for obj in st.session_state.manifest:
+
+        for obj in sorted_manifest:
             for i in range(obj["quantity"]):
                 packer.addItem(Item(
                     partno=f"ITEM-{counter}",
@@ -325,22 +432,39 @@ if 'last_packer' in st.session_state:
                 fragility=m_data["fragility"],
                 limit=m_data["load_limit"] 
             ))
-
+            
         utilization_rate = calculate_utilization(packed_geometries, truck_vol)
         load_distribution, support_graph = calculate_load_distribution(packed_geometries)
+        offloading_score = calculate_offloading_score(
+            packed_geometries,
+            manifest_lookup
+        )
         
         safe_count = sum(1 for item in packed_geometries if load_distribution[item.name] <= item.limit)
         safety_rate = (safe_count / len(packed_geometries) * 100) if packed_geometries else 100.0
+
+        safety_stars, safety_text = score_to_stars(
+            safety_rate
+        )
+        offloading_stars, offloading_text = score_to_stars(
+            offloading_score
+        )
         
-        col1, col2, col3 = st.columns(3)
+        col1, col2, col3, col4 = st.columns(4)
         with col1:
             total_items = sum(x["quantity"] for x in st.session_state.manifest)
             st.metric("Total Packed Count", f"{len(b.items)} / {total_items}")
         with col2:
             st.metric("Space Volume Utilization", f"{utilization_rate:.1f}%")
         with col3:
-            st.metric("Structural Safety Score", f"{safety_rate:.1f}%")
-       
+            st.metric("Structural Safety Score", safety_stars)
+            st.caption(safety_text)
+        with col4:
+            st.metric(
+                "Offloading Score",
+                offloading_stars
+            )
+            st.caption(offloading_text)
         unfitted = getattr(b, 'unfitted_items', [])
         if unfitted:
             st.subheader("⚠️ Unpacked Items (Rejected By Constraints)")

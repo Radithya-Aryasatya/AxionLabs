@@ -21,6 +21,7 @@ class OrientationItem:
     fragility: str
     quantity: int
     load_limit: float
+    sequence: int
 
 
 # ------------------------------------------------------------
@@ -333,7 +334,7 @@ def orientation_editor(item):
         )
 
     st.divider()
-    
+
 
     st.subheader("Finalize")
 
@@ -388,6 +389,8 @@ def orientation_editor(item):
 
             "load_limit": item.load_limit,
 
+            "sequence": item.sequence,
+
             "orientation_index": st.session_state.orientation_index
 
         }
@@ -415,7 +418,8 @@ def launch_orientation_editor(
     weight,
     fragility,
     quantity,
-    load_limit
+    load_limit,
+    sequence
 ):
     """
     Launches the orientation editor.
@@ -448,7 +452,9 @@ def launch_orientation_editor(
 
         quantity=quantity,
 
-        load_limit=load_limit
+        load_limit=load_limit,
+
+        sequence=sequence
 
     )
 
