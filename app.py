@@ -166,9 +166,9 @@ def render_3d_packing_plot(items: list[PackedItem], truck_dims: tuple[float, flo
 
     fig.update_layout(
         scene=dict(
-            xaxis=dict(range=[0, truck_w], title="Width (X)"),
-            yaxis=dict(range=[0, truck_h], title="Height (Y)"),
-            zaxis=dict(range=[0, truck_d], title="Depth (Z)"),
+            xaxis=dict(range=[0, truck_w], title="Width"),
+            yaxis=dict(range=[0, truck_h], title="Depth"),
+            zaxis=dict(range=[0, truck_d], title="Height"),
 
             aspectmode="manual",
             aspectratio=dict(
@@ -205,8 +205,7 @@ item_h = st.sidebar.number_input("Item Height", value=200)
 item_d = st.sidebar.number_input("Item Depth", value=200)
 item_weight = st.sidebar.number_input("Item Weight (kg)", value=15)
 quantity = st.sidebar.number_input("Quantity", min_value=1, value=1, step=1)
-orientation = st.sidebar.selectbox("Orientation Rule", ["Any Orientation","Keep Upright"])
-orientation_flag = orientation == "Any Orientation"
+
 fragility = st.sidebar.selectbox("Fragility Level", list(LOAD_LIMITS.keys()))
 add_item = st.sidebar.button("Add Item to Manifest")
 
@@ -221,10 +220,7 @@ if add_item:
         st.sidebar.error("Package name already exists!")
 
     else:
-
-        if orientation_flag:
-
-            st.session_state.editing_orientation = {
+        st.session_state.editing_orientation = {
 
                 "name": item_name,
                 "width": item_w,
@@ -236,33 +232,8 @@ if add_item:
                 "load_limit": LOAD_LIMITS[fragility]
 
             }
-
-            st.rerun()
-            st.write(st.session_state.manifest)
-
-        else:
-
-            st.session_state.manifest.append({
-
-                "name": item_name,
-
-                "w": item_w,
-                "h": item_h,
-                "d": item_d,
-
-                "weight": item_weight,
-
-                "fragility": fragility,
-
-                "load_limit": LOAD_LIMITS[fragility],
-
-                "quantity": quantity,
-
-                "orientation": False
-
-            })
-
-            st.sidebar.success(f"Added {item_name}!")
+        st.rerun()
+        st.write(st.session_state.manifest)
 
 st.subheader("Current Cargo Manifest")
 st.write(st.session_state.manifest)

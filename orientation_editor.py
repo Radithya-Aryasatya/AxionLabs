@@ -188,6 +188,7 @@ def build_preview(item):
         )
 
     )
+    m = max(w, h, d)
 
     fig.update_layout(
 
@@ -203,7 +204,7 @@ def build_preview(item):
             t=40
         ),
         
-        m = max(w, h, d),
+        
 
         scene=dict(
             dragmode="orbit",
@@ -214,12 +215,12 @@ def build_preview(item):
             ),
 
             yaxis=dict(
-                title="Height",
+                title="Depth",
                 range=[0,max(w,h,d)*1.2]
             ),
 
             zaxis=dict(
-                title="Depth",
+                title="Height",
                 range=[0,max(w,h,d)*1.2]
             ),
 
@@ -265,20 +266,12 @@ def orientation_editor(item):
 
         w, h, d = current_orientation()
 
-        st.subheader("Current Orientation")
-
-        metric1, metric2, metric3 = st.columns(3)
-
-        metric1.metric("Width", f"{w} cm")
-        metric2.metric("Height", f"{h} cm")
-        metric3.metric("Depth", f"{d} cm")
-
         st.divider()
 
         st.subheader("Orientation")
 
         st.caption(
-            f"Orientation "
+            f"Rotation "
             f"{st.session_state.orientation_index + 1}"
             f" of "
             f"{len(st.session_state.orientation_options)}"
@@ -340,6 +333,7 @@ def orientation_editor(item):
         )
 
     st.divider()
+    
 
     st.subheader("Finalize")
 
