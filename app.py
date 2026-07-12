@@ -174,6 +174,32 @@ def score_to_stars(score):
     else:
         return "★☆☆☆☆", "Very Poor"
 
+def build_loading_priority(manifest):
+    """
+    Returns the loading order.
+
+    Higher priority items are packed FIRST.
+    """
+
+    return sorted(
+        manifest,
+        key=lambda item: (
+
+            # unload later first
+            -item["sequence"],
+
+            # fragile goes later
+            item["load_limit"],
+
+            # larger volume first
+            -(item["w"] * item["h"] * item["d"]),
+
+            # heavier first
+            -item["weight"]
+
+        )
+    )
+
 # --- VISUALIZATION ENGINE ---
 def render_3d_packing_plot(items: list[PackedItem], truck_dims: tuple[float, float, float]) -> go.Figure:
     truck_w, truck_h, truck_d = truck_dims
@@ -375,15 +401,13 @@ if st.button("🚀 Run AI Optimization"):
         packer = Packer()
         packer.addBin(Bin('Truck', (truck_w, truck_h, truck_d), truck_weight))
        
-        sorted_manifest = sorted(
-            st.session_state.manifest,
-            key=lambda obj: obj["sequence"],
-            reverse=True
+        loading_order = build_loading_priority(
+            st.session_state.manifest
         )
 
         counter = 0
 
-        for obj in sorted_manifest:
+        for obj in loading_order:
             for i in range(obj["quantity"]):
                 packer.addItem(Item(
                     partno=f"ITEM-{counter}",
@@ -471,24 +495,24 @@ if 'last_packer' in st.session_state:
             for item in unfitted:
                 st.error(f"**{item.name}** could not be packed securely. Adjust dimensions or stack settings.")
                 
-        col_report, col_graph = st.columns(2)
+        #col_report, col_graph = st.columns(2)
         
-        with col_report:
-            st.subheader("Structural Load Distribution Analysis")
-            for item in packed_geometries:
-                current_load = load_distribution[item.name]
-                if current_load <= item.limit:
-                    st.success(f"✅ **{item.name}** | Capacity: {current_load:.1f} kg / {item.limit} kg")
-                else:
-                    st.error(f"⚠️ **{item.name}** OVERLOADED | Capacity: {current_load:.1f} kg / {item.limit} kg")
+        #with col_report:
+            #st.subheader("Structural Load Distribution Analysis")
+            #for item in packed_geometries:
+                #current_load = load_distribution[item.name]
+                #if current_load <= item.limit:
+                    #st.success(f"✅ **{item.name}** | Capacity: {current_load:.1f} kg / {item.limit} kg")
+                #else:
+                    #st.error(f"⚠️ **{item.name}** OVERLOADED | Capacity: {current_load:.1f} kg / {item.limit} kg")
 
-        with col_graph:
-            st.subheader("Structural Support Chain (Load Path)")
-            base_items = [item.name for item in packed_geometries if item.y == 0.0]
-            if not base_items:
-                st.write("No items packed.")
-            for base in base_items:
-                render_support_tree(support_graph, base)
+        #with col_graph:
+            #st.subheader("Structural Support Chain (Load Path)")
+            #base_items = [item.name for item in packed_geometries if item.y == 0.0]
+            #if not base_items:
+                #st.write("No items packed.")
+            #for base in base_items:
+                #render_support_tree(support_graph, base)
 
         if st.button("📊 Render 3D Packing Layout Matrix", key=f"render_plot_{b.partno}"):
             with st.spinner("Building interactive scene graph..."):
