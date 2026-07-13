@@ -4,6 +4,7 @@ from py3dbp import Packer, Bin, Item
 import plotly.graph_objects as go
 from dataclasses import dataclass
 from orientation_editor import launch_orientation_editor
+import pandas as pd
 
 
 
@@ -449,7 +450,33 @@ if add_item:
         st.write(st.session_state.manifest)
 
 st.subheader("Current Cargo Manifest")
-st.write(st.session_state.manifest)
+if not st.session_state.manifest:
+    st.info("No cargo has been added yet.")
+
+else:
+
+    rows = []
+
+    for i, cargo in enumerate(st.session_state.manifest, start=1):
+
+        rows.append({
+            "#": i,
+            "Cargo Name": cargo["name"],
+            "Dimensions (cm)": f'{cargo["w"]} × {cargo["h"]} × {cargo["d"]}',
+            "Weight (kg)": cargo["weight"],
+            "Quantity": cargo["quantity"],
+            "Max Load (kg)": cargo["max_load"],
+            "Unload Seq.": cargo["sequence"],
+        })
+
+    df = pd.DataFrame(rows)
+
+    st.dataframe(
+        df,
+        use_container_width=True,
+        hide_index=True
+    )
+
 
 # --------------------------------------------------
 # Orientation Editor Popup
