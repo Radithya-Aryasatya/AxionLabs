@@ -5,13 +5,7 @@ import plotly.graph_objects as go
 from dataclasses import dataclass
 from orientation_editor import launch_orientation_editor
 
-# --- CONSTANTS & CONFIGURATION ---
-LOAD_LIMITS = {
-    "Normal": float("inf"),
-    "Medium": 80.0,
-    "Fragile": 30.0,
-    "Extremely Fragile": 10.0
-}
+
 
 # --- DATA STRUCTURE ARCHITECTURE ---
 @dataclass
@@ -24,8 +18,8 @@ class PackedItem:
     h: float
     d: float
     weight: float
-    fragility: str
-    limit: float
+    
+    max_load: float
 
 # --- MODULAR BUSINESS LOGIC LAYER ---
 def get_color(name):
@@ -67,6 +61,17 @@ def calculate_utilization(items: list[PackedItem], truck_volume: float) -> float
         return 0.0
     used_volume = sum((item.w * item.h * item.d) for item in items)
     return (used_volume / truck_volume) * 100
+
+def is_layout_safe(items):
+
+    load_distribution, _ = calculate_load_distribution(items)
+
+    for item in items:
+
+        if load_distribution[item.name] > item.max_load:
+            return False
+
+    return True
 
 def calculate_load_distribution(items: list[PackedItem]) -> tuple[dict[str, float], dict[str, list[str]]]:
     EPS = 1e-3
@@ -189,7 +194,7 @@ def build_loading_priority(manifest):
             -item["sequence"],
 
             # fragile goes later
-            item["load_limit"],
+            item["max_load"],
 
             # larger volume first
             -(item["w"] * item["h"] * item["d"]),
@@ -200,6 +205,53 @@ def build_loading_priority(manifest):
         )
     )
 
+
+#def generate_candidate_orders(manifest):
+
+    #return [
+
+        # Candidate 1
+        #sorted(
+            #manifest,
+            #key=lambda x: (
+                #-x["sequence"],
+                #x["max_load"],
+                #-(x["w"] * x["h"] * x["d"]),
+                #-x["weight"]
+            #)
+        #),
+
+        # Candidate 2
+        #sorted(
+            #manifest,
+            #key=lambda x: (
+                #-x["weight"],
+                #x["max_load"],
+                #-x["sequence"]
+            #)
+        #),
+
+        # Candidate 3
+        #sorted(
+            #manifest,
+            #key=lambda x: (
+                #x["max_load"],
+                #-x["weight"]
+            #)
+        #),
+
+        # Candidate 4
+        #sorted(
+            #manifest,
+            #key=lambda x: (
+                #-(x["w"] * x["h"] * x["d"]),
+                #-x["weight"]
+            #)
+        #),
+
+    #]
+
+
 # --- VISUALIZATION ENGINE ---
 def render_3d_packing_plot(items: list[PackedItem], truck_dims: tuple[float, float, float]) -> go.Figure:
     truck_w, truck_h, truck_d = truck_dims
@@ -208,35 +260,54 @@ def render_3d_packing_plot(items: list[PackedItem], truck_dims: tuple[float, flo
 
     fig.add_trace(
         go.Mesh3d(
-            x=[
-                0, truck_w, truck_w, 0
-            ],
-            y=[
-                0, 0, 0, 0
-            ],
-            z=[
-                truck_d - rear_depth,
-                truck_d - rear_depth,
-                truck_d,
-                truck_d
-            ],
-            i=[0,0],
-            j=[1,2],
-            k=[2,3],
+            x=[0, truck_w, truck_w, 0],
+            y=[truck_d - rear_depth, truck_d - rear_depth, truck_d, truck_d],
+            z=[0, 0, 0, 0],
+            i=[0, 0],
+            j=[1, 2],
+            k=[2, 3],
             color="red",
             opacity=0.35,
             hovertext="Rear Loading Door",
             hoverinfo="text",
             showscale=False
-        )#YEA FIX THIS ONE FOR SURE MAN
+        )
     )
     truck_w, truck_h, truck_d = truck_dims
 
     for item in items:
-        vx = [item.x, item.x+item.w, item.x+item.w, item.x, item.x, item.x+item.w, item.x+item.w, item.x]
-        vy = [item.y, item.y, item.y+item.h, item.y+item.h, item.y, item.y, item.y+item.h, item.y+item.h]
-        vz = [item.z, item.z, item.z, item.z, item.z+item.d, item.z+item.d, item.z+item.d, item.z+item.d]
+        vx = [
+            item.x,
+            item.x + item.w,
+            item.x + item.w,
+            item.x,
+            item.x,
+            item.x + item.w,
+            item.x + item.w,
+            item.x
+        ]
 
+        vy = [
+            item.z,
+            item.z,
+            item.z,
+            item.z,
+            item.z + item.d,
+            item.z + item.d,
+            item.z + item.d,
+            item.z + item.d
+        ]
+
+        vz = [
+            item.y,
+            item.y,
+            item.y + item.h,
+            item.y + item.h,
+            item.y,
+            item.y,
+            item.y + item.h,
+            item.y + item.h
+        ]
         i_cube = [7, 0, 0, 0, 4, 4, 6, 6, 4, 0, 3, 2]
         j_cube = [3, 4, 1, 2, 5, 6, 5, 2, 0, 1, 6, 3]
         k_cube = [0, 7, 2, 3, 6, 7, 1, 1, 5, 5, 7, 6]
@@ -244,7 +315,7 @@ def render_3d_packing_plot(items: list[PackedItem], truck_dims: tuple[float, flo
         hover_info = (
             f"<b>Item:</b> {item.name}<br>"
             f"<b>Weight:</b> {item.weight} kg<br>"
-            f"<b>Fragility:</b> {item.fragility}<br>"
+            f"<b>Max Load:</b> {item.max_load} kg<br>"
             f"<b>Dimensions:</b> {item.w}x{item.h}x{item.d} cm"
         )
 
@@ -276,7 +347,7 @@ def render_3d_packing_plot(items: list[PackedItem], truck_dims: tuple[float, flo
         ]
 
         fig.add_trace(go.Scatter3d(
-            x=x_lines, y=y_lines, z=z_lines,
+            x=x_lines, y=z_lines, z=y_lines,
             mode='lines', 
             line=dict(color='black', width=4), 
             showlegend=False,
@@ -288,14 +359,22 @@ def render_3d_packing_plot(items: list[PackedItem], truck_dims: tuple[float, flo
     fig.update_layout(
         scene=dict(
             xaxis=dict(range=[0, truck_w], title="Width"),
-            yaxis=dict(range=[0, truck_h], title="Depth"),
-            zaxis=dict(range=[0, truck_d], title="Height"),
+            yaxis=dict(range=[0, truck_d], title="Depth"),
+            zaxis=dict(range=[0, truck_h], title="Height"),
+
+            camera=dict(
+                eye=dict(
+                x=1.7,
+                y=-1.7,
+                z=1.2
+                )
+            ),
 
             aspectmode="manual",
             aspectratio=dict(
                 x=truck_w / m,
-                y=truck_h / m,
-                z=truck_d / m
+                y=truck_d / m,
+                z=truck_h / m
             )
         ),  
         margin=dict(l=0, r=0, b=0, t=0)
@@ -315,8 +394,8 @@ st.title("Axion Labs: Fleet Space Optimization")
 
 st.sidebar.header("1. Define Vehicle Space")
 truck_w = st.sidebar.number_input("Truck Width (cm)", value=600)
-truck_h = st.sidebar.number_input("Truck Depth (cm)", value=600)
-truck_d = st.sidebar.number_input("Truck Height (cm)", value=600)
+truck_h = st.sidebar.number_input("Truck Height (cm)", value=600)
+truck_d = st.sidebar.number_input("Truck Depth (cm)", value=600)
 truck_weight = st.sidebar.number_input("Max Weight Capacity (kg)", value=4000)
 
 st.sidebar.header("2. Add Cargo Item")
@@ -325,6 +404,14 @@ item_w = st.sidebar.number_input("Item Width", value=200)
 item_h = st.sidebar.number_input("Item Height", value=200)
 item_d = st.sidebar.number_input("Item Depth", value=200)
 item_weight = st.sidebar.number_input("Item Weight (kg)", value=15)
+
+# --- CONSTANTS & CONFIGURATION ---
+max_supported_load = st.sidebar.number_input(
+    "Maximum Supported Load (kg)",
+    min_value=0.0,
+    value=50.0,
+)
+
 quantity = st.sidebar.number_input("Quantity", min_value=1, value=1, step=1)
 unloading_sequence = st.sidebar.number_input(
     "Unloading Sequence",
@@ -332,7 +419,7 @@ unloading_sequence = st.sidebar.number_input(
     value=1,
     step=1
 )
-fragility = st.sidebar.selectbox("Fragility Level", list(LOAD_LIMITS.keys()))
+
 add_item = st.sidebar.button("Add Item to Manifest")
 
 if 'manifest' not in st.session_state:
@@ -353,9 +440,9 @@ if add_item:
                 "height": item_h,
                 "depth": item_d,
                 "weight": item_weight,
-                "fragility": fragility,
+                
                 "quantity": quantity,
-                "load_limit": LOAD_LIMITS[fragility],
+                "max_load": max_supported_load,
                 "sequence": unloading_sequence
             }
         st.rerun()
@@ -398,39 +485,188 @@ if st.button("🚀 Run AI Optimization"):
     if not st.session_state.manifest:
         st.error("Your cargo manifest is completely empty!")
     else:
-        packer = Packer()
-        packer.addBin(Bin('Truck', (truck_w, truck_h, truck_d), truck_weight))
-       
+        all_layouts = []
+
+        
+        #candidate_orders = generate_candidate_orders(
+            #st.session_state.manifest
+        #)
+
+        #for loading_order in candidate_orders:
+        
         loading_order = build_loading_priority(
             st.session_state.manifest
         )
 
+        packer = Packer()
+
+        packer.addBin(
+                Bin(
+                    "Truck",
+                    (truck_w, truck_h, truck_d),
+                    truck_weight
+                )
+            )
+
         counter = 0
 
         for obj in loading_order:
-            for i in range(obj["quantity"]):
-                packer.addItem(Item(
-                    partno=f"ITEM-{counter}",
-                    name=f'{obj["name"]} #{i+1}',
-                    typeof='cube',
-                    WHD=(obj["w"], obj["h"], obj["d"]),
-                    weight=obj["weight"],
-                    level=1,
-                    loadbear=obj["load_limit"],
-                    updown=obj["orientation"],
-                    color=get_color(obj["name"])
-                ))
-                counter += 1
 
-        with st.spinner("Calculating Realistic Layout Matrix..."):
-            packer.pack(
+                for i in range(obj["quantity"]):
+
+                    packer.addItem(
+
+                        Item(
+
+                            partno=f"ITEM-{counter}",
+
+                            name=f'{obj["name"]} #{i+1}',
+
+                            typeof="cube",
+
+                            WHD=(
+                                obj["w"],
+                                obj["h"],
+                                obj["d"]
+                            ),
+
+                            weight=obj["weight"],
+
+                            level=1,
+
+                            loadbear=obj["max_load"],
+
+                            updown=obj["orientation"],
+
+                            color=get_color(obj["name"])
+
+                        )
+
+                    )
+
+                    counter += 1
+
+        packer.pack(
+
                 bigger_first=True,
-                fix_point=True,      
-                check_stable=True,   
-                support_surface_ratio=0.75 
+
+                fix_point=True,
+
+                check_stable=True,
+
+                support_surface_ratio=0.75
+
             )
-            packer.putOrder()
-            st.session_state.last_packer = packer
+
+        packer.putOrder()
+
+        packed_geometries = []
+
+        manifest_lookup = {
+
+                f"{item['name']} #{i+1}": item
+
+                for item in st.session_state.manifest
+
+                for i in range(item["quantity"])
+
+            }
+
+        for b in packer.bins:
+
+                for item in b.items:
+
+                    m = manifest_lookup[item.name]
+
+                    pos = item.position
+
+                    dim = item.getDimension()
+
+                    packed_geometries.append(
+
+                        PackedItem(
+
+                            name=item.name,
+
+                            x=float(pos[0]),
+
+                            y=float(pos[1]),
+
+                            z=float(pos[2]),
+
+                            w=float(dim[0]),
+
+                            h=float(dim[1]),
+
+                            d=float(dim[2]),
+
+                            weight=float(item.weight),
+
+                            max_load=m["max_load"]
+
+                        )
+
+                    )
+        utilization = calculate_utilization(
+                packed_geometries,
+                float(truck_w * truck_h * truck_d)
+            )
+
+        load_distribution, _ = calculate_load_distribution(
+                packed_geometries
+            )
+
+        safe_count = sum(
+                1
+                for item in packed_geometries
+                if load_distribution[item.name] <= item.max_load
+            )
+
+        safety_rate = (
+                safe_count / len(packed_geometries) * 100
+                if packed_geometries else 0
+            )
+
+        offloading_score = calculate_offloading_score(
+                packed_geometries,
+                manifest_lookup
+            )
+
+        overall_score = (
+                utilization * 0.4
+                + safety_rate * 0.4
+                + offloading_score * 0.2
+            )
+
+        all_layouts.append({
+
+                "packer": packer,
+
+                "packed": packed_geometries,
+
+                "utilization": utilization,
+
+                "safety": safety_rate,
+
+                "offloading": offloading_score,
+
+                "overall": overall_score
+            })
+
+        if len(all_layouts) == 0:
+
+            st.error("No layout generated.")
+
+        else:
+            all_layouts.sort(
+                key=lambda x: x["overall"],
+                reverse=True
+            )
+
+            st.session_state.layouts = all_layouts
+            best_layout = all_layouts[0]
+
+            st.session_state.last_packer = best_layout["packer"]
 
 # --- VISUALIZATION AND REPORTING OUTPUT LAYER ---
 if 'last_packer' in st.session_state:
@@ -453,8 +689,8 @@ if 'last_packer' in st.session_state:
                 x=float(pos[0]), y=float(pos[1]), z=float(pos[2]),
                 w=float(dim[0]), h=float(dim[1]), d=float(dim[2]),
                 weight=float(item.weight),
-                fragility=m_data["fragility"],
-                limit=m_data["load_limit"] 
+                #erased fragility
+                max_load=m_data["max_load"]
             ))
             
         utilization_rate = calculate_utilization(packed_geometries, truck_vol)
@@ -464,7 +700,7 @@ if 'last_packer' in st.session_state:
             manifest_lookup
         )
         
-        safe_count = sum(1 for item in packed_geometries if load_distribution[item.name] <= item.limit)
+        safe_count = sum(1 for item in packed_geometries if load_distribution[item.name] <= item.max_load)
         safety_rate = (safe_count / len(packed_geometries) * 100) if packed_geometries else 100.0
 
         safety_stars, safety_text = score_to_stars(
@@ -501,10 +737,10 @@ if 'last_packer' in st.session_state:
             #st.subheader("Structural Load Distribution Analysis")
             #for item in packed_geometries:
                 #current_load = load_distribution[item.name]
-                #if current_load <= item.limit:
-                    #st.success(f"✅ **{item.name}** | Capacity: {current_load:.1f} kg / {item.limit} kg")
+                #if current_load <= item.max_load:
+                    #st.success(f"✅ **{item.name}** | Capacity: {current_load:.1f} kg / {item.max_load} kg")
                 #else:
-                    #st.error(f"⚠️ **{item.name}** OVERLOADED | Capacity: {current_load:.1f} kg / {item.limit} kg")
+                    #st.error(f"⚠️ **{item.name}** OVERLOADED | Capacity: {current_load:.1f} kg / {item.max_load} kg")
 
         #with col_graph:
             #st.subheader("Structural Support Chain (Load Path)")

@@ -18,9 +18,8 @@ class OrientationItem:
     height: float
     depth: float
     weight: float
-    fragility: str
     quantity: int
-    load_limit: float
+    max_load: float
     sequence: int
 
 
@@ -132,23 +131,24 @@ def build_preview(item):
     vy = [
         0,
         0,
-        h,
-        h,
-        0,
-        0,
-        h,
-        h
-    ]
-
-    vz = [
-        0,
-        0,
         0,
         0,
         d,
         d,
         d,
         d
+        
+    ]
+
+    vz = [
+        0,
+        0,
+        h,
+        h,
+        0,
+        0,
+        h,
+        h
     ]
 
     i = [7,0,0,0,4,4,6,6,4,0,3,2]
@@ -189,7 +189,9 @@ def build_preview(item):
         )
 
     )
-    m = max(w, h, d)
+    m = max(item.width, item.height, item.depth)
+
+    world = max(item.width, item.height, item.depth) * 1.2
 
     fig.update_layout(
 
@@ -210,31 +212,33 @@ def build_preview(item):
         scene=dict(
             dragmode="orbit",
 
+            
+
             xaxis=dict(
                 title="Width",
-                range=[0,max(w,h,d)*1.2]
+                range=[0, world]
             ),
 
             yaxis=dict(
                 title="Depth",
-                range=[0,max(w,h,d)*1.2]
+                range=[0, world]
             ),
 
             zaxis=dict(
                 title="Height",
-                range=[0,max(w,h,d)*1.2]
+                range=[0, world]
             ),
 
             
 
-            aspectmode="manual",
-            aspectratio=dict(
-                x=w / m,
-                y=h / m,
-                z=d / m
-            ),
+            aspectmode="data",
+            #aspectratio=dict(
+                #x=w / m,
+                #y=h / m,
+                #z=d / m
+            #),
             camera=dict(
-                eye=dict(x=1.5, y=1.5, z=1.2)
+                eye=dict(x=1.7, y=-1.7, z=1.2)
             ),
         )
 
@@ -302,7 +306,8 @@ def orientation_editor(item):
             "Name": item.name,
             "Weight": f"{item.weight} kg",
             "Quantity": item.quantity,
-            "Fragility": item.fragility,
+            "Maximum Supported Load": f"{item.max_load} kg",
+            "Unload Sequence": item.sequence,
             "Orientation": (
                 f"{st.session_state.orientation_index + 1}"
                 f" / "
@@ -383,16 +388,13 @@ def orientation_editor(item):
 
             "weight": item.weight,
 
-            "fragility": item.fragility,
-
             "quantity": item.quantity,
 
-            "load_limit": item.load_limit,
+            "max_load": item.max_load,
 
             "sequence": item.sequence,
 
             "orientation_index": st.session_state.orientation_index
-
         }
 
         reset_orientation_editor()
@@ -416,9 +418,8 @@ def launch_orientation_editor(
     height,
     depth,
     weight,
-    fragility,
     quantity,
-    load_limit,
+    max_load,
     sequence
 ):
     """
@@ -448,14 +449,11 @@ def launch_orientation_editor(
 
         weight=weight,
 
-        fragility=fragility,
-
         quantity=quantity,
 
-        load_limit=load_limit,
+        max_load=max_load,
 
         sequence=sequence
-
     )
 
     return orientation_editor(item)
