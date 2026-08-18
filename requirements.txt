@@ -1,5 +1,6 @@
-# python 3.6.5
-numpy == 1.19.5
-matplotlib == 3.3.4
-Flask==2.2.5
-Flask-Cors==3.0.10
+numpy>=1.26
+matplotlib>=3.8
+Flask>=3.0
+Flask-Cors>=4.0
+streamlit>=1.36
+plotly>=5.20
