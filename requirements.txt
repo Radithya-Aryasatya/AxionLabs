@@ -1,6 +1,5 @@
 numpy>=1.26
-matplotlib>=3.8
-Flask>=3.0
-Flask-Cors>=4.0
+pandas>=2.0
 streamlit>=1.36
 plotly>=5.20
+py3dbp>=1.1.0

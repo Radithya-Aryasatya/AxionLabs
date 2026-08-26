@@ -317,7 +317,7 @@ def render_3d_packing_plot(items: list[PackedItem], truck_dims: tuple[float, flo
             f"<b>Item:</b> {item.name}<br>"
             f"<b>Weight:</b> {item.weight} kg<br>"
             f"<b>Max Load:</b> {item.max_load} kg<br>"
-            f"<b>Dimensions:</b> {item.w}x{item.h}x{item.d} cm"
+            f"<b>Dimensions:</b> {item.w}x{item.h}x{item.d} m"
         )
 
         fig.add_trace(go.Mesh3d(
@@ -394,16 +394,16 @@ st.set_page_config(page_title="Axion Labs Fleet Optimizer", layout="wide")
 st.title("Axion Labs: Fleet Space Optimization")
 
 st.sidebar.header("1. Define Vehicle Space")
-truck_w = st.sidebar.number_input("Truck Width (cm)", value=600)
-truck_h = st.sidebar.number_input("Truck Height (cm)", value=600)
-truck_d = st.sidebar.number_input("Truck Depth (cm)", value=600)
+truck_w = st.sidebar.number_input("Truck Width (m)", value=6.0, step = 0.1)
+truck_h = st.sidebar.number_input("Truck Height (m)", value=6.0, step = 0.1)
+truck_d = st.sidebar.number_input("Truck Depth (m)", value=6.0, step = 0.1)
 truck_weight = st.sidebar.number_input("Max Weight Capacity (kg)", value=4000)
 
 st.sidebar.header("2. Add Cargo Item")
 item_name = st.sidebar.text_input("Item Name", value="Generic Box")
-item_w = st.sidebar.number_input("Item Width", value=200)
-item_h = st.sidebar.number_input("Item Height", value=200)
-item_d = st.sidebar.number_input("Item Depth", value=200)
+item_w = st.sidebar.number_input("Item Width", value=2.0, step = 0.1)
+item_h = st.sidebar.number_input("Item Height", value=2.0, step = 0.1)
+item_d = st.sidebar.number_input("Item Depth", value=2.0, step = 0.1)
 item_weight = st.sidebar.number_input("Item Weight (kg)", value=15)
 
 # --- CONSTANTS & CONFIGURATION ---
@@ -447,35 +447,75 @@ if add_item:
                 "sequence": unloading_sequence
             }
         st.rerun()
-        st.write(st.session_state.manifest)
+
+if "name_reverts" not in st.session_state:
+    st.session_state.name_reverts = {}
+if "pending_warning" not in st.session_state:
+    st.session_state.pending_warning = None
+
+for idx, old_name in st.session_state.name_reverts.items():
+    st.session_state[f"name_{idx}"] = old_name   # safe: widget hasn't run yet this pass
+st.session_state.name_reverts = {}
+
+if st.session_state.pending_warning:
+    st.warning(st.session_state.pending_warning)
+    st.session_state.pending_warning = None
 
 st.subheader("Current Cargo Manifest")
 if not st.session_state.manifest:
     st.info("No cargo has been added yet.")
-
 else:
+    # Header row (fake labels, since the widgets below hide their own labels)
+    h1, h2, h3, h4, h5, h6, h7, h8 = st.columns([2, 1, 1, 1, 1, 1, 1, 0.6])
+    h1.markdown("**Name**")
+    h2.markdown("**Width (m)**")
+    h3.markdown("**Height (m)**")
+    h4.markdown("**Depth (m)**")
+    h5.markdown("**Weight**")
+    h6.markdown("**Qty**")
+    h7.markdown("**Seq**")
 
-    rows = []
+    for i, cargo in enumerate(st.session_state.manifest):
+        c1, c2, c3, c4, c5, c6, c7, c8 = st.columns([2, 1, 1, 1, 1, 1, 1, 0.6])
 
-    for i, cargo in enumerate(st.session_state.manifest, start=1):
+        new_name = c1.text_input(
+            "Name", value=cargo["name"], key=f"name_{i}", label_visibility="collapsed"
+        )
 
-        rows.append({
-            "#": i,
-            "Cargo Name": cargo["name"],
-            "Dimensions (cm)": f'{cargo["w"]} × {cargo["h"]} × {cargo["d"]}',
-            "Weight (kg)": cargo["weight"],
-            "Quantity": cargo["quantity"],
-            "Max Load (kg)": cargo["max_load"],
-            "Unload Seq.": cargo["sequence"],
-        })
+        if new_name != cargo["name"]:
+            is_duplicate = any(
+                other_i != i and other["name"] == new_name
+                for other_i, other in enumerate(st.session_state.manifest)
+            )
+            if is_duplicate:
+                st.session_state.pending_warning = f"'{new_name}' already exists. Reverted to '{cargo['name']}'."
+                st.session_state.name_reverts[i] = cargo["name"]
+                st.rerun()
+            else:
+                cargo["name"] = new_name
 
-    df = pd.DataFrame(rows)
+        cargo["w"] = c2.number_input(
+            "W", value=float(cargo["w"]), step=0.1, key=f"w_{i}", label_visibility="collapsed"
+        )
+        cargo["h"] = c3.number_input(
+            "H", value=float(cargo["h"]), step=0.1, key=f"h_{i}", label_visibility="collapsed"
+        )
+        cargo["d"] = c4.number_input(
+            "D", value=float(cargo["d"]), step=0.1, key=f"d_{i}", label_visibility="collapsed"
+        )
+        cargo["weight"] = c5.number_input(
+            "Weight", value=float(cargo["weight"]), key=f"weight_{i}", label_visibility="collapsed"
+        )
+        cargo["quantity"] = c6.number_input(
+            "Qty", value=int(cargo["quantity"]), min_value=1, step=1, key=f"qty_{i}", label_visibility="collapsed"
+        )
+        cargo["sequence"] = c7.number_input(
+            "Seq", value=int(cargo["sequence"]), min_value=1, step=1, key=f"seq_{i}", label_visibility="collapsed"
+        )
 
-    st.dataframe(
-        df,
-        use_container_width=True,
-        hide_index=True
-    )
+        if c8.button("🗑️", key=f"delete_{i}"):
+            st.session_state.manifest.pop(i)
+            st.rerun()
 
 
 # --------------------------------------------------
@@ -575,7 +615,7 @@ if st.button("🚀 Run AI Optimization"):
 
         packer.pack(
 
-                bigger_first=True,
+                bigger_first=False,
 
                 fix_point=True,
 
