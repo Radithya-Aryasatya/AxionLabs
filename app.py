@@ -371,7 +371,7 @@ def render_3d_packing_plot(items: list[PackedItem], truck_dims: tuple[float, flo
         fig.add_trace(go.Mesh3d(
             x=vx, y=vy, z=vz,
             i=i_cube, j=j_cube, k=k_cube,
-            opacity=0.85,  
+            opacity=1.0,  
             flatshading=True,
             color=get_color(item.name),
             name=item.name,
@@ -839,7 +839,7 @@ if st.button("Run AI Optimization"):
 
                 check_stable=True,
 
-                support_surface_ratio=0.75,
+                support_surface_ratio=0.55,
 
                 number_of_decimals=3 
 
@@ -968,7 +968,7 @@ if 'last_packer' in st.session_state:
                 continue
 
             pos, dim = item.position, item.getDimension()
-            
+
             packed_geometries.append(
                 PackedItem(
                     name=item.name,
