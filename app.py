@@ -394,16 +394,16 @@ st.set_page_config(page_title="Axion Labs Fleet Optimizer", layout="wide")
 st.title("Axion Labs: Fleet Space Optimization")
 
 st.sidebar.header("1. Define Vehicle Space")
-truck_w = st.sidebar.number_input("Truck Width (cm)", value=600)
-truck_h = st.sidebar.number_input("Truck Height (cm)", value=600)
-truck_d = st.sidebar.number_input("Truck Depth (cm)", value=600)
+truck_w = st.sidebar.number_input("Truck Width (cm)", value=100)
+truck_h = st.sidebar.number_input("Truck Height (cm)", value=100)
+truck_d = st.sidebar.number_input("Truck Depth (cm)", value=100)
 truck_weight = st.sidebar.number_input("Max Weight Capacity (kg)", value=4000)
 
 st.sidebar.header("2. Add Cargo Item")
 item_name = st.sidebar.text_input("Item Name", value="Generic Box")
-item_w = st.sidebar.number_input("Item Width", value=200)
-item_h = st.sidebar.number_input("Item Height", value=200)
-item_d = st.sidebar.number_input("Item Depth", value=200)
+item_w = st.sidebar.number_input("Item Width", value=100)
+item_h = st.sidebar.number_input("Item Height", value=100)
+item_d = st.sidebar.number_input("Item Depth", value=100)
 item_weight = st.sidebar.number_input("Item Weight (kg)", value=15)
 
 # --- CONSTANTS & CONFIGURATION ---
@@ -508,7 +508,7 @@ if st.session_state.editing_orientation is not None:
     st.stop()
 
 # --- RUN EXECUTION SOLVER ---
-if st.button("🚀 Run AI Optimization"):
+if st.button("Run AI Optimization"):
     if not st.session_state.manifest:
         st.error("Your cargo manifest is completely empty!")
     else:
@@ -777,7 +777,7 @@ if 'last_packer' in st.session_state:
             #for base in base_items:
                 #render_support_tree(support_graph, base)
 
-        if st.button("📊 Render 3D Packing Layout Matrix", key=f"render_plot_{b.partno}"):
+        if st.button("Render 3D Packing Layout Matrix", key=f"render_plot_{b.partno}"):
             with st.spinner("Building interactive scene graph..."):
                 fig = render_3d_packing_plot(packed_geometries, (truck_w, truck_h, truck_d))
                 st.plotly_chart(fig, use_container_width=True)

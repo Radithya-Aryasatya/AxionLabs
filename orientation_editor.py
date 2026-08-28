@@ -254,7 +254,7 @@ def orientation_editor(item):
 
     initialize_orientation_state(item)
 
-    st.subheader("📦 Cargo Orientation Editor")
+    st.subheader("Cargo Orientation Editor")
 
     st.info(
         "Adjust the cargo orientation before "
@@ -352,7 +352,7 @@ def orientation_editor(item):
     with confirm_col:
 
         if st.button(
-            "✅ Confirm Orientation",
+            "Confirm Orientation",
             key="orientation_confirm",
             type="primary",
             use_container_width=True
@@ -362,7 +362,7 @@ def orientation_editor(item):
     with cancel_col:
 
         if st.button(
-            "❌ Cancel",
+            "Cancel",
             key="orientation_cancel",
             use_container_width=True
         ):
