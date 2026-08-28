@@ -1,3 +1,4 @@
+#main.py from py3dbp
 from .constants import RotationType, Axis
 from .auxiliary_methods import intersect, set2Decimal
 import numpy as np

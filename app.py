@@ -5,6 +5,7 @@ import plotly.graph_objects as go
 from dataclasses import dataclass
 from orientation_editor import launch_orientation_editor
 import pandas as pd
+import math
 
 
 
@@ -56,6 +57,42 @@ def calculate_overlap_area(c_x: float, c_w: float, c_z: float, c_d: float,
     x_overlap = max(0.0, min(c_x + c_w, s_x + s_w) - max(c_x, s_x))
     z_overlap = max(0.0, min(c_z + c_d, s_z + s_d) - max(c_z, s_z))
     return x_overlap * z_overlap
+
+def validate_cargo_dimensions(manifest):
+    """
+    Prevent invalid cargo dimensions from reaching py3dbp.
+
+    Every cargo item must have finite, strictly positive
+    width, height, and depth.
+    """
+
+    invalid_items = []
+
+    for item in manifest:
+
+        dimensions = {
+            "width": item.get("w"),
+            "height": item.get("h"),
+            "depth": item.get("d")
+        }
+
+        for dimension_name, value in dimensions.items():
+
+            try:
+                value = float(value)
+            except (TypeError, ValueError):
+                invalid_items.append(
+                    f"{item.get('name', 'Unnamed')} → {dimension_name} is not numeric."
+                )
+                continue
+
+            if not math.isfinite(value) or value <= 0:
+                invalid_items.append(
+                    f"{item.get('name', 'Unnamed')} → "
+                    f"{dimension_name} must be greater than 0."
+                )
+
+    return invalid_items
 
 def calculate_utilization(items: list[PackedItem], truck_volume: float) -> float:
     if truck_volume <= 0:
@@ -252,6 +289,17 @@ def build_loading_priority(manifest):
 
     #]
 
+def generate_axis_ticks(max_val: float, default_step: float = 5.0) -> list[float]:
+    """Generates tick intervals up to max_val, explicitly adding max_val to include the final grid line."""
+    step = default_step if max_val <= 40 else 10.0
+    ticks = []
+    curr = 0.0
+    while curr < max_val:
+        ticks.append(round(curr, 2))
+        curr += step
+    if round(max_val, 2) not in ticks:
+        ticks.append(round(max_val, 2))
+    return sorted(list(set(ticks)))
 
 # --- VISUALIZATION ENGINE ---
 def render_3d_packing_plot(items: list[PackedItem], truck_dims: tuple[float, float, float]) -> go.Figure:
@@ -357,20 +405,45 @@ def render_3d_packing_plot(items: list[PackedItem], truck_dims: tuple[float, flo
 
     m = max(truck_w, truck_h, truck_d)
 
+    x_ticks = generate_axis_ticks(truck_w)
+    y_ticks = generate_axis_ticks(truck_d)
+    z_ticks = generate_axis_ticks(truck_h)
+
     fig.update_layout(
         scene=dict(
-            xaxis=dict(range=[0, truck_w], title="Width"),
-            yaxis=dict(range=[0, truck_d], title="Depth"),
-            zaxis=dict(range=[0, truck_h], title="Height"),
-
-            camera=dict(
-                eye=dict(
-                x=1.7,
-                y=-1.7,
-                z=1.2
-                )
+            xaxis=dict(
+                range=[0, truck_w], 
+                title="Width", 
+                tickmode="array",
+                tickvals=x_ticks,
+                ticktext=[f"{v:g}" for v in x_ticks],
+                autorange=False, 
+                showgrid=True, 
+                zeroline=False
             ),
-
+            yaxis=dict(
+                range=[0, truck_d], 
+                title="Depth", 
+                tickmode="array",
+                tickvals=y_ticks,
+                ticktext=[f"{v:g}" for v in y_ticks],
+                autorange=False, 
+                showgrid=True, 
+                zeroline=False
+            ),
+            zaxis=dict(
+                range=[0, truck_h], 
+                title="Height", 
+                tickmode="array",
+                tickvals=z_ticks,
+                ticktext=[f"{v:g}" for v in z_ticks],
+                autorange=False, 
+                showgrid=True, 
+                zeroline=False
+            ),
+            camera=dict(
+                eye=dict(x=1.7, y=-1.7, z=1.2)
+            ),
             aspectmode="manual",
             aspectratio=dict(
                 x=truck_w / m,
@@ -394,16 +467,28 @@ st.set_page_config(page_title="Axion Labs Fleet Optimizer", layout="wide")
 st.title("Axion Labs: Fleet Space Optimization")
 
 st.sidebar.header("1. Define Vehicle Space")
-truck_w = st.sidebar.number_input("Truck Width (m)", value=6.0, step = 0.1)
-truck_h = st.sidebar.number_input("Truck Height (m)", value=6.0, step = 0.1)
-truck_d = st.sidebar.number_input("Truck Depth (m)", value=6.0, step = 0.1)
+truck_w = st.sidebar.number_input("Truck Width (m)", value=2.4, step = 1.0)
+truck_h = st.sidebar.number_input("Truck Height (m)", value=2.4, step = 1.0)
+truck_d = st.sidebar.number_input("Truck Depth (m)", value=6.0, step = 1.0)
 truck_weight = st.sidebar.number_input("Max Weight Capacity (kg)", value=4000)
 
-st.sidebar.header("2. Add Cargo Item")
+st.sidebar.header("2. Import Cargo Manifest")
+uploaded_file = st.sidebar.file_uploader(
+    "Upload Excel Manifest",
+    type=["xlsx"],
+    help="Upload an .xlsx cargo manifest using the expected column names."
+)
+import_manifest = st.sidebar.button(
+    "Import Manifest"
+)
+
+st.sidebar.header("Or")
+
+st.sidebar.header("2. Add Cargo Item Manually")
 item_name = st.sidebar.text_input("Item Name", value="Generic Box")
-item_w = st.sidebar.number_input("Item Width", value=2.0, step = 0.1)
-item_h = st.sidebar.number_input("Item Height", value=2.0, step = 0.1)
-item_d = st.sidebar.number_input("Item Depth", value=2.0, step = 0.1)
+item_w = st.sidebar.number_input("Item Width (cm)", value=8.0, step = 0.1)
+item_h = st.sidebar.number_input("Item Height (cm)", value=8.0, step = 0.1)
+item_d = st.sidebar.number_input("Item Depth (cm)", value=8.0, step = 0.1)
 item_weight = st.sidebar.number_input("Item Weight (kg)", value=15)
 
 # --- CONSTANTS & CONFIGURATION ---
@@ -425,8 +510,98 @@ add_item = st.sidebar.button("Add Item to Manifest")
 
 if 'manifest' not in st.session_state:
     st.session_state.manifest = []
+
 if "editing_orientation" not in st.session_state:
     st.session_state.editing_orientation = None
+
+if "import_queue" not in st.session_state:
+    st.session_state.import_queue = []
+
+if "importing_manifest" not in st.session_state:
+    st.session_state.importing_manifest = False
+
+if import_manifest and uploaded_file is not None:
+
+    try:
+        df = pd.read_excel(uploaded_file)
+
+        required_columns = [
+            "Item Description",
+            "Box Quantity",
+            "Box Weight (kg)",
+            "Length (cm)",
+            "Width (cm)",
+            "Height (cm)",
+            "Fragile",
+            "Unloading Sequence"
+        ]
+
+        missing_columns = [
+            column
+            for column in required_columns
+            if column not in df.columns
+        ]
+
+        if missing_columns:
+
+            st.sidebar.error(
+                "Missing required columns: "
+                + ", ".join(missing_columns)
+            )
+
+        else:
+
+            imported_items = []
+
+            for _, row in df.iterrows():
+
+                fragile_value = str(row["Fragile"]).strip().lower()
+
+                is_fragile = fragile_value in {
+                    "yes",
+                    "y",
+                    "true",
+                    "1"
+                }
+
+                imported_items.append({
+
+                    "name": str(row["Item Description"]),
+
+                    "width": float(row["Width (cm)"]) / 100,
+
+                    "height": float(row["Height (cm)"]) / 100,
+
+                    "depth": float(row["Length (cm)"]) / 100,
+
+                    "weight": float(row["Box Weight (kg)"]),
+
+                    "quantity": int(row["Box Quantity"]),
+
+                    "max_load": (
+                        float(row["Box Weight (kg)"])
+                        if is_fragile
+                        else float("inf")
+                    ),
+
+                    "sequence": int(row["Unloading Sequence"])
+
+                })
+
+            st.session_state.import_queue = imported_items
+            st.session_state.importing_manifest = True
+
+            st.success(
+                f"Successfully imported {len(imported_items)} cargo types."
+            )
+
+            st.rerun()
+
+    except Exception as e:
+
+        st.sidebar.error(
+            f"Could not read the Excel file: {e}"
+        )
 
 if add_item:
 
@@ -437,9 +612,9 @@ if add_item:
         st.session_state.editing_orientation = {
 
                 "name": item_name,
-                "width": item_w,
-                "height": item_h,
-                "depth": item_d,
+                "width": item_w / 100,  # Convert cm to m
+                "height": item_h / 100,  # Convert cm to m
+                "depth": item_d / 100,  # Convert cm to m
                 "weight": item_weight,
                 
                 "quantity": quantity,
@@ -519,8 +694,21 @@ else:
 
 
 # --------------------------------------------------
-# Orientation Editor Popup
+# Orientation Editor
 # --------------------------------------------------
+
+if (
+    st.session_state.importing_manifest
+    and st.session_state.editing_orientation is None
+    and st.session_state.import_queue
+):
+
+    st.session_state.editing_orientation = (
+        st.session_state.import_queue.pop(0)
+    )
+
+    st.rerun()
+
 
 if st.session_state.editing_orientation is not None:
 
@@ -529,21 +717,36 @@ if st.session_state.editing_orientation is not None:
     )
 
     if result is None:
-        # User cancelled
+
+        # User cancelled this cargo item
         st.session_state.editing_orientation = None
+
+        if not st.session_state.import_queue:
+
+            st.session_state.importing_manifest = False
+
         st.rerun()
 
     elif result != "WAITING":
-        # User confirmed orientation
-        result["orientation"] = False   # rotation already fixed
 
+        # Orientation has been selected
         st.session_state.manifest.append(result)
 
         st.session_state.editing_orientation = None
 
-        st.success(f"Added {result['name']}!")
+        # More imported cargo remains
+        if st.session_state.import_queue:
 
-        st.rerun()
+            st.rerun()
+
+        else:
+
+            # Import finished
+            st.session_state.importing_manifest = False
+
+            st.success("✅ Entire manifest imported and oriented.")
+
+            st.rerun()
 
     st.stop()
 
@@ -553,7 +756,18 @@ if st.button("Run AI Optimization"):
         st.error("Your cargo manifest is completely empty!")
     else:
         all_layouts = []
+        invalid_items = validate_cargo_dimensions(
+            st.session_state.manifest
+        )
 
+        if invalid_items:
+
+            st.error("Cannot generate layout because some cargo dimensions are invalid.")
+
+            for error in invalid_items:
+                st.error(error)
+
+            st.stop()
         
         #candidate_orders = generate_candidate_orders(
             #st.session_state.manifest
@@ -570,7 +784,11 @@ if st.button("Run AI Optimization"):
         packer.addBin(
                 Bin(
                     "Truck",
-                    (truck_w, truck_h, truck_d),
+                    (
+                        truck_w * 100,
+                        truck_h * 100,
+                        truck_d * 100
+                      ),
                     truck_weight
                 )
             )
@@ -592,9 +810,9 @@ if st.button("Run AI Optimization"):
                             typeof="cube",
 
                             WHD=(
-                                obj["w"],
-                                obj["h"],
-                                obj["d"]
+                                float(obj["w"]) * 100,
+                                float(obj["h"]) * 100,
+                                float(obj["d"]) * 100
                             ),
 
                             weight=obj["weight"],
@@ -603,7 +821,7 @@ if st.button("Run AI Optimization"):
 
                             loadbear=obj["max_load"],
 
-                            updown=obj["orientation"],
+                            updown=False,
 
                             color=get_color(obj["name"])
 
@@ -621,7 +839,9 @@ if st.button("Run AI Optimization"):
 
                 check_stable=True,
 
-                support_surface_ratio=0.75
+                support_surface_ratio=0.75,
+
+                number_of_decimals=3 
 
             )
 
@@ -655,17 +875,13 @@ if st.button("Run AI Optimization"):
 
                             name=item.name,
 
-                            x=float(pos[0]),
+                            x=float(pos[0]) / 100,
+                            y=float(pos[1]) / 100,
+                            z=float(pos[2]) / 100,
 
-                            y=float(pos[1]),
-
-                            z=float(pos[2]),
-
-                            w=float(dim[0]),
-
-                            h=float(dim[1]),
-
-                            d=float(dim[2]),
+                            w=float(dim[0]) / 100,
+                            h=float(dim[1]) / 100,
+                            d=float(dim[2]) / 100,
 
                             weight=float(item.weight),
 
@@ -750,15 +966,27 @@ if 'last_packer' in st.session_state:
             m_data = manifest_lookup.get(item.name)
             if m_data is None:
                 continue
+
             pos, dim = item.position, item.getDimension()
-            packed_geometries.append(PackedItem(
-                name=item.name,
-                x=float(pos[0]), y=float(pos[1]), z=float(pos[2]),
-                w=float(dim[0]), h=float(dim[1]), d=float(dim[2]),
-                weight=float(item.weight),
-                #erased fragility
-                max_load=m_data["max_load"]
-            ))
+            
+            packed_geometries.append(
+                PackedItem(
+                    name=item.name,
+
+                    # py3dbp uses centimeters → convert back to meters
+                    x=float(pos[0]) / 100,
+                    y=float(pos[1]) / 100,
+                    z=float(pos[2]) / 100,
+
+                    w=float(dim[0]) / 100,
+                    h=float(dim[1]) / 100,
+                    d=float(dim[2]) / 100,
+
+                    weight=float(item.weight),
+
+                    max_load=m_data["max_load"]
+                )
+            )
             
         utilization_rate = calculate_utilization(packed_geometries, truck_vol)
         load_distribution, support_graph = calculate_load_distribution(packed_geometries)
@@ -821,3 +1049,5 @@ if 'last_packer' in st.session_state:
             with st.spinner("Building interactive scene graph..."):
                 fig = render_3d_packing_plot(packed_geometries, (truck_w, truck_h, truck_d))
                 st.plotly_chart(fig, use_container_width=True)
+
+#end
