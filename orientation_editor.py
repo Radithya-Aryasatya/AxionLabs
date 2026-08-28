@@ -175,9 +175,9 @@ def build_preview(item):
 
             hovertemplate=(
                 f"<b>{item.name}</b><br>"
-                f"Width: {w} cm<br>"
-                f"Height: {h} cm<br>"
-                f"Depth: {d} cm<br>"
+                f"Width: {w} m<br>"
+                f"Height: {h} m<br>"
+                f"Depth: {d} m<br>"
                 f"Weight: {item.weight} kg"
                 "<extra></extra>"
             ),
@@ -313,7 +313,7 @@ def orientation_editor(item):
                 f" / "
                 f"{len(st.session_state.orientation_options)}"
             ),
-            "Dimensions": f"{w} × {h} × {d} cm"
+            "Dimensions": f"{w} × {h} × {d} m"
         }
 
         st.table(info)
