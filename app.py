@@ -6,6 +6,8 @@ from dataclasses import dataclass
 from orientation_editor import launch_orientation_editor
 import pandas as pd
 import math
+import json
+import streamlit.components.v1 as components
 
 
 
@@ -243,52 +245,6 @@ def build_loading_priority(manifest):
         )
     )
 
-
-#def generate_candidate_orders(manifest):
-
-    #return [
-
-        # Candidate 1
-        #sorted(
-            #manifest,
-            #key=lambda x: (
-                #-x["sequence"],
-                #x["max_load"],
-                #-(x["w"] * x["h"] * x["d"]),
-                #-x["weight"]
-            #)
-        #),
-
-        # Candidate 2
-        #sorted(
-            #manifest,
-            #key=lambda x: (
-                #-x["weight"],
-                #x["max_load"],
-                #-x["sequence"]
-            #)
-        #),
-
-        # Candidate 3
-        #sorted(
-            #manifest,
-            #key=lambda x: (
-                #x["max_load"],
-                #-x["weight"]
-            #)
-        #),
-
-        # Candidate 4
-        #sorted(
-            #manifest,
-            #key=lambda x: (
-                #-(x["w"] * x["h"] * x["d"]),
-                #-x["weight"]
-            #)
-        #),
-
-    #]
-
 def generate_axis_ticks(max_val: float, default_step: float = 5.0) -> list[float]:
     """Generates tick intervals up to max_val, explicitly adding max_val to include the final grid line."""
     step = default_step if max_val <= 40 else 10.0
@@ -301,8 +257,58 @@ def generate_axis_ticks(max_val: float, default_step: float = 5.0) -> list[float
         ticks.append(round(max_val, 2))
     return sorted(list(set(ticks)))
 
+# --- CAMERA / DEPTH-PEELING LOGIC ---
+def sort_items_by_camera_depth(
+    items: list[PackedItem],
+    eye: dict,
+    truck_dims: tuple[float, float, float]
+) -> list[PackedItem]:
+    """
+    Orders packed items from farthest-from-camera to closest-to-camera, using the
+    same coordinate mapping as the 3D plot (plot x = width, plot y = truck depth,
+    plot z = height).
+
+    Items closest to the camera are the ones the viewer sees "on the outside"
+    first for the current orientation; items farthest away are effectively
+    "underneath" or "behind" other items from that viewing angle. Sorting this
+    way lets the reveal slider peel off the nearest items first, regardless of
+    which preset angle (Top, Front, Side, Isometric) is selected.
+    """
+    truck_w, truck_h, truck_d = truck_dims
+
+    center_x = truck_w / 2.0
+    center_y = truck_d / 2.0
+    center_z = truck_h / 2.0
+
+    eye_vec = (eye["x"], eye["y"], eye["z"])
+    eye_len = math.sqrt(sum(c * c for c in eye_vec)) or 1.0
+
+    # Gaze direction: points from the camera INTO the scene (opposite of eye vector).
+    gaze = tuple(-c / eye_len for c in eye_vec)
+
+    def depth_of(item: PackedItem) -> float:
+        cx = item.x + item.w / 2.0
+        cy = item.z + item.d / 2.0
+        cz = item.y + item.h / 2.0
+
+        rel_x = cx - center_x
+        rel_y = cy - center_y
+        rel_z = cz - center_z
+
+        return rel_x * gaze[0] + rel_y * gaze[1] + rel_z * gaze[2]
+
+    # Highest depth = farthest along the gaze direction = farthest from camera.
+    return sorted(items, key=depth_of, reverse=True)
+
 # --- VISUALIZATION ENGINE ---
-def render_3d_packing_plot(items: list[PackedItem], truck_dims: tuple[float, float, float]) -> go.Figure:
+def render_3d_packing_plot(
+    items: list[PackedItem],
+    truck_dims: tuple[float, float, float],
+    camera_eye: dict = None
+) -> go.Figure:
+    if camera_eye is None:
+        camera_eye = dict(x=1.7, y=-1.7, z=1.2)
+
     truck_w, truck_h, truck_d = truck_dims
     fig = go.Figure()
     rear_depth = truck_d * 0.08   # last 8% of truck
@@ -442,7 +448,7 @@ def render_3d_packing_plot(items: list[PackedItem], truck_dims: tuple[float, flo
                 zeroline=False
             ),
             camera=dict(
-                eye=dict(x=1.7, y=-1.7, z=1.2)
+                eye=camera_eye
             ),
             aspectmode="manual",
             aspectratio=dict(
@@ -461,6 +467,190 @@ def render_support_tree(graph: dict, node: str, level: int = 0):
     st.markdown(f"{indent}↳ **{node}**")
     for child in graph.get(node, []):
         render_support_tree(graph, child, level + 1)
+
+# --- ISOLATED RERUN SCOPE FOR THE 3D VIEWER ---
+@st.fragment
+def render_packing_visual(bin_partno: str, packed_geometries: list[PackedItem], truck_dims: tuple[float, float, float]):
+    """
+    Fully client-side 3D packing viewer.
+
+    Instead of driving the slider/orientation through Streamlit (which forces
+    a server round-trip + fragment rerun on every change, causing the
+    "release the mouse to see it update" lag), this builds ONE Plotly figure
+    containing every item's traces and ships it to the browser once. The
+    reveal slider and orientation dropdown are plain HTML controls that call
+    Plotly.restyle()/Plotly.relayout() directly in JavaScript — so every
+    single slider tick updates the plot instantly, with zero Python calls.
+    """
+    render_key = f"show_render_{bin_partno}"
+    if render_key not in st.session_state:
+        st.session_state[render_key] = False
+
+    if st.button("Render 3D Packing Layout Matrix", key=f"render_plot_{bin_partno}"):
+        st.session_state[render_key] = True
+
+    if not st.session_state[render_key]:
+        return
+
+    total_packed = len(packed_geometries)
+    if total_packed == 0:
+        st.info("No packages to display in the 3D view.")
+        return
+
+    truck_w, truck_h, truck_d = truck_dims
+
+    camera_presets = {
+        "Isometric": dict(x=1.7, y=-1.7, z=1.2),
+        "Top":       dict(x=0.001, y=0.001, z=2.5),
+        "Front":     dict(x=0.001, y=-2.5, z=0.001),
+        "Side":      dict(x=2.5, y=0.001, z=0.001),
+    }
+
+    # Build ONE figure with every item included (all visible for now).
+    fig = render_3d_packing_plot(packed_geometries, truck_dims, camera_eye=camera_presets["Isometric"])
+
+    # Trace 0 = rear door. After that, each item contributes exactly 2 traces
+    # in order: (mesh cube, edge lines) — matching render_3d_packing_plot's
+    # add_trace order.
+    item_trace_pairs = []
+    idx = 1
+    for _ in packed_geometries:
+        item_trace_pairs.append((idx, idx + 1))
+        idx += 2
+    total_traces = idx
+
+    name_to_pair = {
+        item.name: pair for item, pair in zip(packed_geometries, item_trace_pairs)
+    }
+
+    # Precompute farthest->closest ITEM order per camera preset, then map to
+    # trace-index pairs. This mirrors the "keep the N farthest items" logic
+    # from the original reveal_count slider.
+    orderings = {}
+    for preset_name, eye in camera_presets.items():
+        ordered_items = sort_items_by_camera_depth(packed_geometries, eye, truck_dims)
+        orderings[preset_name] = [list(name_to_pair[it.name]) for it in ordered_items]
+
+    fig_json = fig.to_plotly_json()
+    fig_data_json = json.dumps(fig_json["data"])
+    fig_layout_json = json.dumps(fig_json["layout"])
+    orderings_json = json.dumps(orderings)
+    camera_json = json.dumps(camera_presets)
+
+    options_html = "".join(
+        f'<option value="{name}"{" selected" if name == "Isometric" else ""}>{name}</option>'
+        for name in camera_presets
+    )
+
+    html = f"""
+    <div style="display:flex; gap:16px; align-items:flex-start; font-family:sans-serif;">
+    <div id="plot_{bin_partno}" style="flex:4; height:640px; border-radius:6px; overflow:hidden;"></div>
+    <div id="controls_{bin_partno}" style="flex:1; min-width:180px; padding:8px; border-radius:6px; transition: background-color 0.2s;">
+        <label for="orientation_{bin_partno}"><b>Viewer Orientation</b></label><br>
+        <select id="orientation_{bin_partno}" style="width:100%; margin:6px 0 16px 0;">
+        {options_html}
+        </select>
+        <label for="reveal_{bin_partno}"><b>Packages Visible</b></label><br>
+            <input type="range" id="reveal_{bin_partno}" min="1" max="{total_packed}" value="{total_packed}" style="width:100%; margin-top:6px;">
+            <div id="reveal_label_{bin_partno}" style="margin-top:4px; margin-bottom:16px; color:#888;">
+                Showing {total_packed} of {total_packed} packages
+            </div>
+            <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+            <input type="checkbox" id="dark_{bin_partno}">
+            <b>Dark Mode</b>
+        </label>
+    </div>
+    </div>
+    <script src="https://cdn.plot.ly/plotly-2.32.0.min.js"></script>
+    <script>
+        (function() {{
+            const data = {fig_data_json};
+            const layout = {fig_layout_json};
+            const orderings = {orderings_json};
+            const cameraPresets = {camera_json};
+            const totalTraces = {total_traces};
+            const totalPacked = {total_packed};
+
+            const plotDiv = document.getElementById("plot_{bin_partno}");
+            Plotly.newPlot(plotDiv, data, layout, {{responsive: true}});
+
+            const orientationSel = document.getElementById("orientation_{bin_partno}");
+            const revealSlider  = document.getElementById("reveal_{bin_partno}");
+            const revealLabel   = document.getElementById("reveal_label_{bin_partno}");
+            const darkCheckbox  = document.getElementById("dark_{bin_partno}");
+            const controlsPanel = document.getElementById("controls_{bin_partno}");
+
+        // --- Visibility only (cheap, WebGL-side toggle — no scene rebuild) ---
+        // This is the ONLY thing that runs while dragging the slider, so it
+        // stays smooth no matter how large the manifest is.
+        function computeVisible(orientation, revealCount) {{
+          const order = orderings[orientation]; // farthest -> closest
+          const visible = new Array(totalTraces).fill(false);
+          visible[0] = true; // rear door, always shown
+          for (let i = 0; i < revealCount && i < order.length; i++) {{
+            visible[order[i][0]] = true;
+            visible[order[i][1]] = true;
+          }}
+          return visible;
+        }}
+
+        let rafPending = false;
+        function applyReveal() {{
+          if (rafPending) return;
+          rafPending = true;
+          requestAnimationFrame(() => {{
+            const revealCount = parseInt(revealSlider.value, 10);
+            const visible = computeVisible(orientationSel.value, revealCount);
+            Plotly.restyle(plotDiv, {{visible: visible}});
+            revealLabel.textContent = "Showing " + revealCount + " of " + totalPacked + " packages";
+            rafPending = false;
+          }});
+        }}
+
+        // --- Orientation change: infrequent, so the heavier camera relayout is fine here ---
+        function applyOrientation() {{
+          const orientation = orientationSel.value;
+          const revealCount = parseInt(revealSlider.value, 10);
+          const visible = computeVisible(orientation, revealCount);
+          Plotly.update(plotDiv, {{visible: visible}}, {{"scene.camera.eye": cameraPresets[orientation]}});
+        }}
+
+        function applyDarkMode() {{
+          const isDark = darkCheckbox.checked;
+          const bg = isDark ? "#111111" : "#ffffff";
+          const paneColor = isDark ? "#1e1e1e" : "#ffffff";
+          const gridColor = isDark ? "#3a3a3a" : "#dddddd";
+          const textColor = isDark ? "#eeeeee" : "#333333";
+
+          Plotly.relayout(plotDiv, {{
+            paper_bgcolor: bg,
+            plot_bgcolor: bg,
+            "scene.xaxis.backgroundcolor": paneColor,
+            "scene.yaxis.backgroundcolor": paneColor,
+            "scene.zaxis.backgroundcolor": paneColor,
+            "scene.xaxis.gridcolor": gridColor,
+            "scene.yaxis.gridcolor": gridColor,
+            "scene.zaxis.gridcolor": gridColor,
+            "scene.xaxis.color": textColor,
+            "scene.yaxis.color": textColor,
+            "scene.zaxis.color": textColor,
+            font: {{ color: textColor }}
+          }});
+
+          controlsPanel.style.backgroundColor = isDark ? "#111111" : "transparent";
+          controlsPanel.style.color = textColor;
+          revealLabel.style.color = isDark ? "#aaaaaa" : "#888888";
+        }}
+
+        // 'input' fires continuously while dragging — restyle only, so it's instant.
+        revealSlider.addEventListener("input", applyReveal);
+        orientationSel.addEventListener("change", applyOrientation);
+        darkCheckbox.addEventListener("change", applyDarkMode);
+      }})();
+    </script>
+    """
+
+    components.html(html, height=680, scrolling=False)
 
 # --- USER INTERFACE PRESENTATION LAYER ---
 st.set_page_config(page_title="Axion Labs Fleet Optimizer", layout="wide")
@@ -768,13 +958,7 @@ if st.button("Run AI Optimization"):
                 st.error(error)
 
             st.stop()
-        
-        #candidate_orders = generate_candidate_orders(
-            #st.session_state.manifest
-        #)
 
-        #for loading_order in candidate_orders:
-        
         loading_order = build_loading_priority(
             st.session_state.manifest
         )
@@ -1025,29 +1209,10 @@ if 'last_packer' in st.session_state:
             st.subheader("⚠️ Unpacked Items (Rejected By Constraints)")
             for item in unfitted:
                 st.error(f"**{item.name}** could not be packed securely. Adjust dimensions or stack settings.")
-                
-        #col_report, col_graph = st.columns(2)
-        
-        #with col_report:
-            #st.subheader("Structural Load Distribution Analysis")
-            #for item in packed_geometries:
-                #current_load = load_distribution[item.name]
-                #if current_load <= item.max_load:
-                    #st.success(f"✅ **{item.name}** | Capacity: {current_load:.1f} kg / {item.max_load} kg")
-                #else:
-                    #st.error(f"⚠️ **{item.name}** OVERLOADED | Capacity: {current_load:.1f} kg / {item.max_load} kg")
 
-        #with col_graph:
-            #st.subheader("Structural Support Chain (Load Path)")
-            #base_items = [item.name for item in packed_geometries if item.y == 0.0]
-            #if not base_items:
-                #st.write("No items packed.")
-            #for base in base_items:
-                #render_support_tree(support_graph, base)
-
-        if st.button("Render 3D Packing Layout Matrix", key=f"render_plot_{b.partno}"):
-            with st.spinner("Building interactive scene graph..."):
-                fig = render_3d_packing_plot(packed_geometries, (truck_w, truck_h, truck_d))
-                st.plotly_chart(fig, use_container_width=True)
+        # --------------------------------------------------
+        # 3D Render + Depth-Reveal Slider (isolated fragment)
+        # --------------------------------------------------
+        render_packing_visual(b.partno, packed_geometries, (truck_w, truck_h, truck_d))
 
 #end
