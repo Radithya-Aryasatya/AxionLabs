@@ -11,10 +11,27 @@ import streamlit.components.v1 as components
 import os
 from dotenv import load_dotenv
 
-# 1
+# --- Executive Fleet Diagnostic Center imports ---
+import sys
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from state.fleet_state import initialize_session_state, register_fleet_from_packing_result
+from components.header import render_header
+from executive_dashboard import render_executive_dashboard
 
+# --- APP INITIALIZATION ---
 load_dotenv()
 api_key = os.getenv("API_KEY")
+
+# Initialize session state (for both views)
+initialize_session_state()
+
+# --- VIEW TOGGLE ---
+render_header()
+
+# Route to View 2 (Executive Control Tower) if selected
+if st.session_state.get('view_mode', 'worker') == 'executive':
+    render_executive_dashboard()
+    st.stop()
 
 # --- DATA STRUCTURE ARCHITECTURE ---
 @dataclass
@@ -658,7 +675,7 @@ def render_packing_visual(bin_partno: str, packed_geometries: list[PackedItem], 
     components.html(html, height=680, scrolling=False)
 
 # --- USER INTERFACE PRESENTATION LAYER ---
-st.set_page_config(page_title="Axion Labs Fleet Optimizer", layout="wide")
+st.set_page_config(page_title="Axion Labs Fleet Optimizer", layout="wide", initial_sidebar_state="expanded")
 st.title("Axion Labs: Fleet Space Optimization")
 
 st.sidebar.header("1. Define Vehicle Space")
@@ -1139,6 +1156,17 @@ if st.button("Run AI Optimization"):
             best_layout = all_layouts[0]
 
             st.session_state.last_packer = best_layout["packer"]
+
+            # --- Register fleet in View 2 (Executive Control Tower) ---
+            # Auto-register this packing result as an active fleet
+            register_fleet_from_packing_result(
+                manifest=st.session_state.manifest,
+                packer=st.session_state.last_packer,
+                truck_w=truck_w,
+                truck_h=truck_h,
+                truck_d=truck_d,
+                truck_name=f"Truck-{len(st.session_state.get('active_fleets', [])) + 1}",
+            )
 
 # --- VISUALIZATION AND REPORTING OUTPUT LAYER ---
 if 'last_packer' in st.session_state:
