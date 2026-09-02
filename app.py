@@ -8,8 +8,13 @@ import pandas as pd
 import math
 import json
 import streamlit.components.v1 as components
+import os
+from dotenv import load_dotenv
 
+# 1
 
+load_dotenv()
+api_key = os.getenv("API_KEY")
 
 # --- DATA STRUCTURE ARCHITECTURE ---
 @dataclass
