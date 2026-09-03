@@ -27,6 +27,13 @@ def render_tri_view_panel(fleet: Fleet):
     Render the full Tri-View Detail Inspection panel for a fleet.
     Uses a 3-column layout for the main panels.
     """
+    # --- Return button ---
+    st.markdown("---")
+    if st.button("← Back to Fleet Overview", key=f"back_{fleet.id}", type="secondary"):
+        select_fleet(None)
+        # Rerun immediately so the overview grid renders this interaction
+        st.rerun()
+        
     # --- Panel Header with Fleet Info ---
     _render_panel_header(fleet)
 
@@ -63,12 +70,7 @@ def render_tri_view_panel(fleet: Fleet):
     with col_right2:
         render_gemini_audit(fleet)
 
-    # --- Return button ---
-    st.markdown("---")
-    if st.button("← Back to Fleet Overview", key=f"back_{fleet.id}", type="secondary"):
-        select_fleet(None)
-        # Rerun immediately so the overview grid renders this interaction
-        st.rerun()
+    
 
 
 def _render_panel_header(fleet: Fleet):

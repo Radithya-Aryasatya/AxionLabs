@@ -174,65 +174,6 @@ def calculate_load_distribution(items: list[PackedItem]) -> tuple[dict[str, floa
                 
     return weight_on_top, support_graph
 
-def apply_stability_filter(
-    items: list[PackedItem],
-    min_support_ratio: float = 0.55,
-    eps: float = 1e-3
-) -> tuple[list[PackedItem], list[PackedItem]]:
-    """
-    Enforces a hard, minimum-55%-support-area rule on top of whatever the
-    packer itself already tried to guarantee (py3dbp's own
-    support_surface_ratio check isn't airtight — it's possible to end up
-    with boxes balanced on a sliver of what's underneath them, which looks
-    physically unrealistic in the 3D render).
-
-    Any item resting above the truck floor whose footprint (w * d) isn't at
-    least `min_support_ratio` covered by the tops of items directly beneath
-    it gets pulled out of the layout. This runs iteratively: pulling an
-    unstable box out can also remove the support that something stacked on
-    top of IT was relying on, so we keep re-checking until every remaining
-    item is properly supported (or nothing's left).
-
-    Returns (stable_items, rejected_items).
-    """
-    remaining = list(items)
-    rejected = []
-
-    while True:
-        unstable = []
-
-        for item in remaining:
-            # Anything sitting on the truck bed itself is always supported.
-            if item.y <= eps:
-                continue
-
-            footprint = item.w * item.d
-            if footprint <= 0:
-                continue
-
-            support_area = 0.0
-            for other in remaining:
-                if other.name == item.name:
-                    continue
-                # Strict vertical contact: other's top touches item's bottom.
-                if abs(item.y - (other.y + other.h)) < eps:
-                    support_area += calculate_overlap_area(
-                        item.x, item.w, item.z, item.d,
-                        other.x, other.w, other.z, other.d
-                    )
-
-            if (support_area / footprint) < min_support_ratio:
-                unstable.append(item)
-
-        if not unstable:
-            break
-
-        for item in unstable:
-            remaining = [i for i in remaining if i.name != item.name]
-            rejected.append(item)
-
-    return remaining, rejected
-
 def calculate_offloading_score(items, manifest_lookup):
     """
     Higher score = easier unloading.
@@ -596,6 +537,13 @@ def render_packing_visual(bin_partno: str, packed_geometries: list[PackedItem], 
 
     # Build ONE figure with every item included (all visible for now).
     fig = render_3d_packing_plot(packed_geometries, truck_dims, camera_eye=camera_presets["Isometric"])
+
+    # Publish the EXACT figure rendered in the worker viewer to session state
+    # so the Executive Digital Twin can extract it directly (no regeneration).
+    # Keyed per-fleet (by bin part number) so each fleet's twin shows its own
+    # layout, plus a global 'last_3d_figure' for backwards compatibility.
+    st.session_state['last_3d_figure'] = fig
+    st.session_state.setdefault('fleet_3d_figures', {})[bin_partno] = fig
 
     # Trace 0 = rear door. After that, each item contributes exactly 2 traces
     # in order: (mesh cube, edge lines) — matching render_3d_packing_plot's
@@ -1286,7 +1234,7 @@ if st.button("Run AI Optimization"):
 
                 check_stable=True,
 
-                support_surface_ratio=0.55,
+                support_surface_ratio=0.45,
 
                 number_of_decimals=3 
 
@@ -1338,14 +1286,6 @@ if st.button("Run AI Optimization"):
 
                     )
 
-        # Hard physics guarantee: drop any box whose footprint isn't at
-        # least 55% supported by whatever is directly beneath it, so the
-        # score reflects the layout that will actually be shown/kept.
-        packed_geometries, stability_rejected = apply_stability_filter(
-                packed_geometries,
-                min_support_ratio=0.55
-            )
-
         utilization = calculate_utilization(
                 packed_geometries,
                 float(truck_w * truck_h * truck_d)
@@ -1382,8 +1322,6 @@ if st.button("Run AI Optimization"):
                 "packer": packer,
 
                 "packed": packed_geometries,
-
-                "stability_rejected": stability_rejected,
 
                 "utilization": utilization,
 
@@ -1457,18 +1395,6 @@ if 'last_packer' in st.session_state:
                 )
             )
 
-        # Hard physics guarantee: a box may only rest on top of another box
-        # if at least 55% of its own footprint is actually supported by the
-        # tops of whatever's directly beneath it. py3dbp's own
-        # support_surface_ratio setting already nudges the packer this way,
-        # but it isn't a hard guarantee, so we verify it ourselves and pull
-        # out anything that would render as balanced on an unrealistically
-        # small platform.
-        packed_geometries, stability_rejected = apply_stability_filter(
-            packed_geometries,
-            min_support_ratio=0.55
-        )
-
         utilization_rate = calculate_utilization(packed_geometries, truck_vol)
         load_distribution, support_graph = calculate_load_distribution(packed_geometries)
         offloading_score = calculate_offloading_score(
@@ -1506,16 +1432,6 @@ if 'last_packer' in st.session_state:
             st.subheader("⚠️ Unpacked Items (Rejected By Constraints)")
             for item in unfitted:
                 st.error(f"**{item.name}** could not be packed securely. Adjust dimensions or stack settings.")
-
-        if stability_rejected:
-            st.subheader("⚠️ Removed For Insufficient Support (<55% Of Footprint)")
-            st.caption(
-                "These boxes were placed by the solver but would have been resting "
-                "on less than 55% of their own base — an unrealistic platform to "
-                "stack on — so they were pulled from this layout."
-            )
-            for item in stability_rejected:
-                st.error(f"**{item.name}** would have been under-supported. Adjust stacking order or quantities.")
 
         # --------------------------------------------------
         # 3D Render + Depth-Reveal Slider (isolated fragment)

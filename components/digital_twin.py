@@ -44,7 +44,13 @@ def render_digital_twin(fleet: Fleet):
         st.metric("Unfitted", f"{len(unfitted)}")
 
     # --- Extract and display the exact figure from the worker panel ---
-    fig = st.session_state.get('last_3d_figure')
+    # Per-fleet lookup keyed by bin part number (matches
+    # fleet.packing_layout['layout']['part_number'] set in
+    # register_fleet_from_packing_result), so each fleet's twin shows its own
+    # layout. Falls back to the latest rendered figure for compatibility.
+    figures = st.session_state.get('fleet_3d_figures', {})
+    part_no = layout.get('part_number', '')
+    fig = figures.get(part_no) or st.session_state.get('last_3d_figure')
 
     if fig is not None:
         st.plotly_chart(
