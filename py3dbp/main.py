@@ -191,27 +191,37 @@ class Bin:
                     # rule : 
                     # 1. Define a support ratio, if the ratio below the support surface does not exceed this ratio, compare the second rule.
                     # 2. If there is no support under any vertices of the bottom of the item, then fit = False.
+                    #
+                    # "Below" is the vertical (height) axis, i.e. pivot's y / self.height,
+                    # NOT the depth (z) axis. The supporting surface is therefore the
+                    # item's *footprint* -- its width x depth (x/z) plane -- measured
+                    # against other items whose top face (i[3], their y1) sits exactly
+                    # at this item's bottom (y). An item resting directly on the bin
+                    # floor (y == 0) is always fully supported.
                     if self.check_stable == True :
-                        # Cal the surface area of ​​item.
-                        item_area_lower = int(dimension[0] * dimension[1])
-                        # Cal the surface area of ​​the underlying support.
-                        support_area_upper = 0
-                        for i in self.fit_items:
-                            # Verify that the lower support surface area is greater than the upper support surface area * support_surface_ratio.
-                            if z == i[5]  :
-                                area = len(set([ j for j in range(int(x),int(x+int(w)))]) & set([ j for j in range(int(i[0]),int(i[1]))])) * \
-                                len(set([ j for j in range(int(y),int(y+int(h)))]) & set([ j for j in range(int(i[2]),int(i[3]))]))
-                                support_area_upper += area
+                        if y == 0 :
+                            support_area_upper = None  # fully supported by the bin floor
+                        else :
+                            # Cal the footprint (width x depth) area of the item.
+                            item_area_lower = int(dimension[0] * dimension[2])
+                            # Cal the area of the underlying support.
+                            support_area_upper = 0
+                            for i in self.fit_items:
+                                # Verify that the lower support surface area is greater than the upper support surface area * support_surface_ratio.
+                                if y == i[3] :
+                                    area = len(set([ j for j in range(int(x),int(x+int(w)))]) & set([ j for j in range(int(i[0]),int(i[1]))])) * \
+                                    len(set([ j for j in range(int(z),int(z+int(d)))]) & set([ j for j in range(int(i[4]),int(i[5]))]))
+                                    support_area_upper += area
 
                         # If not , get four vertices of the bottom of the item.
-                        if support_area_upper / item_area_lower < self.support_surface_ratio :
-                            four_vertices = [[x,y],[x+float(w),y],[x,y+float(h)],[x+float(w),y+float(h)]]
+                        if support_area_upper is not None and support_area_upper / item_area_lower < self.support_surface_ratio :
+                            four_vertices = [[x,z],[x+float(w),z],[x,z+float(d)],[x+float(w),z+float(d)]]
                             #  If any vertices is not supported, fit = False.
                             c = [False,False,False,False]
                             for i in self.fit_items:
-                                if z == i[5] :
+                                if y == i[3] :
                                     for jdx,j in enumerate(four_vertices) :
-                                        if (i[0] <= j[0] <= i[1]) and (i[2] <= j[1] <= i[3]) :
+                                        if (i[0] <= j[0] <= i[1]) and (i[4] <= j[1] <= i[5]) :
                                             c[jdx] = True
                             if False in c :
                                 item.position = valid_item_position
@@ -730,4 +740,3 @@ class Painter:
         ax.set_xlim3d([x_middle - plot_radius, x_middle + plot_radius])
         ax.set_ylim3d([y_middle - plot_radius, y_middle + plot_radius])
         ax.set_zlim3d([z_middle - plot_radius, z_middle + plot_radius])
-
