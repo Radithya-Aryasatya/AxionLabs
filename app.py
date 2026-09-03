@@ -531,6 +531,11 @@ def render_packing_visual(bin_partno: str, packed_geometries: list[PackedItem], 
     # Build ONE figure with every item included (all visible for now).
     fig = render_3d_packing_plot(packed_geometries, truck_dims, camera_eye=camera_presets["Isometric"])
 
+    # Store the generated figure as the single source of truth for the
+    # Executive Dashboard's Digital Twin (Gold Standard) to extract/display.
+    st.session_state.last_3d_figure = fig
+    st.session_state.last_3d_fleet_id = bin_partno
+
     # Trace 0 = rear door. After that, each item contributes exactly 2 traces
     # in order: (mesh cube, edge lines) — matching render_3d_packing_plot's
     # add_trace order.
