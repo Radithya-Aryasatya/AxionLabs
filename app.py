@@ -8,6 +8,7 @@ import pandas as pd
 import math
 import json
 import streamlit.components.v1 as components
+from html import escape as html_escape
 import os
 from dotenv import load_dotenv
 
@@ -172,6 +173,65 @@ def calculate_load_distribution(items: list[PackedItem]) -> tuple[dict[str, floa
                 weight_on_top[sup.name] += distributed_force
                 
     return weight_on_top, support_graph
+
+def apply_stability_filter(
+    items: list[PackedItem],
+    min_support_ratio: float = 0.55,
+    eps: float = 1e-3
+) -> tuple[list[PackedItem], list[PackedItem]]:
+    """
+    Enforces a hard, minimum-55%-support-area rule on top of whatever the
+    packer itself already tried to guarantee (py3dbp's own
+    support_surface_ratio check isn't airtight — it's possible to end up
+    with boxes balanced on a sliver of what's underneath them, which looks
+    physically unrealistic in the 3D render).
+
+    Any item resting above the truck floor whose footprint (w * d) isn't at
+    least `min_support_ratio` covered by the tops of items directly beneath
+    it gets pulled out of the layout. This runs iteratively: pulling an
+    unstable box out can also remove the support that something stacked on
+    top of IT was relying on, so we keep re-checking until every remaining
+    item is properly supported (or nothing's left).
+
+    Returns (stable_items, rejected_items).
+    """
+    remaining = list(items)
+    rejected = []
+
+    while True:
+        unstable = []
+
+        for item in remaining:
+            # Anything sitting on the truck bed itself is always supported.
+            if item.y <= eps:
+                continue
+
+            footprint = item.w * item.d
+            if footprint <= 0:
+                continue
+
+            support_area = 0.0
+            for other in remaining:
+                if other.name == item.name:
+                    continue
+                # Strict vertical contact: other's top touches item's bottom.
+                if abs(item.y - (other.y + other.h)) < eps:
+                    support_area += calculate_overlap_area(
+                        item.x, item.w, item.z, item.d,
+                        other.x, other.w, other.z, other.d
+                    )
+
+            if (support_area / footprint) < min_support_ratio:
+                unstable.append(item)
+
+        if not unstable:
+            break
+
+        for item in unstable:
+            remaining = [i for i in remaining if i.name != item.name]
+            rejected.append(item)
+
+    return remaining, rejected
 
 def calculate_offloading_score(items, manifest_lookup):
     """
@@ -500,9 +560,15 @@ def render_packing_visual(bin_partno: str, packed_geometries: list[PackedItem], 
     a server round-trip + fragment rerun on every change, causing the
     "release the mouse to see it update" lag), this builds ONE Plotly figure
     containing every item's traces and ships it to the browser once. The
-    reveal slider and orientation dropdown are plain HTML controls that call
+    reveal slider, orientation dropdown, peel-order dropdown, and per-package
+    visibility checkboxes are plain HTML controls that call
     Plotly.restyle()/Plotly.relayout() directly in JavaScript — so every
-    single slider tick updates the plot instantly, with zero Python calls.
+    single interaction updates the plot instantly, with zero Python calls.
+
+    The viewer's light/dark theme automatically follows the host Streamlit
+    app's theme (re-checked whenever Streamlit's theme changes), while the
+    "Dark Mode" checkbox remains available as a manual override for the
+    viewer only.
     """
     render_key = f"show_render_{bin_partno}"
     if render_key not in st.session_state:
@@ -531,18 +597,14 @@ def render_packing_visual(bin_partno: str, packed_geometries: list[PackedItem], 
     # Build ONE figure with every item included (all visible for now).
     fig = render_3d_packing_plot(packed_geometries, truck_dims, camera_eye=camera_presets["Isometric"])
 
-    # Store the generated figure as the single source of truth for the
-    # Executive Dashboard's Digital Twin (Gold Standard) to extract/display.
-    st.session_state.last_3d_figure = fig
-    st.session_state.last_3d_fleet_id = bin_partno
-
     # Trace 0 = rear door. After that, each item contributes exactly 2 traces
     # in order: (mesh cube, edge lines) — matching render_3d_packing_plot's
     # add_trace order.
     item_trace_pairs = []
     idx = 1
-    for _ in packed_geometries:
-        item_trace_pairs.append((idx, idx + 1))
+    for item in packed_geometries:
+        base_name = item.name.split("#")[0].strip()
+        item_trace_pairs.append((idx, idx + 1, base_name))
         idx += 2
     total_traces = idx
 
@@ -550,42 +612,94 @@ def render_packing_visual(bin_partno: str, packed_geometries: list[PackedItem], 
         item.name: pair for item, pair in zip(packed_geometries, item_trace_pairs)
     }
 
+    # Unique package types (by base name, e.g. "Blue Box") in first-seen order,
+    # used to build the show/hide checklist. Defaults to every type visible.
+    package_types = []
+    seen_bases = set()
+    for item in packed_geometries:
+        base_name = item.name.split("#")[0].strip()
+        if base_name not in seen_bases:
+            seen_bases.add(base_name)
+            package_types.append({"name": base_name, "color": get_color(base_name)})
+
     # Precompute farthest->closest ITEM order per camera preset, then map to
-    # trace-index pairs. This mirrors the "keep the N farthest items" logic
-    # from the original reveal_count slider.
+    # trace-index pairs (plus each item's base name, for the type filter).
     orderings = {}
     for preset_name, eye in camera_presets.items():
         ordered_items = sort_items_by_camera_depth(packed_geometries, eye, truck_dims)
         orderings[preset_name] = [list(name_to_pair[it.name]) for it in ordered_items]
+
+    # Door-distance ordering: farthest-from-the-door items first, items
+    # nearest the rear loading door last — so as the reveal slider is pulled
+    # down, the boxes closest to the truck door disappear first.
+    door_ordered = sorted(
+        packed_geometries,
+        key=lambda it: (it.z + it.d / 2.0)
+    )
+    orderings["__door__"] = [list(name_to_pair[it.name]) for it in door_ordered]
 
     fig_json = fig.to_plotly_json()
     fig_data_json = json.dumps(fig_json["data"])
     fig_layout_json = json.dumps(fig_json["layout"])
     orderings_json = json.dumps(orderings)
     camera_json = json.dumps(camera_presets)
+    package_types_json = json.dumps(package_types)
 
     options_html = "".join(
         f'<option value="{name}"{" selected" if name == "Isometric" else ""}>{name}</option>'
         for name in camera_presets
     )
 
+    package_toggle_html = "".join(
+        '<label class="pkg-toggle-row" style="display:flex; align-items:center; gap:8px; margin:6px 0; cursor:pointer; font-size:0.9em;">'
+        f'<input type="checkbox" class="pkg-toggle" data-base="{html_escape(pt["name"])}" checked>'
+        f'<span style="display:inline-block; width:12px; height:12px; border-radius:3px; background:{pt["color"]}; flex-shrink:0;"></span>'
+        f'<span class="pkg-toggle-label">{html_escape(pt["name"])}</span>'
+        '</label>'
+        for pt in package_types
+    )
+
     html = f"""
-    <div style="display:flex; gap:16px; align-items:flex-start; font-family:sans-serif;">
+    <style>
+        #viewer_root_{bin_partno} {{ margin:0; font-family:sans-serif; color:#888; }}
+        #viewer_root_{bin_partno} label, #viewer_root_{bin_partno} b,
+        #viewer_root_{bin_partno} select, #viewer_root_{bin_partno} span {{ color:inherit; }}
+        #viewer_root_{bin_partno} select {{ background:transparent; border:1px solid #8888; border-radius:4px; padding:4px; }}
+        #pkg_list_{bin_partno} {{ max-height:180px; overflow-y:auto; margin-top:4px; }}
+    </style>
+    <div id="viewer_root_{bin_partno}" style="display:flex; gap:16px; align-items:flex-start;">
     <div id="plot_{bin_partno}" style="flex:4; height:640px; border-radius:6px; overflow:hidden;"></div>
-    <div id="controls_{bin_partno}" style="flex:1; min-width:180px; padding:8px; border-radius:6px; transition: background-color 0.2s;">
+    <div id="controls_{bin_partno}" style="flex:1; min-width:200px; padding:10px; border-radius:6px; transition: background-color 0.2s, color 0.2s;">
         <label for="orientation_{bin_partno}"><b>Viewer Orientation</b></label><br>
         <select id="orientation_{bin_partno}" style="width:100%; margin:6px 0 16px 0;">
         {options_html}
         </select>
+
+        <label for="order_mode_{bin_partno}"><b>Peel Order</b></label><br>
+        <select id="order_mode_{bin_partno}" style="width:100%; margin:6px 0 16px 0;">
+            <option value="camera" selected>By Camera View</option>
+            <option value="door">By Distance to Truck Door</option>
+        </select>
+
         <label for="reveal_{bin_partno}"><b>Packages Visible</b></label><br>
             <input type="range" id="reveal_{bin_partno}" min="1" max="{total_packed}" value="{total_packed}" style="width:100%; margin-top:6px;">
-            <div id="reveal_label_{bin_partno}" style="margin-top:4px; margin-bottom:16px; color:#888;">
+            <div id="reveal_label_{bin_partno}" style="margin-top:4px; margin-bottom:16px; font-size:0.9em;">
                 Showing {total_packed} of {total_packed} packages
             </div>
+
+            <b>Show / Hide Package Types</b>
+            <div id="pkg_list_{bin_partno}">
+                {package_toggle_html}
+            </div>
+
+            <hr style="opacity:0.3; margin:16px 0;">
+
             <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
             <input type="checkbox" id="dark_{bin_partno}">
             <b>Dark Mode</b>
         </label>
+        <div id="theme_auto_label_{bin_partno}" style="font-size:0.8em; margin-top:2px; opacity:0.75;"></div>
+        <a href="#" id="theme_reset_{bin_partno}" style="font-size:0.8em; display:none; margin-top:2px;">Reset to app theme</a>
     </div>
     </div>
     <script src="https://cdn.plot.ly/plotly-2.32.0.min.js"></script>
@@ -602,78 +716,200 @@ def render_packing_visual(bin_partno: str, packed_geometries: list[PackedItem], 
             Plotly.newPlot(plotDiv, data, layout, {{responsive: true}});
 
             const orientationSel = document.getElementById("orientation_{bin_partno}");
-            const revealSlider  = document.getElementById("reveal_{bin_partno}");
-            const revealLabel   = document.getElementById("reveal_label_{bin_partno}");
-            const darkCheckbox  = document.getElementById("dark_{bin_partno}");
-            const controlsPanel = document.getElementById("controls_{bin_partno}");
+            const orderModeSel   = document.getElementById("order_mode_{bin_partno}");
+            const revealSlider   = document.getElementById("reveal_{bin_partno}");
+            const revealLabel    = document.getElementById("reveal_label_{bin_partno}");
+            const darkCheckbox   = document.getElementById("dark_{bin_partno}");
+            const controlsPanel  = document.getElementById("controls_{bin_partno}");
+            const autoLabel      = document.getElementById("theme_auto_label_{bin_partno}");
+            const resetLink      = document.getElementById("theme_reset_{bin_partno}");
+            const pkgToggles     = Array.prototype.slice.call(document.querySelectorAll("#pkg_list_{bin_partno} .pkg-toggle"));
 
-        // --- Visibility only (cheap, WebGL-side toggle — no scene rebuild) ---
-        // This is the ONLY thing that runs while dragging the slider, so it
-        // stays smooth no matter how large the manifest is.
-        function computeVisible(orientation, revealCount) {{
-          const order = orderings[orientation]; // farthest -> closest
-          const visible = new Array(totalTraces).fill(false);
-          visible[0] = true; // rear door, always shown
-          for (let i = 0; i < revealCount && i < order.length; i++) {{
-            visible[order[i][0]] = true;
-            visible[order[i][1]] = true;
-          }}
-          return visible;
-        }}
+            // Which package types (by base name) are currently shown. Defaults to all.
+            const typeVisible = {{}};
+            pkgToggles.forEach(function(cb) {{ typeVisible[cb.dataset.base] = true; }});
 
-        let rafPending = false;
-        function applyReveal() {{
-          if (rafPending) return;
-          rafPending = true;
-          requestAnimationFrame(() => {{
-            const revealCount = parseInt(revealSlider.value, 10);
-            const visible = computeVisible(orientationSel.value, revealCount);
-            Plotly.restyle(plotDiv, {{visible: visible}});
-            revealLabel.textContent = "Showing " + revealCount + " of " + totalPacked + " packages";
-            rafPending = false;
-          }});
-        }}
+            // --- Visibility (cheap, WebGL-side toggle — no scene rebuild) ---
+            // Combines the depth-reveal slider position with the peel-order
+            // (camera-based or door-distance) and the per-type checkboxes.
+            function computeVisible() {{
+                const revealCount = parseInt(revealSlider.value, 10);
+                const orderKey = orderModeSel.value === "door" ? "__door__" : orientationSel.value;
+                const order = orderings[orderKey];
+                const visible = new Array(totalTraces).fill(false);
+                visible[0] = true; // rear door, always shown
+                let shownCount = 0;
+                for (let i = 0; i < order.length; i++) {{
+                    const meshIdx = order[i][0];
+                    const lineIdx = order[i][1];
+                    const baseName = order[i][2];
+                    const show = (i < revealCount) && (typeVisible[baseName] !== false);
+                    if (show) shownCount++;
+                    visible[meshIdx] = show;
+                    visible[lineIdx] = show;
+                }}
+                return {{ visible: visible, shownCount: shownCount }};
+            }}
 
-        // --- Orientation change: infrequent, so the heavier camera relayout is fine here ---
-        function applyOrientation() {{
-          const orientation = orientationSel.value;
-          const revealCount = parseInt(revealSlider.value, 10);
-          const visible = computeVisible(orientation, revealCount);
-          Plotly.update(plotDiv, {{visible: visible}}, {{"scene.camera.eye": cameraPresets[orientation]}});
-        }}
+            function updateLabel(shownCount) {{
+                revealLabel.textContent = "Showing " + shownCount + " of " + totalPacked + " packages";
+            }}
 
-        function applyDarkMode() {{
-          const isDark = darkCheckbox.checked;
-          const bg = isDark ? "#111111" : "#ffffff";
-          const paneColor = isDark ? "#1e1e1e" : "#ffffff";
-          const gridColor = isDark ? "#3a3a3a" : "#dddddd";
-          const textColor = isDark ? "#eeeeee" : "#333333";
+            // 'input' fires continuously while dragging — restyle only (batched
+            // via requestAnimationFrame), so it stays smooth no matter how large
+            // the manifest is.
+            let rafPending = false;
+            function applyRevealRAF() {{
+                if (rafPending) return;
+                rafPending = true;
+                requestAnimationFrame(function() {{
+                    const result = computeVisible();
+                    Plotly.restyle(plotDiv, {{visible: result.visible}});
+                    updateLabel(result.shownCount);
+                    rafPending = false;
+                }});
+            }}
 
-          Plotly.relayout(plotDiv, {{
-            paper_bgcolor: bg,
-            plot_bgcolor: bg,
-            "scene.xaxis.backgroundcolor": paneColor,
-            "scene.yaxis.backgroundcolor": paneColor,
-            "scene.zaxis.backgroundcolor": paneColor,
-            "scene.xaxis.gridcolor": gridColor,
-            "scene.yaxis.gridcolor": gridColor,
-            "scene.zaxis.gridcolor": gridColor,
-            "scene.xaxis.color": textColor,
-            "scene.yaxis.color": textColor,
-            "scene.zaxis.color": textColor,
-            font: {{ color: textColor }}
-          }});
+            // Orientation change: infrequent, so the heavier camera relayout is fine here.
+            function applyOrientation() {{
+                const result = computeVisible();
+                Plotly.update(plotDiv, {{visible: result.visible}}, {{"scene.camera.eye": cameraPresets[orientationSel.value]}});
+                updateLabel(result.shownCount);
+            }}
 
-          controlsPanel.style.backgroundColor = isDark ? "#111111" : "transparent";
-          controlsPanel.style.color = textColor;
-          revealLabel.style.color = isDark ? "#aaaaaa" : "#888888";
-        }}
+            function applyOrderMode() {{
+                const result = computeVisible();
+                Plotly.restyle(plotDiv, {{visible: result.visible}});
+                updateLabel(result.shownCount);
+            }}
 
-        // 'input' fires continuously while dragging — restyle only, so it's instant.
-        revealSlider.addEventListener("input", applyReveal);
-        orientationSel.addEventListener("change", applyOrientation);
-        darkCheckbox.addEventListener("change", applyDarkMode);
-      }})();
+            function applyTypeToggle() {{
+                const result = computeVisible();
+                Plotly.restyle(plotDiv, {{visible: result.visible}});
+                updateLabel(result.shownCount);
+            }}
+
+            // ---------------------------------------------------------------
+            // Theme handling: follows the host Streamlit app's light/dark
+            // theme automatically. The "Dark Mode" checkbox is a manual
+            // override for this viewer only — flipping it stops the viewer
+            // from auto-following until "Reset to app theme" is clicked.
+            // ---------------------------------------------------------------
+            const THEMES = {{
+                dark:  {{ bg: "#111111", pane: "#1e1e1e", grid: "#3a3a3a", text: "#eeeeee", panelBg: "#1a1a1a", muted: "#aaaaaa", border: "#333333" }},
+                light: {{ bg: "#ffffff", pane: "#ffffff", grid: "#dddddd", text: "#222222", panelBg: "#f4f4f4", muted: "#666666", border: "#e2e2e2" }}
+            }};
+
+            function detectHostIsDark() {{
+                try {{
+                    const doc = window.parent.document;
+                    const el = doc.querySelector('[data-testid="stAppViewContainer"]') || doc.body;
+                    const bg = window.parent.getComputedStyle(el).backgroundColor;
+                    const m = bg.match(/\\d+/g);
+                    if (m && m.length >= 3) {{
+                        const r = Number(m[0]), g = Number(m[1]), b = Number(m[2]);
+                        return (0.299 * r + 0.587 * g + 0.114 * b) < 128;
+                    }}
+                }} catch (e) {{
+                    // Cross-origin / sandboxed iframe — fall through to OS preference.
+                }}
+                return !!(window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches);
+            }}
+
+            let manualOverride = false;
+
+            function applyTheme(isDark) {{
+                const t = isDark ? THEMES.dark : THEMES.light;
+
+                document.body.style.backgroundColor = t.bg;
+                document.body.style.color = t.text;
+
+                Plotly.relayout(plotDiv, {{
+                    paper_bgcolor: t.bg,
+                    plot_bgcolor: t.bg,
+                    "scene.xaxis.backgroundcolor": t.pane,
+                    "scene.yaxis.backgroundcolor": t.pane,
+                    "scene.zaxis.backgroundcolor": t.pane,
+                    "scene.xaxis.gridcolor": t.grid,
+                    "scene.yaxis.gridcolor": t.grid,
+                    "scene.zaxis.gridcolor": t.grid,
+                    "scene.xaxis.color": t.text,
+                    "scene.yaxis.color": t.text,
+                    "scene.zaxis.color": t.text,
+                    font: {{ color: t.text }}
+                }});
+
+                controlsPanel.style.backgroundColor = t.panelBg;
+                controlsPanel.style.color = t.text;
+                controlsPanel.style.border = "1px solid " + t.border;
+                revealLabel.style.color = t.muted;
+
+                darkCheckbox.checked = isDark;
+                autoLabel.textContent = manualOverride ? "Manual override" : "Following Streamlit theme";
+                resetLink.style.display = manualOverride ? "inline-block" : "none";
+            }}
+
+            function syncTheme() {{
+                if (manualOverride) return;
+                applyTheme(detectHostIsDark());
+            }}
+
+            // Paint a theme-correct viewer immediately, before anything else,
+            // so there is never a flash of default-colored (potentially
+            // invisible) text.
+            applyTheme(detectHostIsDark());
+
+            darkCheckbox.addEventListener("change", function() {{
+                manualOverride = true;
+                applyTheme(darkCheckbox.checked);
+            }});
+
+            resetLink.addEventListener("click", function(e) {{
+                e.preventDefault();
+                manualOverride = false;
+                syncTheme();
+            }});
+
+            // Stay in sync with Streamlit's theme (its own light/dark toggle,
+            // or an OS-level scheme change) as long as the user hasn't
+            // manually overridden the viewer.
+            if (window.matchMedia) {{
+                const mq = window.matchMedia("(prefers-color-scheme: dark)");
+                const listen = mq.addEventListener ? mq.addEventListener.bind(mq) : mq.addListener.bind(mq);
+                listen("change", syncTheme);
+            }}
+            try {{
+                const parentDoc = window.parent.document;
+                const observeTarget = parentDoc.querySelector('[data-testid="stAppViewContainer"]') || parentDoc.body;
+                new MutationObserver(syncTheme).observe(observeTarget, {{attributes: true, attributeFilter: ["class", "style"]}});
+                new MutationObserver(syncTheme).observe(parentDoc.documentElement, {{attributes: true, attributeFilter: ["class", "style"]}});
+            }} catch (e) {{
+                // Cross-origin sandbox — the matchMedia listener above still covers it.
+            }}
+            // Belt-and-braces fallback for setups where the observers above
+            // can't attach: a cheap periodic check that only repaints when
+            // the detected theme actually changes.
+            let lastKnownDark = detectHostIsDark();
+            setInterval(function() {{
+                if (manualOverride) return;
+                const nowDark = detectHostIsDark();
+                if (nowDark !== lastKnownDark) {{
+                    lastKnownDark = nowDark;
+                    applyTheme(nowDark);
+                }}
+            }}, 1500);
+
+            // --- Wire up controls ---
+            revealSlider.addEventListener("input", applyRevealRAF);
+            orientationSel.addEventListener("change", applyOrientation);
+            orderModeSel.addEventListener("change", applyOrderMode);
+            pkgToggles.forEach(function(cb) {{
+                cb.addEventListener("change", function() {{
+                    typeVisible[cb.dataset.base] = cb.checked;
+                    applyTypeToggle();
+                }});
+            }});
+        }})();
     </script>
     """
 
@@ -1101,6 +1337,15 @@ if st.button("Run AI Optimization"):
                         )
 
                     )
+
+        # Hard physics guarantee: drop any box whose footprint isn't at
+        # least 55% supported by whatever is directly beneath it, so the
+        # score reflects the layout that will actually be shown/kept.
+        packed_geometries, stability_rejected = apply_stability_filter(
+                packed_geometries,
+                min_support_ratio=0.55
+            )
+
         utilization = calculate_utilization(
                 packed_geometries,
                 float(truck_w * truck_h * truck_d)
@@ -1137,6 +1382,8 @@ if st.button("Run AI Optimization"):
                 "packer": packer,
 
                 "packed": packed_geometries,
+
+                "stability_rejected": stability_rejected,
 
                 "utilization": utilization,
 
@@ -1209,7 +1456,19 @@ if 'last_packer' in st.session_state:
                     max_load=m_data["max_load"]
                 )
             )
-            
+
+        # Hard physics guarantee: a box may only rest on top of another box
+        # if at least 55% of its own footprint is actually supported by the
+        # tops of whatever's directly beneath it. py3dbp's own
+        # support_surface_ratio setting already nudges the packer this way,
+        # but it isn't a hard guarantee, so we verify it ourselves and pull
+        # out anything that would render as balanced on an unrealistically
+        # small platform.
+        packed_geometries, stability_rejected = apply_stability_filter(
+            packed_geometries,
+            min_support_ratio=0.55
+        )
+
         utilization_rate = calculate_utilization(packed_geometries, truck_vol)
         load_distribution, support_graph = calculate_load_distribution(packed_geometries)
         offloading_score = calculate_offloading_score(
@@ -1230,7 +1489,7 @@ if 'last_packer' in st.session_state:
         col1, col2, col3, col4 = st.columns(4)
         with col1:
             total_items = sum(x["quantity"] for x in st.session_state.manifest)
-            st.metric("Total Packed Count", f"{len(b.items)} / {total_items}")
+            st.metric("Total Packed Count", f"{len(packed_geometries)} / {total_items}")
         with col2:
             st.metric("Space Volume Utilization", f"{utilization_rate:.1f}%")
         with col3:
@@ -1247,6 +1506,16 @@ if 'last_packer' in st.session_state:
             st.subheader("⚠️ Unpacked Items (Rejected By Constraints)")
             for item in unfitted:
                 st.error(f"**{item.name}** could not be packed securely. Adjust dimensions or stack settings.")
+
+        if stability_rejected:
+            st.subheader("⚠️ Removed For Insufficient Support (<55% Of Footprint)")
+            st.caption(
+                "These boxes were placed by the solver but would have been resting "
+                "on less than 55% of their own base — an unrealistic platform to "
+                "stack on — so they were pulled from this layout."
+            )
+            for item in stability_rejected:
+                st.error(f"**{item.name}** would have been under-supported. Adjust stacking order or quantities.")
 
         # --------------------------------------------------
         # 3D Render + Depth-Reveal Slider (isolated fragment)
