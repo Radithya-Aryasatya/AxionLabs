@@ -1,0 +1,122 @@
+{
+  "id": "TK-MOCK-02",
+  "truck_name": "Placeholder Truck Dock-2",
+  "truck_dimensions": [
+    2.0,
+    2.0,
+    4.0
+  ],
+  "fill_percentage": 72.5,
+  "loading_in_progress": false,
+  "doors_closing": false,
+  "truck_moving": false,
+  "manifest": [
+    {
+      "name": "Crate-A",
+      "quantity": 2,
+      "fragile": false,
+      "max_load": 100
+    },
+    {
+      "name": "Crate-B",
+      "quantity": 1,
+      "fragile": true,
+      "max_load": 60
+    }
+  ],
+  "packed_items": [
+    {
+      "name": "Crate-A #1",
+      "part_number": "M2-0",
+      "position": [
+        0,
+        0,
+        0
+      ],
+      "dimensions": [
+        80,
+        80,
+        80
+      ],
+      "weight": 40,
+      "fragile": false
+    },
+    {
+      "name": "Crate-A #2",
+      "part_number": "M2-1",
+      "position": [
+        80,
+        0,
+        0
+      ],
+      "dimensions": [
+        80,
+        80,
+        80
+      ],
+      "weight": 40,
+      "fragile": false
+    },
+    {
+      "name": "Crate-B #1",
+      "part_number": "M2-2",
+      "position": [
+        0,
+        80,
+        0
+      ],
+      "dimensions": [
+        80,
+        80,
+        80
+      ],
+      "weight": 25,
+      "fragile": true
+    }
+  ],
+  "manifest_summary": [
+    {
+      "name": "Crate-A",
+      "quantity": 2,
+      "packed": 2,
+      "remaining": 0,
+      "fragile": false,
+      "max_load": 100
+    },
+    {
+      "name": "Crate-B",
+      "quantity": 1,
+      "packed": 1,
+      "remaining": 0,
+      "fragile": true,
+      "max_load": 60
+    }
+  ],
+  "total_items_expected": 3,
+  "packed_count": 3,
+  "unfitted_count": 0,
+  "status": "INSPECTED_CLEAR",
+  "gemini_analysis": {
+    "anomaly_type": "NONE",
+    "severity": "NONE",
+    "confidence": 0.96,
+    "analysis_paragraph": "Post-reinspection scan confirms the cargo is stable and aligned with the packing plan. No spatial discrepancies detected.",
+    "affected_items": [],
+    "recommended_actions": [],
+    "spatial_discrepancy_score": 0.05
+  },
+  "anomaly_history": [
+    {
+      "anomaly_type": "MESSY_STACKING",
+      "severity": "WARNING",
+      "analysis_paragraph": "Initial scan flagged a minor stacking irregularity. Inspector verified the load and cleared the bay.",
+      "affected_items": [
+        "M2-0"
+      ],
+      "recommended_actions": [
+        "Re-inspect after repositioning"
+      ],
+      "resolved": true
+    }
+  ]
+}

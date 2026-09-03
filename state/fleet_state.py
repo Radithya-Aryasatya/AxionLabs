@@ -94,6 +94,7 @@ class Fleet:
     truck_moving: bool = False
     loading_in_progress: bool = True     # True when rear doors open & dock engaged
     truck_name: str = ""                  # Descriptive name for the truck
+    source: str = "live"                  # "live" (worker) | "mock" (demo dock)
 
     def to_dict(self) -> dict:
         """Serialize Fleet to a JSON-compatible dict (for persistence or API)."""
@@ -150,6 +151,10 @@ def initialize_session_state():
     if 'color_map' not in st.session_state:
         st.session_state.color_map = {}
 
+    # Hybrid dock registry (DockState wrappers for the 3 fixed docks)
+    from state.dock_state import initialize_dock_registry
+    initialize_dock_registry()
+
 
 def get_fleet_by_id(fleet_id: str) -> 'Fleet':
     """Retrieve a fleet by its ID from session state."""
@@ -171,9 +176,11 @@ def register_fleet_from_packing_result(
     manifest: List[Dict], packer: Any,
     truck_w: float, truck_h: float, truck_d: float,
     truck_name: str = "",
+    dock_number: int = 1,
 ) -> 'Fleet':
     """Called when View 1 completes a packing calculation.
-    Automatically creates a new Fleet entry in View 2's state."""
+    Automatically creates a new Fleet entry in View 2's state.
+    The worker fleet is pinned to Dock 1 (mocks own Docks 2 & 3)."""
     import streamlit as st
     initialize_session_state()
 
@@ -249,7 +256,6 @@ def register_fleet_from_packing_result(
 
     fleet_count = len(st.session_state.active_fleets)
     fleet_id = f"TK-{fleet_count + 1:02d}"
-    dock_number = fleet_count + 1
 
     fleet = Fleet(
         id=fleet_id,
@@ -270,10 +276,17 @@ def register_fleet_from_packing_result(
         loading_in_progress=True,
         doors_closing=False,
         truck_moving=False,
+        source="live",
     )
 
     st.session_state.active_fleets.append(fleet)
     st.session_state.last_updated = datetime.now()
+
+    # Link this fleet into the hybrid dock registry
+    from state.dock_state import upsert_dock_fleet, set_dock_stage, DockStage
+    upsert_dock_fleet(dock_number, fleet_id)
+    set_dock_stage(dock_number, DockStage.LOADING)
+
     return fleet
 
 

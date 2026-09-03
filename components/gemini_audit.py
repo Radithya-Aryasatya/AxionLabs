@@ -40,6 +40,7 @@ def _render_current_analysis(analysis: dict, fleet: Fleet):
     affected = analysis.get('affected_items', [])
     recommendations = analysis.get('recommended_actions', [])
     discrepancy = analysis.get('spatial_discrepancy_score', 0.0)
+    extra = analysis.get('extra', {})
 
     severity_color = {
         'WARNING': '#F59E0B', 'CRITICAL': '#EF4444', 'NONE': '#10B981'
@@ -66,8 +67,20 @@ def _render_current_analysis(analysis: dict, fleet: Fleet):
         </div>
     """, unsafe_allow_html=True)
 
-    st.markdown("#### Analysis Narrative")
-    st.markdown(f'```\n{paragraph}\n```')
+    # Pure Gemini narrative — rendered verbatim, no code-box wrapping
+    if paragraph:
+        st.markdown("#### Analysis Narrative")
+        st.markdown(paragraph)
+
+    # Render any additional fields Gemini returned (not restricted to our schema)
+    if extra:
+        st.markdown("#### Raw Gemini Observations")
+        for key, val in extra.items():
+            label = key.replace("_", " ").title()
+            if isinstance(val, str):
+                st.markdown(f"**{label}:** {val}")
+            else:
+                st.markdown(f"**{label}:** {val}")
 
     if affected:
         st.markdown("#### Affected Items")

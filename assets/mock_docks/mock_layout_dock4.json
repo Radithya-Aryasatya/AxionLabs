@@ -1,0 +1,109 @@
+{
+  "id": "TK-MOCK-04",
+  "truck_name": "Placeholder Truck Dock-4",
+  "truck_dimensions": [
+    2.0,
+    2.0,
+    4.0
+  ],
+  "fill_percentage": 35.0,
+  "loading_in_progress": true,
+  "doors_closing": false,
+  "truck_moving": false,
+  "manifest": [
+    {
+      "name": "Crate-A",
+      "quantity": 2,
+      "fragile": false,
+      "max_load": 100
+    },
+    {
+      "name": "Crate-B",
+      "quantity": 1,
+      "fragile": true,
+      "max_load": 60
+    }
+  ],
+  "packed_items": [
+    {
+      "name": "Crate-A #1",
+      "part_number": "M4-0",
+      "position": [
+        0,
+        0,
+        0
+      ],
+      "dimensions": [
+        80,
+        80,
+        80
+      ],
+      "weight": 40,
+      "fragile": false
+    },
+    {
+      "name": "Crate-A #2",
+      "part_number": "M4-1",
+      "position": [
+        80,
+        0,
+        0
+      ],
+      "dimensions": [
+        80,
+        80,
+        80
+      ],
+      "weight": 40,
+      "fragile": false
+    },
+    {
+      "name": "Crate-B #1",
+      "part_number": "M4-2",
+      "position": [
+        0,
+        80,
+        0
+      ],
+      "dimensions": [
+        80,
+        80,
+        80
+      ],
+      "weight": 25,
+      "fragile": true
+    }
+  ],
+  "manifest_summary": [
+    {
+      "name": "Crate-A",
+      "quantity": 2,
+      "packed": 2,
+      "remaining": 0,
+      "fragile": false,
+      "max_load": 100
+    },
+    {
+      "name": "Crate-B",
+      "quantity": 1,
+      "packed": 1,
+      "remaining": 0,
+      "fragile": true,
+      "max_load": 60
+    }
+  ],
+  "total_items_expected": 3,
+  "packed_count": 3,
+  "unfitted_count": 0,
+  "status": "LOADING",
+  "gemini_analysis": {
+    "anomaly_type": "NONE",
+    "severity": "NONE",
+    "confidence": 0.5,
+    "analysis_paragraph": "Loading in progress. Awaiting full manifest before spatial analysis can be completed.",
+    "affected_items": [],
+    "recommended_actions": [],
+    "spatial_discrepancy_score": 0.0
+  },
+  "anomaly_history": []
+}

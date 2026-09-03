@@ -5,7 +5,9 @@ Executive Control Tower — Main View 2 controller.
 
 Landing view for the Manager role. Displays:
   - Persistent anomaly alert banners (all active fleets)
-  - Fleet Overview Grid of Fleet Cards
+  - Auto-refreshing control-room status ticker
+  - 4-dock fixed grid (Dock 1 LIVE, Docks 2–4 editable placeholder pages)
+  - 3-dock fixed grid (Dock 1 LIVE, Docks 2 & 3 MOCK demo data)
   - Tri-View Detail Inspection Panel (when a fleet is selected)
 
 Note: This file is named with underscore (executive_dashboard.py) so it can
@@ -15,9 +17,12 @@ hyphen) has been superseded by this version.
 
 import streamlit as st
 from state.fleet_state import Fleet, FleetStatus, get_fleet_by_id, select_fleet
+from state.dock_state import get_all_docks, DockKind, DockStage
 from components.fleet_card import render_fleet_card_compact
 from components.anomaly_banner import render_anomaly_banners
 from components.tri_view_panel import render_tri_view_panel
+from components.status_ticker import render_status_ticker
+from services.mock_fleet_factory import seed_mock_docks
 
 
 def render_executive_dashboard():
@@ -25,6 +30,13 @@ def render_executive_dashboard():
     Main entry point for the Executive Control Tower view.
     Call this from app.py when view_mode == 'executive'.
     """
+    # Ensure placeholder mock docks exist (Docks 2, 3, 4)
+    seed_mock_docks()
+
+    # --- In-dashboard alert corner (top-right, control-room style) ---
+    from components.alert_corner import render_alert_corner
+    render_alert_corner()
+
     # Page header
     st.markdown("""
         <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 20px;">
@@ -32,11 +44,14 @@ def render_executive_dashboard():
             <div>
                 <h1 style="margin: 0; color: #ffffff;">Executive Control Tower</h1>
                 <p style="margin: 4px 0; color: #94A3B8; font-size: 13px;">
-                    Fleet Monitoring & Diagnostic Dashboard
+                    Hybrid Fleet Monitoring & Diagnostic Dashboard
                 </p>
             </div>
         </div>
     """, unsafe_allow_html=True)
+
+    # --- Control-room status ticker (auto-refreshing) ---
+    render_status_ticker()
 
     fleets = st.session_state.get('active_fleets', [])
 
@@ -58,18 +73,106 @@ def render_executive_dashboard():
 
     if selected_fleet:
         render_tri_view_panel(selected_fleet)
+        # --- 4-Dock Fixed Grid ---
     else:
-        # --- Fleet Overview Grid ---
-        _render_fleet_grid(fleets)
+        # --- 3-Dock Fixed Grid ---
+        _render_dock_grid()
+
+    # --- Demo reset control ---
+    with st.expander("🔁 Demo Controls", expanded=False):
+        st.caption("Reset Docks 2, 3, 4 to their opening demo state.")
+        if st.button("Reset Mock Docks", key="reset_mock_docks"):
+            from services.mock_fleet_factory import reseed_mock_docks
+            reseed_mock_docks()
+            st.rerun()
 
 
-def _render_fleet_grid(fleets):
-    """Render the fleet overview grid of cards."""
-    st.markdown("### 🚛 Active Fleets at Loading Docks")
-    st.caption(f"{len(fleets)} fleet(s) currently at docks")
+def _render_dock_grid():
+    """Render the 4 fixed docks as a column grid."""
+    st.markdown("### 🏗️ Loading Dock Overview")
+    st.caption("Dock 1 is live from the Worker Interface • Docks 2, 3, 4 are editable placeholder pages")
 
-    for fleet in fleets:
-        render_fleet_card_compact(fleet)
+    docks = get_all_docks()
+    cols = st.columns(4)
+    for i, dn in enumerate(sorted(docks)):
+        dock = docks[dn]
+        with cols[i]:
+            _render_dock_card(dock)
+
+
+def _render_dock_card(dock):
+    """Render a single dock card with status LED, gauge, and open button."""
+    fleet = dock.fleet()
+    kind_label = "LIVE" if dock.kind == DockKind.LIVE else "DEMO"
+    kind_color = "#3B82F6" if dock.kind == DockKind.LIVE else "#8B5CF6"
+
+    if fleet:
+        status_color = fleet.status.color
+        status_text = fleet.status.value
+        fill = fleet.fill_percentage
+    else:
+        status_color = "#6B7280"
+        status_text = dock.stage.value
+        fill = 0.0
+
+    led_animation = ""
+    if fleet:
+        if fleet.status == FleetStatus.BLOCKED:
+            led_animation = "animation:blink 0.8s infinite;"
+        elif fleet.status == FleetStatus.ANOMALY_DETECTED:
+            led_animation = "animation:blink 1.5s infinite;"
+
+    alert_badge = (" <span style='background:#EF4444;color:white;border-radius:8px;"
+                   "padding:0 6px;font-size:10px;'>ALERT</span>"
+                   if dock.unread_alert else "")
+
+    st.markdown(f"""
+        <style>
+        @keyframes blink {{ 0%,100%{{opacity:1;}} 50%{{opacity:0.2;}} }}
+        </style>
+        <div style="border:1px solid #334159;border-radius:12px;padding:16px;
+                    background:linear-gradient(145deg,#1e293b,#0f172a);">
+            <div style="display:flex;justify-content:space-between;align-items:center;">
+                <div>
+                    <h3 style="margin:0;color:#fff;font-size:16px;">
+                        🚛 Dock {dock.dock_number}{alert_badge}
+                    </h3>
+                    <span style="background:{kind_color};color:white;padding:2px 8px;
+                                 border-radius:8px;font-size:10px;font-weight:700;">
+                        {kind_label}
+                    </span>
+                </div>
+                <div style="width:14px;height:14px;border-radius:50%;
+                            background:{status_color};{led_animation}"></div>
+            </div>
+            <div style="margin-top:10px;">
+                <div style="display:flex;justify-content:space-between;">
+                    <span style="color:#94A3B8;font-size:12px;">{status_text}</span>
+                    <span style="color:#fff;font-size:12px;font-weight:600;">
+                        {fill:.0f}% fill
+                    </span>
+                </div>
+                <div style="height:8px;background:#334155;border-radius:4px;
+                            overflow:hidden;margin-top:4px;">
+                    <div style="height:100%;width:{fill}%;
+                                background:linear-gradient(90deg,#3B82F6,#10B981);
+                                border-radius:4px;transition:width 0.6s;"></div>
+                </div>
+            </div>
+            {f"<div style='color:#94A3B8;font-size:11px;margin-top:8px;'>Fleet #{fleet.id} • {fleet.truck_name or ''}</div>" if fleet else f"<div style='color:#64748b;font-size:11px;margin-top:8px;'>{dock.stage.value}</div>"}
+        </div>
+    """, unsafe_allow_html=True)
+
+    btn_label = f"Inspect Dock {dock.dock_number}"
+    if fleet:
+        if st.button(btn_label, key=f"open_dock_{dock.dock_number}",
+                     type="primary", width="stretch"):
+            st.session_state.selected_fleet_id = fleet.id
+            st.rerun()
+    else:
+        st.button(btn_label, key=f"open_dock_{dock.dock_number}",
+                  type="secondary", width="stretch", disabled=True,
+                  help="No fleet at this dock yet")
 
 
 def _render_status_summary(fleets):

@@ -19,6 +19,7 @@ from components.cctv_feed import render_cctv_feed
 from components.digital_twin import render_digital_twin
 from components.cargo_manifest_panel import render_cargo_manifest
 from components.gemini_audit import render_gemini_audit
+from components.manager_controls import render_manager_controls
 from datetime import datetime
 
 
@@ -37,8 +38,8 @@ def render_tri_view_panel(fleet: Fleet):
     # --- Panel Header with Fleet Info ---
     _render_panel_header(fleet)
 
-    # --- Action Buttons ---
-    _render_action_buttons(fleet)
+    # --- Manager Action Controls (Resolve / Override / Re-analyze) ---
+    render_manager_controls(fleet)
 
     st.markdown("---")
 
@@ -114,64 +115,3 @@ def _render_panel_header(fleet: Fleet):
     </div>
     """
     st.markdown(header_html, unsafe_allow_html=True)
-
-
-def _render_action_buttons(fleet: Fleet):
-    """Render action buttons for the selected fleet."""
-    col1, col2, col3, col4 = st.columns(4)
-
-    with col1:
-        if fleet.status == FleetStatus.ANOMALY_DETECTED:
-            if st.button("✅ Resolve Anomaly", key=f"resolve_{fleet.id}", type="secondary"):
-                resolve_anomaly(fleet)
-                st.rerun()
-
-    with col2:
-        if fleet.status == FleetStatus.BLOCKED:
-            if st.button("🔓 Manager Override", key=f"override_{fleet.id}", type="primary"):
-                resolve_anomaly(fleet)
-                st.rerun()
-
-    with col3:
-        if st.button("🔄 Run Re-Analysis", key=f"reanalyze_{fleet.id}"):
-            engine = AnomalyEngine()
-            decision = engine.run_full_analysis(fleet)
-
-            # Persist the structured Gemini result for the audit panel
-            result = getattr(engine, 'last_result', None)
-            if result is not None:
-                fleet.gemini_analysis = result.to_dict()
-
-            # Apply the engine decision to the fleet status
-            fleet.status = decision.fleet_status
-
-            # Record the anomaly in the audit history if applicable
-            if decision.severity in ("WARNING", "CRITICAL"):
-                add_anomaly_record(fleet, AnomalyRecord(
-                    anomaly_type=decision.anomaly_type,
-                    severity=decision.severity,
-                    timestamp=datetime.now(),
-                    analysis_paragraph=(
-                        result.analysis_paragraph if result
-                        else decision.banner_message
-                    ),
-                    affected_items=result.affected_items if result else [],
-                    recommended_actions=result.recommended_actions if result else [],
-                ))
-
-            fleet.last_updated = datetime.now()
-            st.rerun()
-
-    with col4:
-        if fleet.status == FleetStatus.LOADING:
-            if st.button("📋 Mark Inspected", key=f"inspected_{fleet.id}"):
-                if fleet.anomaly_history:
-                    unresolved = [a for a in fleet.anomaly_history if not a.resolved]
-                    if unresolved:
-                        fleet.status = FleetStatus.ANOMALY_DETECTED
-                    else:
-                        fleet.status = FleetStatus.INSPECTED_CLEAR
-                else:
-                    fleet.status = FleetStatus.INSPECTED_CLEAR
-                fleet.last_updated = datetime.now()
-                st.rerun()

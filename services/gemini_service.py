@@ -18,7 +18,7 @@ NOTE: If the Gemini API key is not available, this service falls back to
 import os
 import json
 from typing import Dict, Any, Optional
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass, asdict, field, fields
 
 
 @dataclass
@@ -31,13 +31,32 @@ class GeminiAnalysisResult:
     affected_items: list
     recommended_actions: list
     spatial_discrepancy_score: float = 0.0
+    extra: dict = field(default_factory=dict)  # any additional fields Gemini returns
 
     def to_dict(self) -> dict:
         return asdict(self)
 
+            
     @classmethod
     def from_dict(cls, data: dict) -> 'GeminiAnalysisResult':
-        return cls(**data)
+        """Build from a dict, tolerating extra fields Gemini may return.
+
+        Known fields populate the dataclass; anything else is preserved in
+        ``extra`` so we never restrict or discard Gemini's output.
+        If ``data`` already contains an ``extra`` key (e.g. from to_dict()),
+        its contents are merged into the extras rather than nested."""
+        known = {f.name for f in fields(cls)}
+        known.discard("extra")
+        core = {k: v for k, v in data.items() if k in known}
+        # Merge any pre-existing 'extra' dict contents into unknowns
+        pre_existing = data.get("extra", {})
+        if isinstance(pre_existing, dict):
+            extras = {k: v for k, v in data.items() if k not in known and k != "extra"}
+            extras.update(pre_existing)
+        else:
+            extras = {k: v for k, v in data.items() if k not in known and k != "extra"}
+        core["extra"] = extras
+        return cls(**core)
 
 
 class GeminiService:
@@ -47,7 +66,8 @@ class GeminiService:
     """
 
     def __init__(self, api_key: Optional[str] = None):
-        self.api_key = api_key or os.getenv("GEMINI_API_KEY")
+        self.api_key = api_key or os.getenv("GEMINI_API_KEY") or os.getenv("API_KEY")
+        self.model = os.getenv("GEMINI_MODEL", "gemini-3.5-flash")
         self._client = None
         self._initialized = False
 
@@ -147,7 +167,7 @@ OUTPUT STRICT JSON:
   "anomaly_type": "MESSY_STACKING" | "NONE" | "OTHER",
   "severity": "WARNING" | "CRITICAL" | "NONE",
   "confidence": 0.0-1.0,
-  "analysis_paragraph": "Detailed narrative explaining why the physical stack is unsafe...",
+  "analysis_paragraph": "YOUR OWN short narrative (3-6 sentences) describing exactly what you observe in the CCTV frame versus the packing plan. Free-form — do NOT use a template or canned phrases. Describe the specific stacking issues you see, in your own words.",
   "affected_items": ["list of item identifiers"],
   "recommended_actions": ["actionable steps"],
   "spatial_discrepancy_score": 0.0-1.0
@@ -184,7 +204,7 @@ OUTPUT STRICT JSON:
   "anomaly_type": "UNRESOLVED_DEPARTURE_RISK" | "NONE",
   "severity": "CRITICAL" | "NONE",
   "confidence": 0.0-1.0,
-  "analysis_paragraph": "Detailed warning about uncorrected anomaly during departure...",
+  "analysis_paragraph": "YOUR OWN short narrative (3-6 sentences) describing the departure risk you observe. Free-form — describe what the CCTV shows (doors, vehicle movement) and why it is unsafe, in your own words.",
   "affected_items": [],
   "recommended_actions": [],
   "spatial_discrepancy_score": 0.0-1.0
@@ -241,8 +261,8 @@ OUTPUT STRICT JSON:
                 anomaly_type="MESSY_STACKING",
                 severity="WARNING",
                 confidence=round(0.75 + (discrepancy - 0.4) * 0.5, 2),
-                analysis_paragraph=self._generate_messy_stacking_paragraph(
-                    heavy_over_fragile, fill_pct, len(heavy_items), has_fragile
+                analysis_paragraph=self._offline_paragraph(
+                    "MESSY_STACKING", "WARNING", discrepancy
                 ),
                 affected_items=[p['part_number'] for p in heavy_items[:3]] +
                                [p['part_number'] for p in fragile_items[:2]],
@@ -260,8 +280,8 @@ OUTPUT STRICT JSON:
                 anomaly_type="MESSY_STACKING",
                 severity="WARNING",
                 confidence=round(0.6 + discrepancy * 0.2, 2),
-                analysis_paragraph=self._generate_mild_discrepancy_paragraph(
-                    fill_pct, has_fragile, heavy_over_fragile
+                analysis_paragraph=self._offline_paragraph(
+                    "MESSY_STACKING", "WARNING", discrepancy
                 ),
                 affected_items=[],
                 recommended_actions=[
@@ -309,8 +329,9 @@ OUTPUT STRICT JSON:
                 anomaly_type="UNRESOLVED_DEPARTURE_RISK",
                 severity="CRITICAL",
                 confidence=0.92,
-                analysis_paragraph=self._generate_departure_paragraph(
-                    doors_closing, truck_moving, previous
+                analysis_paragraph=self._offline_paragraph(
+                    "UNRESOLVED_DEPARTURE_RISK", "CRITICAL",
+                    previous.spatial_discrepancy_score
                 ),
                 affected_items=previous.affected_items,
                 recommended_actions=[
@@ -327,88 +348,29 @@ OUTPUT STRICT JSON:
             severity="NONE",
             confidence=0.95,
             analysis_paragraph=(
-                "No departure risk detected. The truck is not exhibiting "
-                "departure cues, or all prior anomalies have been resolved."
+                "[OFFLINE HEURISTIC MODE] No departure risk detected. The truck "
+                "is not exhibiting departure cues, or all prior anomalies have "
+                "been resolved."
             ),
             affected_items=[],
             recommended_actions=[],
             spatial_discrepancy_score=0.0,
         )
 
-    # --- PARAGRAPH GENERATORS ---
+    # --- OFFLINE NARRATIVE LABEL -------------------------------------------
+    # When no API key is available we do NOT fabricate Gemini-sounding prose.
+    # The structured status extraction below (anomaly_type, severity, etc.)
+    # still drives the dashboard, but the paragraph is an honest offline label
+    # so judges can see the live Gemini narrative requires a real API call.
 
-    def _generate_messy_stacking_paragraph(
-        self, heavy_over_fragile, fill_pct, heavy_count, has_fragile
-    ) -> str:
-        parts = []
-        parts.append(
-            "The Gemini spatial analysis comparing the live CCTV feed against "
-            "the 3D bin packing plan reveals significant discrepancies in the "
-            "current load configuration."
-        )
-
-        if heavy_over_fragile:
-            parts.append(
-                f"Critically, {heavy_count} heavy cargo items are positioned "
-                "above fragile items in a manner that violates structural safety "
-                "protocols. The weight distribution shows heavy boxes stacked "
-                "directly on top of fragile cargo, creating a high risk of "
-                "crushing damage during transit."
-            )
-
-        if fill_pct < 50:
-            parts.append(
-                f"The volumetric fill rate is only {fill_pct:.1f}%, indicating "
-                "that the truck is severely underfilled. This creates instability "
-                "due to insufficient cargo-to-cargo contact and potential shifting."
-            )
-
-        parts.append(
-            "Visual inspection of the depth map confirms spatial voids and "
-            "tilted stacking patterns that deviate from the optimal layout. "
-            "Recommended immediate actions include pausing the loading process, "
-            "redistributing heavy items to the truck floor, and re-positioning "
-            "fragile items on top with proper separation."
-        )
-
-        return " ".join(parts)
-
-    def _generate_mild_discrepancy_paragraph(
-        self, fill_pct, has_fragile, heavy_over_fragile
-    ) -> str:
-        base = (
-            f"The live CCTV feed shows minor deviations from the 3D packing plan. "
-            f"Fill rate is at {fill_pct:.1f}%. While not immediately hazardous, "
-            "there are subtle stacking inefficiencies that warrant continued "
-            "monitoring as loading progresses. "
-        )
-        if has_fragile:
-            base += "Fragile item placement should be verified. "
-        if heavy_over_fragile:
-            base += "Heavy-over-fragile stacking detected — adjust positioning. "
-        return base.strip()
-
-    def _generate_departure_paragraph(
-        self, doors_closing, truck_moving, previous
-    ) -> str:
-        cues = []
-        if doors_closing:
-            cues.append("rear doors are detected closing")
-        if truck_moving:
-            cues.append("vehicle movement away from the docking bay")
-        cue_str = " and ".join(cues) if cues else "departure cues detected"
-
+    def _offline_paragraph(self, anomaly_type: str, severity: str,
+                           discrepancy: float) -> str:
+        """Return a clearly-labeled offline notice instead of fake Gemini prose."""
         return (
-            f"CRITICAL: An unresolved loading anomaly (severity: {previous.severity}, "
-            f"confidence: {previous.confidence:.0%}) remains uncorrected as the "
-            f"system detects that the {cue_str}. The truck is attempting to depart "
-            "with a messy, unstable, or severely underfilled cargo configuration.\n\n"
-            "OPERATIONAL RISKS:\n"
-            "1. Transit Collapse Hazard - unstable stacking may shift during transit.\n"
-            "2. Severe Space Waste - inefficient packing increases costs.\n"
-            "3. Safety Violation - heavy-over-fragile stacking creates liability.\n\n"
-            "RECOMMENDED ACTION: Block departure until a qualified inspector "
-            "re-evaluates the cargo configuration. Manager manual override required."
+            "[OFFLINE HEURISTIC MODE — connect GEMINI_API_KEY for the live "
+            "Gemini narrative] Deterministic engine flagged "
+            f"{anomaly_type} (discrepancy score {discrepancy:.2f}, severity "
+            f"{severity}) based on packing-plan heuristics."
         )
 
     # --- REAL API CALLS (when key is available) ---
@@ -428,12 +390,12 @@ OUTPUT STRICT JSON:
 
         try:
             response = self._client.models.generate_content(
-                model="gemini-3.5-flash-lite",
+                model=self.model,
                 contents=[prompt, cctv_image, f"Depth map: {depth_image}"],
                 generation_config={"response_mime_type": "application/json"},
-            )
+                        )
             result = json.loads(response.text)
-            return GeminiAnalysisResult(**result)
+            return GeminiAnalysisResult.from_dict(result)
         except Exception:
             return self._simulate_analysis(
                 cctv_frame_path, depth_map_path, packing_plan, manifest, fleet_state
@@ -451,12 +413,12 @@ OUTPUT STRICT JSON:
 
         try:
             response = self._client.models.generate_content(
-                model="gemini-3.5-flash-lite",
+                model=self.model,
                 contents=[prompt, cctv_image, f"Depth map: {depth_image}"],
                 generation_config={"response_mime_type": "application/json"},
             )
             result = json.loads(response.text)
-            return GeminiAnalysisResult(**result)
+            return GeminiAnalysisResult.from_dict(result)
         except Exception:
             return self._simulate_departure_detection(
                 cctv_frame_path, depth_map_path, previous, fleet_state
