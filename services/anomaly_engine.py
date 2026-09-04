@@ -102,6 +102,23 @@ class AnomalyEngine:
         )
         self.last_result = gemini_result
 
+        # Hard stop on a failed request: never let default/empty structured
+        # fields be evaluated as a "clear" inspection, and never fall back to
+        # the simulated engine. Surface the real error instead.
+        if getattr(gemini_result, "status", "") == "FAILED":
+            return AnomalyDecision(
+                anomaly_type="GEMINI_REQUEST_FAILED",
+                severity="NONE",
+                fleet_status=fleet.status,
+                ui_action="SHOW_GEMINI_FAILED",
+                requires_override=False,
+                banner_type="warning",
+                banner_message=(
+                    f"⚠️ GEMINI STATUS: FAILED (model: {gemini_result.model}) — "
+                    f"{gemini_result.error or 'unknown error'}"
+                ),
+            )
+
         # Check for departure risk
         departure_result = self.gemini.detect_departure_risk(
             cctv_frame_path=cctv_frame_path,

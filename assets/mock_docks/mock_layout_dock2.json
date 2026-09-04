@@ -97,6 +97,7 @@
   "unfitted_count": 0,
   "status": "INSPECTED_CLEAR",
   "gemini_analysis": {
+    "status": "SIMULATED",
     "anomaly_type": "NONE",
     "severity": "NONE",
     "confidence": 0.96,

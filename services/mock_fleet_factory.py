@@ -115,6 +115,7 @@ def _default_layout(dock_number: int) -> dict:
         base.update({
             'status': 'INSPECTED_CLEAR',
             'gemini_analysis': {
+                'status': 'SIMULATED',
                 'anomaly_type': 'NONE', 'severity': 'NONE', 'confidence': 0.96,
                 'analysis_paragraph': (
                     'Post-reinspection scan confirms the cargo is stable and '
@@ -142,6 +143,7 @@ def _default_layout(dock_number: int) -> dict:
             'truck_moving': True,
             'fill_percentage': 58.0,
             'gemini_analysis': {
+                'status': 'SIMULATED',
                 'anomaly_type': 'UNRESOLVED_DEPARTURE_RISK',
                 'severity': 'CRITICAL', 'confidence': 0.93,
                 'analysis_paragraph': (
@@ -173,6 +175,7 @@ def _default_layout(dock_number: int) -> dict:
             'loading_in_progress': True,
             'fill_percentage': 35.0,
             'gemini_analysis': {
+                'status': 'SIMULATED',
                 'anomaly_type': 'NONE', 'severity': 'NONE', 'confidence': 0.5,
                 'analysis_paragraph': (
                     'Loading in progress. Awaiting full manifest before spatial '

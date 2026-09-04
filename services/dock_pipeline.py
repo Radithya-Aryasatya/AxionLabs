@@ -6,15 +6,20 @@ The Render -> Gemini -> Notify orchestration for Dock 1.
 When the worker clicks "Render 3D Bin Layout", this module:
   1. upserts the Dock 1 fleet (pins dock_number=1),
   2. pairs a deterministic CCTV frame + depth map,
-  3. runs Gemini spatial reasoning with a HARD TIMEOUT + fallback ladder
-     (last-good cached -> deterministic simulation -> canned placeholder),
-     so a slow API can never hang the pitch,
+  3. runs REAL Gemini spatial reasoning with a hard timeout,
   4. persists the analysis, records anomalies, and pushes a cross-view
      notification + toast.
 
-The whole pipeline is wrapped so it can never crash the worker view.
+Provenance contract (no false successes):
+  - A successful REAL Gemini reply is labelled AnalysisSource.LIVE_GEMINI.
+  - A failed/timed-out request is labelled AnalysisSource.GEMINI_FAILED and
+    is passed through AS-IS (real error, attempted model, empty raw text).
+    It is never replaced with simulated, cached or canned data.
+  - Deterministic simulation happens ONLY when no API key/SDK is configured
+    and is always labelled AnalysisSource.FALLBACK_SIMULATED.
 """
 
+import logging
 import os
 from concurrent.futures import ThreadPoolExecutor, TimeoutError
 from datetime import datetime
@@ -29,44 +34,47 @@ from state.dock_state import (
     set_dock_alert, DockStage, AnalysisSource,
 )
 from state.notifications import push_notification
-from services.gemini_service import GeminiService, GeminiAnalysisResult
+from services.gemini_service import (
+    GeminiService, GeminiAnalysisResult,
+    STATUS_SUCCESS, STATUS_FAILED, STATUS_SIMULATED,
+)
 from services.anomaly_engine import AnomalyEngine
 from services import mock_fleet_factory
 
+log = logging.getLogger("dock_pipeline")
+
 # Timeout (seconds) for the real Gemini API call. Tunable via env.
-ANALYSIS_TIMEOUT_S = float(os.getenv("ANALYSIS_TIMEOUT_S", "10"))
-
-
-def _cached_analysis(fleet_id: str):
-    """Return the last-good cached GeminiAnalysisResult for a fleet, or None."""
-    import streamlit as st
-    return st.session_state.get("gemini_cache", {}).get(fleet_id)
+# Generous enough to absorb the SDK's transient-error retry ladder
+# (2+4+8+16s backoff) during Google-side "high demand" 503 spikes.
+ANALYSIS_TIMEOUT_S = float(os.getenv("ANALYSIS_TIMEOUT_S", "120"))
 
 
 def _cache_analysis(fleet_id: str, result: GeminiAnalysisResult):
+    """Cache a SUCCESSFUL live result for telemetry/inspection purposes only —
+    cached data is never substituted for a live or failed request."""
     import streamlit as st
     st.session_state.setdefault("gemini_cache", {})[fleet_id] = result
 
 
-def _canned_placeholder() -> GeminiAnalysisResult:
-    """Absolute last-resort result so the UI always has something to show."""
+def _failed_from_exception(svc: GeminiService, exc: Exception) -> GeminiAnalysisResult:
+    """Wrap an unexpected pipeline error as an honest FAILED result."""
     return GeminiAnalysisResult(
-        anomaly_type="NONE", severity="NONE", confidence=0.0,
-        analysis_paragraph=(
-            "Analysis temporarily unavailable. Displaying the last known "
-            "configuration. The dock will re-analyze automatically."
-        ),
-        affected_items=[], recommended_actions=["Retry analysis"],
-        spatial_discrepancy_score=0.0,
+        anomaly_type="OTHER", severity="NONE", confidence=0.0,
+        analysis_paragraph="", status=STATUS_FAILED, model=svc.model,
+        raw_response="", error=f"{type(exc).__name__}: {exc}",
     )
 
 
 def analyze_with_fallback(fleet: Fleet) -> Tuple[GeminiAnalysisResult, AnalysisSource]:
     """
-    Run Gemini spatial reasoning with a hard timeout and a 3-tier fallback.
+    Run REAL Gemini spatial reasoning with a hard timeout.
 
-    Returns (result, source) where source is one of:
-      LIVE_GEMINI / FALLBACK_CACHED / FALLBACK_SIMULATED
+    Returns (result, source) where the source reflects provenance honestly:
+      result.status == SUCCESS   -> AnalysisSource.LIVE_GEMINI   (real reply)
+      result.status == FAILED    -> AnalysisSource.GEMINI_FAILED (passed through
+                                    as-is; never swapped for simulated data)
+      result.status == SIMULATED -> AnalysisSource.FALLBACK_SIMULATED (only when
+                                    no API key/SDK is configured at all)
     """
     svc = GeminiService()
     engine = AnomalyEngine(gemini_service=svc)
@@ -89,35 +97,37 @@ def analyze_with_fallback(fleet: Fleet) -> Tuple[GeminiAnalysisResult, AnalysisS
         with ThreadPoolExecutor(max_workers=1) as pool:
             future = pool.submit(_call)
             result = future.result(timeout=ANALYSIS_TIMEOUT_S)
-            _cache_analysis(fleet.id, result)
-            return result, AnalysisSource.LIVE_GEMINI
     except TimeoutError:
-        # API too slow — fall through to cache / simulation
-        cached = _cached_analysis(fleet.id)
-        if cached is not None:
-            return cached, AnalysisSource.FALLBACK_CACHED
-        sim = _call() if not svc._initialized else None
-        if sim is None:
-            sim = svc._simulate_analysis(
-                cctv, depth, fleet.packing_layout, fleet.manifest,
-                engine._fleet_to_state_dict(fleet),
-            )
-        _cache_analysis(fleet.id, sim)
-        return sim, AnalysisSource.FALLBACK_SIMULATED
-    except Exception:
-        # Any other failure — same fallback ladder
-        cached = _cached_analysis(fleet.id)
-        if cached is not None:
-            return cached, AnalysisSource.FALLBACK_CACHED
-        try:
-            sim = svc._simulate_analysis(
-                cctv, depth, fleet.packing_layout, fleet.manifest,
-                engine._fleet_to_state_dict(fleet),
-            )
-            _cache_analysis(fleet.id, sim)
-            return sim, AnalysisSource.FALLBACK_SIMULATED
-        except Exception:
-            return _canned_placeholder(), AnalysisSource.FALLBACK_SIMULATED
+        log.error(
+            "Gemini analysis timed out after %.0fs (model=%s) — reporting "
+            "GEMINI FAILED; NOT substituting simulated data.",
+            ANALYSIS_TIMEOUT_S, svc.model,
+        )
+        result = GeminiAnalysisResult(
+            anomaly_type="OTHER", severity="NONE", confidence=0.0,
+            analysis_paragraph="", status=STATUS_FAILED, model=svc.model,
+            raw_response="",
+            error=(f"RequestTimeout: Gemini ({svc.model}) did not respond "
+                   f"within {ANALYSIS_TIMEOUT_S:.0f}s"),
+        )
+        return result, AnalysisSource.GEMINI_FAILED
+    except Exception as e:
+        log.error("Gemini analysis pipeline error: %s: %s", type(e).__name__, e)
+        return _failed_from_exception(svc, e), AnalysisSource.GEMINI_FAILED
+
+    # Honest provenance mapping — simulated/failed data is never labelled live.
+    if result.status == STATUS_SUCCESS:
+        _cache_analysis(fleet.id, result)
+        return result, AnalysisSource.LIVE_GEMINI
+    if result.status == STATUS_FAILED:
+        log.error(
+            "Gemini request FAILED (model=%s): %s", result.model, result.error
+        )
+        return result, AnalysisSource.GEMINI_FAILED
+    if result.status == STATUS_SIMULATED:
+        return result, AnalysisSource.FALLBACK_SIMULATED
+    # Unknown legacy status — surface it as simulated, never as live.
+    return result, AnalysisSource.FALLBACK_SIMULATED
 
 
 def run_dock1_render_pipeline(
@@ -181,6 +191,22 @@ def _run_dock1_render_pipeline(partno, fig, manifest, packer,
     # --- 3. Analyze with non-blocking fallback ---
     result, source = analyze_with_fallback(fleet)
     set_analysis_source(1, source)
+
+    # --- 3b. Failed Gemini request: surface the failure honestly ---
+    # No simulated substitute, no "verified clear" notification, no anomaly
+    # records derived from default values.
+    if getattr(result, "status", "") == STATUS_FAILED:
+        fleet.gemini_analysis = result.to_dict()
+        fleet.last_updated = datetime.now()
+        set_dock_stage(1, DockStage.MONITORED)
+        set_dock_alert(1, True)
+        push_notification(
+            dock_number=1, fleet_id=fleet.id, level="WARNING",
+            title="Dock 1 — Gemini analysis FAILED",
+            body=(result.error or "Unknown Gemini error")[:160],
+        )
+        st.toast("❌ Dock 1 Gemini analysis failed — see audit panel", icon="❌")
+        return
 
     # --- 4. Decide + persist ---
     engine = AnomalyEngine()

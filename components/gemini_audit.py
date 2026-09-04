@@ -33,6 +33,17 @@ def render_gemini_audit(fleet: Fleet):
 
 def _render_current_analysis(analysis: dict, fleet: Fleet):
     """Render the current Gemini analysis result."""
+    _render_provenance(analysis)
+
+    # A FAILED request produced no real analysis — never dress up defaults
+    # (or any fallback data) as if they were the model's findings.
+    if analysis.get('status') == 'FAILED':
+        st.warning(
+            "No Gemini analysis to display — the request failed. "
+            "Press 'Run Gemini Spatial Analysis' to retry."
+        )
+        return
+
     anomaly_type = analysis.get('anomaly_type', 'UNKNOWN')
     severity = analysis.get('severity', 'NONE')
     confidence = analysis.get('confidence', 0.0)
@@ -91,6 +102,60 @@ def _render_current_analysis(analysis: dict, fleet: Fleet):
         st.markdown("#### Recommended Actions")
         for rec in recommendations:
             st.markdown(f"- {rec}")
+
+
+def _render_provenance(analysis: dict):
+    """
+    Render the provenance panel: Gemini status, model used and the EXACT raw
+    model response. This makes it impossible to mistake simulated, cached or
+    failed output for a live Gemini result.
+    """
+    status = analysis.get('status', '') or 'UNVERIFIED'
+    model = analysis.get('model', '') or 'unknown'
+    raw = analysis.get('raw_response', '') or ''
+    error = analysis.get('error', '') or ''
+    provenance = analysis.get('extra', {}).get('provenance', '')
+
+    status_styles = {
+        'SUCCESS': ('#10B981', '✅ GEMINI STATUS: SUCCESS — real model response received'),
+        'FAILED': ('#EF4444', '❌ GEMINI STATUS: FAILED — the request did NOT succeed'),
+        'SIMULATED': ('#3B82F6', '🧪 GEMINI STATUS: SIMULATED — deterministic local rules, NOT live Gemini'),
+        'UNVERIFIED': ('#F59E0B', '❓ GEMINI STATUS: UNVERIFIED — legacy result without provenance data'),
+    }
+    color, label = status_styles.get(status, ('#F59E0B', f'❓ GEMINI STATUS: {status}'))
+
+    st.markdown(f"""
+        <div style="background:#0f172a; border-radius:12px; padding:14px; margin:8px 0;
+                    border:1px solid {color};">
+            <div style="font-weight:700; color:{color}; font-size:13px;">{label}</div>
+            <div style="color:#94A3B8; font-size:12px; margin-top:4px;">
+                MODEL USED: <code style="color:#E2E8F0;">{model}</code>
+            </div>
+        </div>
+    """, unsafe_allow_html=True)
+
+    if provenance:
+        st.caption(f"Provenance: {provenance}")
+
+    if error:
+        st.error(f"**Gemini request error ({model}):** {error}")
+        st.caption(
+            "The raw response is intentionally empty — no real Gemini "
+            "content exists for this failed request, and no simulated "
+            "substitute was generated."
+        )
+
+    st.markdown("##### 📟 RAW GEMINI RESPONSE")
+    if raw:
+        st.caption(
+            f"Exact text returned by Gemini ({len(raw)} characters), "
+            "shown verbatim — may be prose or JSON."
+        )
+        st.code(raw, language=None, line_numbers=False)
+    elif status == 'FAILED':
+        st.caption("— empty — (no real Gemini response exists for a failed request)")
+    elif status == 'SIMULATED':
+        st.caption("— empty — (simulated results never carry a Gemini response)")
 
 
 def _render_audit_history(fleet: Fleet):

@@ -26,6 +26,7 @@ def _source_chip(source: AnalysisSource) -> str:
     color = {
         AnalysisSource.NONE: "#6B7280",
         AnalysisSource.LIVE_GEMINI: "#10B981",
+        AnalysisSource.GEMINI_FAILED: "#EF4444",
         AnalysisSource.FALLBACK_CACHED: "#F59E0B",
         AnalysisSource.FALLBACK_SIMULATED: "#3B82F6",
     }.get(source, "#6B7280")

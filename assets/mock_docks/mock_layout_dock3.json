@@ -97,6 +97,7 @@
   "unfitted_count": 0,
   "status": "BLOCKED",
   "gemini_analysis": {
+    "status": "SIMULATED",
     "anomaly_type": "UNRESOLVED_DEPARTURE_RISK",
     "severity": "CRITICAL",
     "confidence": 0.93,

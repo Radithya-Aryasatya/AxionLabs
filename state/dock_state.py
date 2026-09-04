@@ -36,6 +36,7 @@ class AnalysisSource(Enum):
     """Where the current Gemini analysis came from (shown as a chip in the audit panel)."""
     NONE = "—"
     LIVE_GEMINI = "LIVE GEMINI"
+    GEMINI_FAILED = "GEMINI FAILED"
     FALLBACK_CACHED = "CACHED"
     FALLBACK_SIMULATED = "SIMULATED"
 
