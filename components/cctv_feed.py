@@ -1,10 +1,9 @@
 """
 components/cctv_feed.py
 =======================
-CCTV Live Stream & Depth View component.
+CCTV Live Stream component.
 
-  - Renders current CCTV frame/video inside the truck interior
-  - Includes a Toggle Switch: [ Standard RGB Feed ] vs [ Depth Map (Depth Anything V2) ]
+  - Renders the current CCTV frame/video feed inside the truck interior
 """
 
 import streamlit as st
@@ -18,28 +17,16 @@ _BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 def render_cctv_feed(
     dock_number: int,
     cctv_frame_path: str = "",
-    depth_map_path: str = "",
     width: int = 512,
     height: int = 384,
 ):
     """
-    Render the CCTV live stream panel with RGB/Depth toggle.
+    Render the CCTV live stream panel (standard RGB feed).
     """
     sim = get_cctv_simulator()
 
     if not cctv_frame_path:
         cctv_frame_path = sim.get_frame(dock_number)
-    if not depth_map_path:
-        depth_map_path = sim.get_depth_map(dock_number)
-
-    # Toggle switch for RGB vs Depth
-    view_mode = st.radio(
-        "Feed Mode",
-        options=["Standard RGB Feed", "Depth Map (Depth Anything V2)"],
-        horizontal=True,
-        index=0,
-        key=f"cctv_view_mode_{dock_number}",
-    )
 
     st.markdown("---")
 
@@ -59,10 +46,7 @@ def render_cctv_feed(
     else:
         current_frame = cctv_frame_path
 
-    if view_mode == "Standard RGB Feed":
-        _render_rgb_feed(current_frame, width, height)
-    else:
-        _render_depth_feed(depth_map_path or current_frame, width, height)
+    _render_rgb_feed(current_frame, width, height)
 
     st.caption(f"📹 Live Feed | Dock {dock_number} | Last updated: {datetime.now().strftime('%H:%M:%S')}")
 
@@ -93,56 +77,6 @@ def _render_rgb_feed(frame_path: str, width: int, height: int):
                     <div>CCTV Feed Placeholder</div>
                     <div style="font-size: 12px; margin-top: 4px;">
                         (No camera feed available)
-                    </div>
-                </div>
-            </div>
-        """, unsafe_allow_html=True)
-
-
-def _render_depth_feed(depth_path: str, width: int, height: int):
-    """Render the depth map feed (Depth Anything V2 output)."""
-    if depth_path and os.path.exists(depth_path):
-        st.image(
-            depth_path,
-            caption="🎯 Depth Map (Depth Anything V2)",
-            width='stretch',
-        )
-        st.markdown("""
-            <div style="
-                background: #1e293b;
-                border-radius: 6px;
-                padding: 8px 12px;
-                margin-top: 8px;
-            ">
-                <div style="color: #94A3B8; font-size: 12px;">
-                    <strong>Depth Legend:</strong>
-                    <span style="color: #10B981;">● Near</span> ·
-                    <span style="color: #F59E0B;">● Mid</span> ·
-                    <span style="color: #EF4444;">● Far</span>
-                </div>
-            </div>
-        """, unsafe_allow_html=True)
-    else:
-        # Generate a visual placeholder depth map
-        st.markdown("""
-            <div style="
-                width: 100%;
-                height: 250px;
-                background: linear-gradient(135deg, #052e16 0%, #78350b 50%, #7f1d1d 100%);
-                border-radius: 8px;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                color: #64748b;
-                border: 2px dashed #475569;
-            ">
-                <div style="text-align: center;">
-                    <div style="font-size: 20px; margin-bottom: 8px;">🎯</div>
-                    <div>Depth Map (Depth Anything V2)</div>
-                    <div style="font-size: 12px; margin-top: 4px;">
-                        <span style="color: #10B981;">● Near</span> ·
-                        <span style="color: #F59E0B;">● Mid</span> ·
-                        <span style="color: #EF4444;">● Far</span>
                     </div>
                 </div>
             </div>

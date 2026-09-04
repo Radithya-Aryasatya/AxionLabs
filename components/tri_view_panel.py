@@ -4,7 +4,7 @@ components/tri_view_panel.py
 Fleet Detail Inspection View (Tri-View Panel).
 
 When a manager selects a fleet, this panel displays 3 things:
-  1. CCTV Live Stream & Depth View (with RGB/Depth toggle)
+  1. CCTV Live Stream (standard RGB feed)
   2. Digital Twin (3D Bin Packing Plan)
   3. Cargo Manifest & Gemini AI Interpretative Audit Log
 """
@@ -48,11 +48,10 @@ def render_tri_view_panel(fleet: Fleet):
     col_left, col_center = st.columns([1, 1])
 
     with col_left:
-        st.markdown("### 1️⃣ CCTV Live Stream & Depth View")
+        st.markdown("### 1️⃣ CCTV Live Stream")
         render_cctv_feed(
             dock_number=fleet.dock_number,
             cctv_frame_path=fleet.cctv_frame_path,
-            depth_map_path=fleet.depth_map_path,
         )
 
     with col_center:
