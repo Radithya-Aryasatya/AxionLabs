@@ -187,6 +187,22 @@ class Bin:
                         # fix depth
                         z = self.checkDepth([x,x+float(w),y,y+float(h),z,z+float(d)])
 
+                    # BUG FIX: checkHeight/checkWidth/checkDepth above can move
+                    # the item to a different (x, y, z) than the pivot position
+                    # that was already collision-checked against self.items
+                    # (lines ~165-168). Nothing re-validates the ADJUSTED spot
+                    # against existing items - only a support/stability check
+                    # runs below, which can pass even when boxes now overlap.
+                    # Re-run the same intersect() check at the fixed position
+                    # before committing to it, and fail the placement (instead
+                    # of silently overlapping) if it collides.
+                    item.position = [set2Decimal(x), set2Decimal(y), set2Decimal(z)]
+                    for current_item_in_bin in self.items:
+                        if intersect(current_item_in_bin, item):
+                            item.position = valid_item_position
+                            fit = False
+                            return fit
+
                     # check stability on item 
                     # rule : 
                     # 1. Define a support ratio, if the ratio below the support surface does not exceed this ratio, compare the second rule.

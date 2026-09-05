@@ -947,7 +947,16 @@ unloading_sequence = st.sidebar.number_input(
     "Unloading Sequence",
     min_value=1,
     value=1,
-    step=1
+    step=1,
+    help=(
+        "Controls where this cargo ends up in the truck, not just how it's scored. "
+        "Sequence 1 = unloaded first, so it gets packed last and placed nearest the door. "
+        "Higher numbers get packed earlier and end up deeper in the truck. "
+        "Items are grouped into broad zones by sequence; within a zone, weight limit and size still decide the exact fit."
+    )
+)
+st.sidebar.caption(
+    "💡 Lower sequence number = unloaded first = placed closer to the truck door."
 )
 
 add_item = st.sidebar.button("Add Item to Manifest")
@@ -1093,6 +1102,7 @@ else:
     h5.markdown("**Weight**")
     h6.markdown("**Qty**")
     h7.markdown("**Seq**")
+    st.caption("Seq = unloading order. 1 unloads first and lands nearest the truck door; higher numbers unload later and pack deeper inside.")
 
     for i, cargo in enumerate(st.session_state.manifest):
         c1, c2, c3, c4, c5, c6, c7, c8 = st.columns([2, 1, 1, 1, 1, 1, 1, 0.6])
@@ -1129,7 +1139,8 @@ else:
             "Qty", value=int(cargo["quantity"]), min_value=1, step=1, key=f"qty_{i}", label_visibility="collapsed"
         )
         cargo["sequence"] = c7.number_input(
-            "Seq", value=int(cargo["sequence"]), min_value=1, step=1, key=f"seq_{i}", label_visibility="collapsed"
+            "Seq", value=int(cargo["sequence"]), min_value=1, step=1, key=f"seq_{i}", label_visibility="collapsed",
+            help="Unloading order: 1 unloads first (packed last, nearest the door). Higher = unloads later (packed earlier, deeper in truck)."
         )
 
         if c8.button("🗑️", key=f"delete_{i}"):
@@ -1195,6 +1206,17 @@ if st.session_state.editing_orientation is not None:
     st.stop()
 
 # --- RUN EXECUTION SOLVER ---
+prioritize_sequence = st.checkbox(
+    "Prioritize unloading sequence over space efficiency",
+    value=False,
+    help=(
+        "Off (default): packs for maximum space usage. Sequence still breaks ties "
+        "between identical-size, identical-weight-limit items, but otherwise doesn't "
+        "influence placement. On: groups cargo into rough front/door zones by sequence "
+        "first - this can leave more empty space in the truck, so check the Space "
+        "Volume Utilization score after running."
+    )
+)
 if st.button("Run AI Optimization"):
     if not st.session_state.manifest:
         st.error("Your cargo manifest is completely empty!")
@@ -1216,6 +1238,44 @@ if st.button("Run AI Optimization"):
         loading_order = build_loading_priority(
             st.session_state.manifest
         )
+
+        # py3dbp re-sorts every item internally right before packing, by
+        # level -> loadbear -> volume, and that internal sort (not the
+        # order we add items in) is what actually decides placement.
+        # This is a greedy "first-fit against already-placed items"
+        # algorithm (see pack2Bin) with no lookahead or backtracking, so
+        # it's highly sensitive to item order - the loadbear-descending /
+        # volume-ascending order it uses by default is what keeps the
+        # pack space-efficient.
+        #
+        # Forcing sequence into `level` (tried previously) overrides that
+        # order and reliably costs space efficiency, in ways that are hard
+        # to predict from the code alone. So by default we leave level=1
+        # for everyone - identical to pre-sequence-feature behavior, zero
+        # efficiency risk. Sequence still acts as a free tie-break: items
+        # that end up with identical loadbear AND identical volume keep
+        # the sequence-sorted order they arrived in (build_loading_priority
+        # sorts loading_order by -sequence first), with no downside since
+        # that only ever resolves ties that would otherwise be arbitrary.
+        #
+        # Only when the user explicitly opts in (accepting the efficiency
+        # trade-off) do we bucket sequence into 2 coarse zones via level,
+        # to more directly bias which half of the truck cargo ends up in.
+        max_sequence = max(
+            (obj["sequence"] for obj in loading_order),
+            default=1
+        )
+
+        if prioritize_sequence:
+            NUM_TIERS = 2
+            tier_size = max(1, -(-max_sequence // NUM_TIERS))  # ceil division
+
+            def sequence_to_level(sequence):
+                bucket = -(-sequence // tier_size)      # 1..NUM_TIERS, low seq -> low bucket
+                return NUM_TIERS - bucket + 1            # invert: low seq -> high level (packed last)
+        else:
+            def sequence_to_level(sequence):
+                return 1
 
         packer = Packer()
 
@@ -1255,7 +1315,10 @@ if st.button("Run AI Optimization"):
 
                             weight=obj["weight"],
 
-                            level=1,
+                            # Bucket sequence into 3 coarse tiers (matching
+                            # py3dbp's documented level range) so loadbear/
+                            # volume still drives fit within each tier.
+                            level=sequence_to_level(obj["sequence"]),
 
                             loadbear=obj["max_load"],
 
@@ -1470,6 +1533,12 @@ if 'last_packer' in st.session_state:
                 offloading_stars
             )
             st.caption(offloading_text)
+        if prioritize_sequence:
+            st.caption(
+                "ℹ️ Packed with sequence prioritized over space efficiency. "
+                "Compare Space Volume Utilization against a run with the checkbox off "
+                "to see the trade-off."
+            )
         unfitted = getattr(b, 'unfitted_items', [])
         if unfitted:
             st.subheader("⚠️ Unpacked Items (Rejected By Constraints)")
