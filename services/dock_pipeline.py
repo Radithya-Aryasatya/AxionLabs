@@ -23,7 +23,7 @@ import logging
 import os
 from concurrent.futures import ThreadPoolExecutor, TimeoutError
 from datetime import datetime
-from typing import Tuple
+from typing import Optional, Tuple
 
 from state.fleet_state import (
     Fleet, FleetStatus, AnomalyRecord, add_anomaly_record,
@@ -65,7 +65,10 @@ def _failed_from_exception(svc: GeminiService, exc: Exception) -> GeminiAnalysis
     )
 
 
-def analyze_with_fallback(fleet: Fleet) -> Tuple[GeminiAnalysisResult, AnalysisSource]:
+def analyze_with_fallback(
+    fleet: Fleet,
+    virtual_cctv_path: Optional[str] = None,
+) -> Tuple[GeminiAnalysisResult, AnalysisSource]:
     """
     Run REAL Gemini spatial reasoning with a hard timeout.
 
@@ -75,6 +78,11 @@ def analyze_with_fallback(fleet: Fleet) -> Tuple[GeminiAnalysisResult, AnalysisS
                                     as-is; never swapped for simulated data)
       result.status == SIMULATED -> AnalysisSource.FALLBACK_SIMULATED (only when
                                     no API key/SDK is configured at all)
+
+    Optional ``virtual_cctv_path`` is the SECONDARY digital-twin rear-camera
+    render (content-addressed PNG from services/virtual_camera.py). When a dock
+    has no twin yet (Dock 1 before worker render) it is simply omitted and the
+    scan falls back to CCTV-only analysis.
     """
     svc = GeminiService()
     engine = AnomalyEngine(gemini_service=svc)
@@ -84,6 +92,9 @@ def analyze_with_fallback(fleet: Fleet) -> Tuple[GeminiAnalysisResult, AnalysisS
     depth = fleet.depth_map_path or mock_fleet_factory.ensure_dock_assets(
         fleet.dock_number)[1]
 
+    # Normalize the twin path: only pass it when the file actually exists.
+    twin = virtual_cctv_path if (virtual_cctv_path and os.path.isfile(virtual_cctv_path)) else ""
+
     def _call():
         return svc.analyze_loading(
             cctv_frame_path=cctv,
@@ -91,6 +102,7 @@ def analyze_with_fallback(fleet: Fleet) -> Tuple[GeminiAnalysisResult, AnalysisS
             packing_plan=fleet.packing_layout,
             manifest=fleet.manifest,
             fleet_state=engine._fleet_to_state_dict(fleet),
+            virtual_cctv_path=twin,
         )
 
     try:
@@ -247,11 +259,29 @@ def _run_dock1_render_pipeline(partno, fig, manifest, packer,
     cctv, depth = mock_fleet_factory.ensure_dock_assets(1)
     fleet.cctv_frame_path = cctv
     fleet.depth_map_path = depth
+
+    # Task 4: if the operator already chose a replacement CCTV image for
+    # Dock 1, restore it — asset pairing above would otherwise overwrite
+    # the selection with the deterministic placeholder.
+    from services.cctv_manager import restore_dock_cctv_selection
+    operator_cctv = restore_dock_cctv_selection(1)
+    if operator_cctv and os.path.isfile(operator_cctv):
+        fleet.cctv_frame_path = operator_cctv
+
     upsert_dock_fleet(1, fleet.id)
     set_dock_stage(1, DockStage.ANALYZING)
 
     # --- 3. Analyze with non-blocking fallback ---
-    result, source = analyze_with_fallback(fleet)
+    # Task 4: pass the SECONDARY digital-twin context when available. After
+    # the worker renders, Dock 1 has a layout -> twin can be rendered.
+    twin_path = None
+    try:
+        from services.virtual_camera import render_virtual_cctv_for_fleet
+        twin_path = render_virtual_cctv_for_fleet(fleet)
+    except Exception:
+        twin_path = None
+
+    result, source = analyze_with_fallback(fleet, virtual_cctv_path=twin_path)
     set_analysis_source(1, source)
 
     # --- 3b. Failed Gemini request: surface the failure honestly ---

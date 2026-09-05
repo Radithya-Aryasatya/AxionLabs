@@ -37,6 +37,22 @@ if not hasattr(Fleet, "source"):
     )
     st.stop()
 
+# Task 4: extend the stale-module guard to the new DockState fields.
+# If an old `state.dock_state` (pre-`cctv_updated_at`) is ever left cached in
+# sys.modules, fail fast with an actionable message.
+try:
+    from state.dock_state import DockState
+    if not hasattr(DockState, "cctv_updated_at"):
+        st.error(
+            "⚠️ **Stale module cache detected.** The running Streamlit process has an "
+            "old version of `state/dock_state.py` loaded (missing `DockState.cctv_updated_at`). "
+            "Stop the server (Ctrl+C), restart with `streamlit run app.py`, then "
+            "hard-refresh the browser (Ctrl+Shift+R)."
+        )
+        st.stop()
+except Exception:
+    pass
+
 # --- APP INITIALIZATION ---
 load_dotenv()
 api_key = os.getenv("API_KEY")

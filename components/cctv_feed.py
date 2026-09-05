@@ -21,30 +21,41 @@ def render_cctv_feed(
 ):
     """
     Render the CCTV live stream panel (standard RGB feed).
+
+    Task 4 fix: honor the provided ``cctv_frame_path`` as the primary source.
+    The ``img/`` directory is only used as a LAST-resort fallback when no
+    fleet/dock-specific path exists. This ensures that operator-replaced CCTV
+    images (from services/cctv_manager) actually display in the drill-down
+    panel instead of being overridden by a deterministic ``img/`` pick.
     """
     sim = get_cctv_simulator()
 
-    if not cctv_frame_path:
-        cctv_frame_path = sim.get_frame(dock_number)
+    # 1. Use the provided path when it points to a real file.
+    current_frame = cctv_frame_path if (cctv_frame_path and os.path.isfile(cctv_frame_path)) else ""
+
+    # 2. Fall back to the simulator's pinned frame for this dock.
+    if not current_frame:
+        pinned = sim.get_frame(dock_number)
+        if pinned and os.path.isfile(pinned):
+            current_frame = pinned
+
+    # 3. Last resort: deterministic pick from img/ (only if nothing else).
+    if not current_frame:
+        img_dir = os.path.join(_BASE_DIR, "img")
+        image_sources = []
+        if os.path.exists(img_dir):
+            for f in sorted(os.listdir(img_dir)):
+                if f.lower().endswith(('.jpg', '.jpeg', '.png')):
+                    image_sources.append(os.path.join(img_dir, f))
+        if image_sources:
+            current_frame = image_sources[dock_number % len(image_sources)]
 
     st.markdown("---")
 
-    # Deterministic frame selection (no time-based cycling)
-    image_sources = []
-    img_dir = os.path.join(_BASE_DIR, "img")
-    if os.path.exists(img_dir):
-        for f in sorted(os.listdir(img_dir)):
-            if f.lower().endswith(('.jpg', '.jpeg', '.png')):
-                image_sources.append(os.path.join(img_dir, f))
-
-    if image_sources:
-        current_frame = image_sources[dock_number % len(image_sources)]
-    else:
-        current_frame = cctv_frame_path
-
     _render_rgb_feed(current_frame, width, height)
 
-    st.caption(f"📹 CCTV Feed | Dock {dock_number} | Deterministic frame")
+    source_label = "Operator-selected" if (cctv_frame_path and os.path.isfile(cctv_frame_path)) else "System"
+    st.caption(f"📹 CCTV Feed | Dock {dock_number} | {source_label}")
 
 
 def _render_rgb_feed(frame_path: str, width: int, height: int):

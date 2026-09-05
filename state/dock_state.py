@@ -56,6 +56,13 @@ class DockState:
     analysis_source: AnalysisSource = AnalysisSource.NONE
     last_event_at: datetime = field(default_factory=datetime.now)
     unread_alert: bool = False
+    # --- Task 4: CCTV replacement + centralized scan lifecycle ---
+    # Timestamp of the last operator CCTV image replacement for this dock.
+    # A CCTV change NEVER triggers analysis; it only invalidates the previous
+    # scan result (stale when cctv_updated_at > last_scan_at).
+    cctv_updated_at: Optional[datetime] = None
+    # Timestamp of the last completed centralized/per-dock Gemini scan.
+    last_scan_at: Optional[datetime] = None
 
     def fleet(self):
         """Resolve the linked Fleet from session state (or None)."""
@@ -102,6 +109,22 @@ def get_all_docks() -> Dict[int, DockState]:
     """Return the full dock registry dict."""
     import streamlit as st
     return st.session_state.get('dock_registry', {})
+
+
+def register_dock_fleet(dock_number: int, fleet_id: str):
+    """Register a Fleet to a dock, creating the DockState if needed."""
+    import streamlit as st
+    dock = get_dock_state(dock_number)
+    if dock is None:
+        kind = DockKind.LIVE if dock_number == 1 else DockKind.MOCK
+        dock = DockState(
+            dock_number=dock_number,
+            kind=kind,
+        )
+        st.session_state.dock_registry[dock_number] = dock
+    dock.fleet_id = fleet_id
+    dock.last_event_at = datetime.now()
+    st.session_state.dock_registry[dock_number] = dock
 
 
 def upsert_dock_fleet(dock_number: int, fleet_id: str):
@@ -153,3 +176,87 @@ def clear_all_dock_alerts():
     registry = st.session_state.get('dock_registry', {})
     for dock in registry.values():
         dock.unread_alert = False
+
+
+# --- TASK 4: CCTV replacement + centralized scan lifecycle -------------------
+
+def mark_dock_cctv_changed(dock_number: int):
+    """Stamp the dock as having a replaced CCTV input.
+
+    Called by the CCTV replacement flow ONLY. Changing the image never
+    triggers Gemini — it just invalidates the previous scan result so the
+    dashboard can show a STALE chip until the next scan.
+    """
+    import streamlit as st
+    dock = get_dock_state(dock_number)
+    if dock is None:
+        return
+    dock.cctv_updated_at = datetime.now()
+    dock.last_event_at = dock.cctv_updated_at
+    st.session_state.dock_registry[dock_number] = dock
+
+
+def mark_dock_scanned(dock_number: int):
+    """Stamp the dock as scanned (scan completed: success OR honest failure)."""
+    import streamlit as st
+    dock = get_dock_state(dock_number)
+    if dock is None:
+        return
+    dock.last_scan_at = datetime.now()
+    dock.last_event_at = dock.last_scan_at
+    st.session_state.dock_registry[dock_number] = dock
+
+
+def reset_dock_scan_state(dock_number: int):
+    """Clear the scan lifecycle timestamps (used by the demo reset control)."""
+    import streamlit as st
+    dock = get_dock_state(dock_number)
+    if dock is None:
+        return
+    dock.cctv_updated_at = None
+    dock.last_scan_at = None
+    st.session_state.dock_registry[dock_number] = dock
+
+
+def get_dock_scan_state(dock_number: int) -> Dict[str, object]:
+    """
+    Derive the current scan state of a dock from the EXISTING state fields
+    (no new state system):
+
+      NEVER_SCANNED  — analysis_source is NONE (no Gemini result yet)
+      SCANNING       — dock stage is ANALYZING
+      SUCCESS        — last result was a real (or simulated-offline) analysis
+      FAILED         — last request failed (honest provenance preserved)
+
+    plus a `stale` flag: True when the CCTV image was replaced after the
+    last completed scan (the displayed result no longer reflects the
+    current CCTV input).
+    """
+    dock = get_dock_state(dock_number)
+    if dock is None:
+        return {"state": "NEVER_SCANNED", "stale": False, "severity": "NONE"}
+
+    stale = (
+        dock.cctv_updated_at is not None
+        and (dock.last_scan_at is None or dock.cctv_updated_at > dock.last_scan_at)
+    )
+
+    if dock.stage == DockStage.ANALYZING:
+        return {"state": "SCANNING", "stale": stale, "severity": "NONE"}
+
+    analysis = {}
+    fleet = dock.fleet()
+    if fleet is not None and isinstance(fleet.gemini_analysis, dict):
+        analysis = fleet.gemini_analysis
+    result_status = analysis.get("status", "")
+    severity = str(analysis.get("severity", "NONE") or "NONE")
+
+    if dock.analysis_source == AnalysisSource.GEMINI_FAILED or result_status == "FAILED":
+        return {"state": "FAILED", "stale": stale, "severity": severity}
+
+    if dock.analysis_source in (AnalysisSource.LIVE_GEMINI,
+                                AnalysisSource.FALLBACK_SIMULATED,
+                                AnalysisSource.FALLBACK_CACHED):
+        return {"state": "SUCCESS", "stale": stale, "severity": severity}
+
+    return {"state": "NEVER_SCANNED", "stale": stale, "severity": severity}

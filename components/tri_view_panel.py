@@ -49,10 +49,17 @@ def render_tri_view_panel(fleet: Fleet):
 
     with col_left:
         st.markdown("### 1️⃣ CCTV Live Stream")
+        # Task 4: honor operator-selected CCTV (fix in cctv_feed honors path).
+        from services.cctv_manager import resolve_dock_cctv
+        effective_cctv = resolve_dock_cctv(fleet.dock_number)
         render_cctv_feed(
             dock_number=fleet.dock_number,
-            cctv_frame_path=fleet.cctv_frame_path,
+            cctv_frame_path=effective_cctv,
         )
+        # Task 4: allow changing the CCTV image from the investigation layer.
+        with st.expander("📷 Change CCTV Image", expanded=False):
+            from services.cctv_manager import render_cctv_change_control
+            render_cctv_change_control(fleet.dock_number)
 
     with col_center:
         st.markdown("### 2️⃣ Digital Twin (3D Bin Packing Plan)")

@@ -17,3 +17,4 @@ venv
 .env
 *.env
 assets/virtual_cctv/
+assets/cctv_uploads/

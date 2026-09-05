@@ -221,6 +221,12 @@ class AnomalyEngine:
                 banner_type="warning",
             )
 
+        # Task 4: honor a CRITICAL severity from Gemini as a BLOCKED status
+        # (the model is confident the loading is unsafe). The model's own
+        # severity is authoritative — we never downgrade a CRITICAL to WARNING.
+        if gemini_result.severity == "CRITICAL":
+            return self._build_critical_decision(fleet, gemini_result)
+
         if gemini_result.severity == "NONE":
             return AnomalyDecision(
                 anomaly_type="NONE",

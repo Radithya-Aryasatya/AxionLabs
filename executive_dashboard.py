@@ -37,6 +37,13 @@ def render_executive_dashboard():
 
     # --- In-dashboard alert corner (top-right, control-room style) ---
     from components.alert_corner import render_alert_corner
+    from components.alert_corner import render_alert_corner
+    render_alert_corner()
+
+    # Task 4: restore operator's CCTV selections after seeding (seeding
+    # would otherwise overwrite them with deterministic placeholders).
+    from services.cctv_manager import apply_cctv_selections
+    apply_cctv_selections()
     render_alert_corner()
 
     # Page header
@@ -64,6 +71,12 @@ def render_executive_dashboard():
     # --- Active Anomaly Banners ---
     render_anomaly_banners()
 
+    # Task 4: Centralized SCAN ALL DOCKS control panel.
+    _render_scan_all_control()
+
+    # --- Fleet Status Summary ---
+    render_anomaly_banners()
+
     # --- Fleet Status Summary ---
     _render_status_summary(fleets)
 
@@ -88,18 +101,99 @@ def render_executive_dashboard():
             reseed_mock_docks()
             st.rerun()
 
+def _render_scan_all_control():
+    """
+    Task 4: Centralized "SCAN ALL DOCKS" control panel.
+
+    Lets the operator prepare the dock CCTV inputs (via per-dock change
+    controls in the grid below) and then trigger a single fleet-wide scan.
+    The scan is sequential and quota-conscious, with per-dock isolation.
+    """
+    from services.scan_orchestrator import run_scan_all_docks, get_scan_summary
+
+    st.markdown("### 🔍 Centralized Scan Control")
+    st.caption(
+        "Replace any dock's CCTV image above, then press the button below to "
+        "analyze all four docks. Each dock is scanned independently — one "
+        "failure never blocks the others."
+    )
+
+    c1, c2 = st.columns([1, 3])
+    with c1:
+        if st.button(
+            "🛰️ SCAN ALL DOCKS",
+            key="scan_all_docks",
+            type="primary",
+            use_container_width=True,
+            help="Analyze the current CCTV state of all four docks through Gemini. "
+                 "The actual CCTV image is the PRIMARY input; the digital twin "
+                 "(when available) is secondary comparison context.",
+        ):
+            with st.spinner("Scanning all docks — sequential, quota-conscious..."):
+                run_scan_all_docks()
+            st.rerun()
+
+    with c2:
+        summary = get_scan_summary()
+        if summary is None:
+            st.info("No scan has been run yet. Change any dock's CCTV image, then press SCAN ALL DOCKS.")
+        else:
+            when = summary.get("at", "?")
+            outcomes = summary.get("outcomes", {})
+            parts = []
+            for dn in sorted(outcomes):
+                o = outcomes[dn]
+                status = o.get("status", "?")
+                if status == "SUCCESS":
+                    sev = o.get("severity", "NONE")
+                    if sev == "NONE":
+                        chip = f"✅ Dock {dn}: CLEAR"
+                    else:
+                        chip = f"⚠️ Dock {dn}: {sev}"
+                elif status == "SIMULATED":
+                    chip = f"🧪 Dock {dn}: SIMULATED"
+                elif status == "SKIP_NO_CCTV":
+                    chip = f"📷 Dock {dn}: NO CCTV"
+                elif status == "SKIP_NO_FLEET":
+                    chip = f"🚫 Dock {dn}: NO FLEET"
+                else:
+                    chip = f"❌ Dock {dn}: FAILED"
+                parts.append(chip)
+            st.markdown(f"**Last scan:** `{when}`")
+            st.markdown(" · ".join(parts))
+
+    st.markdown("---")
 
 def _render_dock_grid():
     """Render the 4 fixed docks as a column grid."""
     st.markdown("### 🏗️ Loading Dock Overview")
-    st.caption("Dock 1 is live from the Worker Interface • Docks 2, 3, 4 are editable placeholder pages")
-
     docks = get_all_docks()
     cols = st.columns(4)
     for i, dn in enumerate(sorted(docks)):
         dock = docks[dn]
         with cols[i]:
-            _render_dock_card(dock)
+            render_fleet_card_compact(dock.fleet())
+
+            # Task 4: scan-state chip + per-dock CCTV change control.
+            from state.dock_state import get_dock_scan_state
+            scan_chip = get_dock_scan_state(dn)
+            st.caption(scan_chip)
+
+            with st.expander(f"📷 Change CCTV — Dock {dn}", expanded=False):
+                from services.cctv_manager import render_cctv_change_control
+                render_cctv_change_control(dn)
+
+            # Select-for-investigation button
+            if st.button(
+                f"🔍 Investigate Dock {dn}",
+                key=f"investigate_dock_{dn}",
+                use_container_width=True,
+            ):
+                dock_fleet = dock.fleet()
+                if dock_fleet is not None:
+                    select_fleet(dock_fleet.id)
+                    st.rerun()
+    st.caption("Dock 1 is live from the Worker Interface • Docks 2, 3, 4 are editable placeholder pages")
 
 
 def _render_dock_card(dock):

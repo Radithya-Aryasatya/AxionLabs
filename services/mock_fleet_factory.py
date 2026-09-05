@@ -252,30 +252,96 @@ def _build_fleet_from_layout(data: dict):
 
 # --- Seeding ---
 
+# Content-hash cache: tracks the JSON file content per dock so we can
+# re-seed a mock dock ONLY when its layout file actually changed. This lets
+# Task-4 state (operator CCTV selection, scan results, notifications)
+# survive ordinary Streamlit reruns while preserving the "edit the JSON ->
+# see it on next rerun" feature.
+#
+#   st.session_state['mock_layout_hashes'] = {dock_number: sha256, ...}
+#   st.session_state['mock_fleet_ids']     = {dock_number: fleet_id, ...}
+
+
+def _layout_file_path(dock_number: int) -> str:
+    return os.path.join(_MOCK_DIR, f"mock_layout_dock{dock_number}.json")
+
+
+def _file_content_hash(path: str) -> str:
+    """SHA-256 of the file contents (or "" if the file is unreadable)."""
+    try:
+        with open(path, 'rb') as fh:
+            import hashlib
+            return hashlib.sha256(fh.read()).hexdigest()
+    except Exception:
+        return ""
+
+
+def _mock_fleet_id_map() -> dict:
+    import streamlit as st
+    return st.session_state.setdefault('mock_fleet_ids', {})
+
+
+def _forget_mock_fleet_id(dock_number: int):
+    import streamlit as st
+    m = st.session_state.get('mock_fleet_ids', {})
+    m.pop(dock_number, None)
+
+
+def _set_mock_fleet_id(dock_number: int, fleet_id: str):
+    import streamlit as st
+    st.session_state.setdefault('mock_fleet_ids', {})[dock_number] = fleet_id
+
+
 def seed_mock_docks():
     """
     Create editable Dock 2, 3, 4 mock fleets (identical placeholder pages),
     pin their CCTV assets, build their twin figures, and link them into
     the dock registry.
-    Idempotent: clears any prior mock fleets first.
+
+    Hash-idempotent: a dock is re-seeded ONLY when its JSON layout file's
+    content-hash changed since the last seeding (or the fleet is missing).
+    Ordinary Streamlit reruns — which used to wipe operator CCTV selections
+    and scan results on every script re-execution — are now no-ops for the
+    unchanged docks. Explicit demo reset still works via ``reseed_mock_docks``
+    (clears the hash cache so the next seeding is forced).
     """
     import streamlit as st
     from state.fleet_state import initialize_session_state
     initialize_session_state()
 
-    # Remove prior mock fleets (preserve any live Dock-1 fleet)
-    st.session_state.active_fleets = [
-        f for f in st.session_state.get('active_fleets', [])
-        if f.source != "mock"
-    ]
+    fleet_id_map = _mock_fleet_id_map()
 
     for dock_number in (2, 3, 4):
+        layout_path = _layout_file_path(dock_number)
+        new_hash = _file_content_hash(layout_path)
+        old_hash = st.session_state.get('mock_layout_hashes', {}).get(dock_number)
+        existing_fleet = None
+        if fleet_id_map.get(dock_number):
+            for f in st.session_state.get('active_fleets', []):
+                if f.id == fleet_id_map[dock_number] and f.source == 'mock':
+                    existing_fleet = f
+                    break
+
+        # Re-seed only when content changed or the fleet is gone.
+        if existing_fleet is not None and new_hash == old_hash:
+            # Nothing changed for this dock — leave its state intact.
+            # But still make sure the dock registry linkage is present.
+            upsert_dock_fleet(dock_number, existing_fleet.id)
+            continue
+
+        # Need to (re)build this mock dock.
         data = _load_mock_layout(dock_number)
         data['dock_number'] = dock_number  # ensure correct dock linkage
         fleet, packed = _build_fleet_from_layout(data)
         cctv, depth = ensure_dock_assets(dock_number)
         fleet.cctv_frame_path = cctv
         fleet.depth_map_path = depth
+
+        # Replace the old fleet in the active list (preserve list ordering).
+        st.session_state.active_fleets = [
+            f for f in st.session_state.get('active_fleets', [])
+            if not (f.source == 'mock' and f.dock_number == dock_number)
+        ]
         st.session_state.active_fleets.append(fleet)
 
         # Per-dock twin figure so each dock shows its own layout
@@ -288,6 +354,9 @@ def seed_mock_docks():
         set_dock_stage(dock_number, DockStage.MONITORED)
         set_analysis_source(dock_number, AnalysisSource.NONE)
 
+        fleet_id_map[dock_number] = fleet.id
+        st.session_state.setdefault('mock_layout_hashes', {})[dock_number] = new_hash
+
     # Ensure Dock 1 always has a monitor fleet for the executive dashboard
     from services.dock_pipeline import ensure_dock1_monitor_fleet
     ensure_dock1_monitor_fleet()
@@ -296,10 +365,18 @@ def seed_mock_docks():
 
 
 def reseed_mock_docks():
-    """Reset Docks 2, 3, 4 to their opening demo state (between rehearsals)."""
+    """Reset Docks 2, 3, 4 to their opening demo state (between rehearsals).
+
+    Clears the content-hash cache so the next ``seed_mock_docks`` is forced
+    to rebuild every mock dock from its JSON file, wiping any operator CCTV
+    selections and scan results in the process.
+    """
     import streamlit as st
     from state.notifications import clear_all
     clear_all()
+    # Clear the hash cache and fleet-id map to force a full rebuild.
+    st.session_state.pop('mock_layout_hashes', None)
+    st.session_state.pop('mock_fleet_ids', None)
     seed_mock_docks()
     st.session_state.last_updated = datetime.now()
 

@@ -53,7 +53,12 @@ def drive(label: str) -> None:
 
     at.button(key="toggle_executive").click()
     at.run()
-    at.button(key="open_dock_1").click()
+    # Task 4: dock grid button is keyed `investigate_dock_{dn}`.
+    investigate_btn = at.button(key="investigate_dock_1")
+    if investigate_btn is None:
+        investigate_btn = at.button(key="open_dock_1")
+    assert investigate_btn is not None, f"[{label}] no inspect/investigate button"
+    investigate_btn.click()
     at.run()
     assert not at.exception, f"[{label}] tri-view: {at.exception}"
 
