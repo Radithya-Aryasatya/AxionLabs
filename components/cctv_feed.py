@@ -8,7 +8,6 @@ CCTV Live Stream component.
 
 import streamlit as st
 import os
-from datetime import datetime
 from services.cctv_simulator import get_cctv_simulator
 
 _BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -30,7 +29,7 @@ def render_cctv_feed(
 
     st.markdown("---")
 
-    # Simulate "live" by cycling frames
+    # Deterministic frame selection (no time-based cycling)
     image_sources = []
     img_dir = os.path.join(_BASE_DIR, "img")
     if os.path.exists(img_dir):
@@ -39,16 +38,13 @@ def render_cctv_feed(
                 image_sources.append(os.path.join(img_dir, f))
 
     if image_sources:
-        frame_idx = dock_number % len(image_sources)
-        time_idx = int(datetime.now().timestamp() / 3) % len(image_sources)
-        final_idx = (frame_idx + time_idx) % len(image_sources)
-        current_frame = image_sources[final_idx]
+        current_frame = image_sources[dock_number % len(image_sources)]
     else:
         current_frame = cctv_frame_path
 
     _render_rgb_feed(current_frame, width, height)
 
-    st.caption(f"📹 Live Feed | Dock {dock_number} | Last updated: {datetime.now().strftime('%H:%M:%S')}")
+    st.caption(f"📹 CCTV Feed | Dock {dock_number} | Deterministic frame")
 
 
 def _render_rgb_feed(frame_path: str, width: int, height: int):

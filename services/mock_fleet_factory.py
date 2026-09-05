@@ -111,81 +111,14 @@ def _default_layout(dock_number: int) -> dict:
         'unfitted_count': 0,
     }
 
-    if dock_number == 2:
-        base.update({
-            'status': 'INSPECTED_CLEAR',
-            'gemini_analysis': {
-                'status': 'SIMULATED',
-                'anomaly_type': 'NONE', 'severity': 'NONE', 'confidence': 0.96,
-                'analysis_paragraph': (
-                    'Post-reinspection scan confirms the cargo is stable and '
-                    'aligned with the packing plan. No spatial discrepancies detected.'
-                ),
-                'affected_items': [], 'recommended_actions': [],
-                'spatial_discrepancy_score': 0.05,
-            },
-            'anomaly_history': [
-                {'anomaly_type': 'MESSY_STACKING', 'severity': 'WARNING',
-                 'analysis_paragraph': (
-                     'Initial scan flagged a minor stacking irregularity. '
-                     'Inspector verified the load and cleared the bay.'
-                 ),
-                 'affected_items': ['M2-0'],
-                 'recommended_actions': ['Re-inspect after repositioning'],
-                 'resolved': True}
-            ],
-        })
-    elif dock_number == 3:
-        base.update({
-            'status': 'BLOCKED',
-            'loading_in_progress': False,
-            'doors_closing': True,
-            'truck_moving': True,
-            'fill_percentage': 58.0,
-            'gemini_analysis': {
-                'status': 'SIMULATED',
-                'anomaly_type': 'UNRESOLVED_DEPARTURE_RISK',
-                'severity': 'CRITICAL', 'confidence': 0.93,
-                'analysis_paragraph': (
-                    'CRITICAL: Unresolved loading anomaly detected as departure '
-                    'cues (doors closing, truck moving) are present. Departure '
-                    'must be blocked — manager override required.'
-                ),
-                'affected_items': ['M3-0', 'M3-1', 'M3-2'],
-                'recommended_actions': ['BLOCK departure',
-                                        'Manager override required'],
-                'spatial_discrepancy_score': 0.82,
-            },
-            'anomaly_history': [
-                {'anomaly_type': 'UNRESOLVED_DEPARTURE_RISK',
-                 'severity': 'CRITICAL',
-                 'analysis_paragraph': (
-                     'CRITICAL: An unresolved loading anomaly remains uncorrected '
-                     'as the system detects departure cues. Block departure.'
-                 ),
-                 'affected_items': ['M3-0', 'M3-1', 'M3-2'],
-                 'recommended_actions': ['BLOCK departure',
-                                         'Manager override required'],
-                 'resolved': False}
-            ],
-        })
-    else:  # dock 4 — LOADING placeholder
-        base.update({
-            'status': 'LOADING',
-            'loading_in_progress': True,
-            'fill_percentage': 35.0,
-            'gemini_analysis': {
-                'status': 'SIMULATED',
-                'anomaly_type': 'NONE', 'severity': 'NONE', 'confidence': 0.5,
-                'analysis_paragraph': (
-                    'Loading in progress. Awaiting full manifest before spatial '
-                    'analysis can be completed.'
-                ),
-                'affected_items': [], 'recommended_actions': [],
-                'spatial_discrepancy_score': 0.0,
-            },
-            'anomaly_history': [],
-        })
+    base.update({
+        'status': 'LOADING',
+        'loading_in_progress': True,
+        'doors_closing': False,
+        'truck_moving': False,
+        'gemini_analysis': {},
+        'anomaly_history': [],
+    })
     return base
 
 
@@ -353,10 +286,11 @@ def seed_mock_docks():
 
         upsert_dock_fleet(dock_number, fleet.id)
         set_dock_stage(dock_number, DockStage.MONITORED)
-        src = (AnalysisSource.FALLBACK_SIMULATED
-               if fleet.gemini_analysis.get('severity') not in ('NONE', '')
-               else AnalysisSource.NONE)
-        set_analysis_source(dock_number, src)
+        set_analysis_source(dock_number, AnalysisSource.NONE)
+
+    # Ensure Dock 1 always has a monitor fleet for the executive dashboard
+    from services.dock_pipeline import ensure_dock1_monitor_fleet
+    ensure_dock1_monitor_fleet()
 
     st.session_state.last_updated = datetime.now()
 

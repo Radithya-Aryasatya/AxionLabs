@@ -172,18 +172,20 @@ def select_fleet(fleet_id: str):
     import streamlit as st
     st.session_state.selected_fleet_id = fleet_id
 
-def register_fleet_from_packing_result(
+def build_fleet_from_packing_result(
     manifest: List[Dict], packer: Any,
     truck_w: float, truck_h: float, truck_d: float,
     truck_name: str = "",
     dock_number: int = 1,
-) -> 'Fleet':
-    """Called when View 1 completes a packing calculation.
-    Automatically creates a new Fleet entry in View 2's state.
-    The worker fleet is pinned to Dock 1 (mocks own Docks 2 & 3)."""
-    import streamlit as st
-    initialize_session_state()
+) -> Optional['Fleet']:
+    """Pure builder: construct a Fleet object from a py3dbp packing result.
 
+    Does **not** touch session state — returns a fresh Fleet whose mutable
+    fields are ready to be either appended (new fleet) or used to upsert an
+    existing fleet in-place (re-render of the same dock).
+
+    The caller is responsible for assigning ``fleet.id`` before insertion.
+    """
     bins = getattr(packer, 'bins', [])
     if not bins:
         return None
@@ -254,11 +256,8 @@ def register_fleet_from_packing_result(
             'max_load': m_item.get('max_load', 100),
         })
 
-    fleet_count = len(st.session_state.active_fleets)
-    fleet_id = f"TK-{fleet_count + 1:02d}"
-
     fleet = Fleet(
-        id=fleet_id,
+        id="TK-TEMP",  # assigned by the caller (register/upsert)
         dock_number=dock_number,
         truck_dimensions=(truck_w, truck_h, truck_d),
         manifest=manifest,
@@ -279,12 +278,65 @@ def register_fleet_from_packing_result(
         source="live",
     )
 
-    st.session_state.active_fleets.append(fleet)
+    return fleet
+
+
+def register_fleet_from_packing_result(
+    manifest: List[Dict], packer: Any,
+    truck_w: float, truck_h: float, truck_d: float,
+    truck_name: str = "",
+    dock_number: int = 1,
+) -> Optional['Fleet']:
+    """Called when View 1 completes a packing calculation.
+
+    Builds a Fleet via :func:`build_fleet_from_packing_result` and upserts it
+    into session state.  If a live fleet already exists for *dock_number*
+    (e.g. the Dock-1 monitor placeholder or a previous re-render), its
+    mutable fields are refreshed **in place** — preserving fleet identity —
+    so re-renders never spawn duplicate fleets.
+    """
+    import streamlit as st
+    initialize_session_state()
+
+    fleet = build_fleet_from_packing_result(
+        manifest, packer, truck_w, truck_h, truck_d,
+        truck_name=truck_name, dock_number=dock_number,
+    )
+    if fleet is None:
+        return None
+
+    # Upsert: find an existing live fleet for this dock
+    existing = None
+    for f in st.session_state.get('active_fleets', []):
+        if f.source == "live" and f.dock_number == dock_number:
+            existing = f
+            break
+
+    if existing is not None:
+        # Update in place — keep identity (id, created_at), refresh data
+        existing.dock_number = dock_number
+        existing.truck_dimensions = fleet.truck_dimensions
+        existing.manifest = fleet.manifest
+        existing.packing_layout = fleet.packing_layout
+        existing.fill_percentage = fleet.fill_percentage
+        existing.truck_name = fleet.truck_name
+        existing.loading_in_progress = True
+        existing.doors_closing = False
+        existing.truck_moving = False
+        existing.gemini_analysis = {}
+        existing.status = FleetStatus.LOADING
+        existing.last_updated = datetime.now()
+        fleet = existing
+    else:
+        # New fleet — assign a sequential id and append
+        fleet.id = f"TK-{len(st.session_state.active_fleets) + 1:02d}"
+        st.session_state.active_fleets.append(fleet)
+
     st.session_state.last_updated = datetime.now()
 
     # Link this fleet into the hybrid dock registry
     from state.dock_state import upsert_dock_fleet, set_dock_stage, DockStage
-    upsert_dock_fleet(dock_number, fleet_id)
+    upsert_dock_fleet(dock_number, fleet.id)
     set_dock_stage(dock_number, DockStage.LOADING)
 
     return fleet

@@ -49,6 +49,11 @@ def _apply_override(fleet: Fleet, reason: str, note: str):
 def render_manager_controls(fleet: Fleet):
     """Render the manager action strip for a fleet. Returns nothing."""
     st.markdown("### 🛠 Manager Action Controls")
+
+    # Gate controls on having actual packing data (not monitor placeholder)
+    layout = fleet.packing_layout.get('layout', {}) if fleet.packing_layout else {}
+    has_packed_items = bool(layout.get('packed_items'))
+
     col1, col2, col3, col4 = st.columns(4)
 
     with col1:
@@ -96,7 +101,7 @@ def render_manager_controls(fleet: Fleet):
                         st.rerun()
 
     with col3:
-        if st.button("🔄 Run Re-Analysis", key=f"reanalyze_{fleet.id}",
+        if has_packed_items and st.button("🔄 Run Re-Analysis", key=f"reanalyze_{fleet.id}",
                      width="stretch"):
             from services.anomaly_engine import AnomalyEngine
             engine = AnomalyEngine()
@@ -119,7 +124,7 @@ def render_manager_controls(fleet: Fleet):
             st.rerun()
 
     with col4:
-        if fleet.status == FleetStatus.LOADING:
+        if has_packed_items and fleet.status == FleetStatus.LOADING:
             if st.button("📋 Mark Inspected", key=f"inspected_{fleet.id}",
                          width="stretch"):
                 if fleet.anomaly_history:

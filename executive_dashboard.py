@@ -23,6 +23,7 @@ from components.anomaly_banner import render_anomaly_banners
 from components.tri_view_panel import render_tri_view_panel
 from components.status_ticker import render_status_ticker
 from services.mock_fleet_factory import seed_mock_docks
+from services.dock_pipeline import ensure_dock1_monitor_fleet
 
 
 def render_executive_dashboard():
@@ -32,6 +33,7 @@ def render_executive_dashboard():
     """
     # Ensure placeholder mock docks exist (Docks 2, 3, 4)
     seed_mock_docks()
+    ensure_dock1_monitor_fleet()
 
     # --- In-dashboard alert corner (top-right, control-room style) ---
     from components.alert_corner import render_alert_corner

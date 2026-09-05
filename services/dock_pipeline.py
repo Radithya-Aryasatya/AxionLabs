@@ -130,6 +130,70 @@ def analyze_with_fallback(fleet: Fleet) -> Tuple[GeminiAnalysisResult, AnalysisS
     return result, AnalysisSource.FALLBACK_SIMULATED
 
 
+def ensure_dock1_monitor_fleet():
+    """Ensure Dock 1 always has a fleet for the Executive dashboard to display.
+
+    Idempotent:
+      - If a live Dock-1 fleet already exists, it is left untouched — only the
+        CCTV/depth-map pairing is refreshed.
+      - If no live Dock-1 fleet exists, a neutral monitor placeholder is
+        created (empty packing layout, CCTV assets pinned, stage
+        ``MONITORED``, analysis source ``NONE``) so the dashboard always has
+        something to show without fabricating Gemini output.
+    """
+    import streamlit as st
+    from state.fleet_state import Fleet, FleetStatus, initialize_session_state
+
+    initialize_session_state()
+
+    existing = None
+    for f in st.session_state.get("active_fleets", []):
+        if f.source == "live" and f.dock_number == 1:
+            existing = f
+            break
+
+    if existing is None:
+        fleet = Fleet(
+            id="TK-MONITOR-D1",
+            dock_number=1,
+            truck_dimensions=(2.0, 2.0, 4.0),
+            manifest=[],
+            packing_layout={
+                'layout': {
+                    'part_number': 'Truck-Dock1',
+                    'WHD': (200.0, 200.0, 400.0),
+                    'packed_items': [],
+                    'unfitted_items': [],
+                    'gravity': [0, 0, 0, 0],
+                },
+                'manifest_summary': [],
+                'total_items_expected': 0,
+                'packed_count': 0,
+                'unfitted_count': 0,
+                'fill_percentage': 0.0,
+            },
+            status=FleetStatus.LOADING,
+            fill_percentage=0.0,
+            truck_name="Truck-Dock1",
+            loading_in_progress=False,
+            doors_closing=False,
+            truck_moving=False,
+            source="live",
+        )
+        cctv, depth = mock_fleet_factory.ensure_dock_assets(1)
+        fleet.cctv_frame_path = cctv
+        fleet.depth_map_path = depth
+        st.session_state.active_fleets.append(fleet)
+        upsert_dock_fleet(1, fleet.id)
+        set_dock_stage(1, DockStage.MONITORED)
+        set_analysis_source(1, AnalysisSource.NONE)
+    else:
+        # Existing live fleet — refresh asset pairing only, do not overwrite
+        cctv, depth = mock_fleet_factory.ensure_dock_assets(1)
+        existing.cctv_frame_path = cctv
+        existing.depth_map_path = depth
+
+
 def run_dock1_render_pipeline(
     partno: str,
     fig,
@@ -157,25 +221,23 @@ def run_dock1_render_pipeline(
 def _run_dock1_render_pipeline(partno, fig, manifest, packer,
                                 truck_w, truck_h, truck_d):
     import streamlit as st
-    from state.fleet_state import initialize_session_state, get_fleet_by_id
+    from state.fleet_state import initialize_session_state
     initialize_session_state()
 
     # --- 1. Upsert Dock 1 fleet (pin to dock_number=1) ---
-    existing = None
-    for f in st.session_state.get("active_fleets", []):
-        if f.source == "live" and f.dock_number == 1:
-            existing = f
-            break
-
-    if existing is None:
-        fleet = register_fleet_from_packing_result(
-            manifest=manifest, packer=packer,
-            truck_w=truck_w, truck_h=truck_h, truck_d=truck_d,
-            truck_name=f"Truck-Dock1",
-            dock_number=1,
-        )
-    else:
-        fleet = existing
+    # register_fleet_from_packing_result handles upsert: if a
+    # live Dock-1 fleet already exists (e.g. the monitor
+    # placeholder), it is updated in place with the new packing
+    # layout; otherwise a new fleet is created.
+    fleet = register_fleet_from_packing_result(
+        manifest=manifest, packer=packer,
+        truck_w=truck_w, truck_h=truck_h, truck_d=truck_d,
+        truck_name="Truck-Dock1",
+        dock_number=1,
+    )
+    if fleet is None:
+        st.toast("⚠️ No bins in packing result - Dock 1 not updated", icon="⚠️")
+        return
 
     # Publish the freshly-rendered figure into the twin registry
     st.session_state['last_3d_figure'] = fig

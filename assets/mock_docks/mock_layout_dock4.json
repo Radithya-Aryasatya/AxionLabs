@@ -6,7 +6,7 @@
     2.0,
     4.0
   ],
-  "fill_percentage": 35.0,
+  "fill_percentage": 72.5,
   "loading_in_progress": true,
   "doors_closing": false,
   "truck_moving": false,
@@ -96,15 +96,6 @@
   "packed_count": 3,
   "unfitted_count": 0,
   "status": "LOADING",
-  "gemini_analysis": {
-    "status": "SIMULATED",
-    "anomaly_type": "NONE",
-    "severity": "NONE",
-    "confidence": 0.5,
-    "analysis_paragraph": "Loading in progress. Awaiting full manifest before spatial analysis can be completed.",
-    "affected_items": [],
-    "recommended_actions": [],
-    "spatial_discrepancy_score": 0.0
-  },
+  "gemini_analysis": {},
   "anomaly_history": []
 }

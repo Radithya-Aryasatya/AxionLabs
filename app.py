@@ -48,6 +48,10 @@ initialize_session_state()
 from services.mock_fleet_factory import seed_mock_docks
 seed_mock_docks()
 
+# Ensure Dock 1 always has a monitor fleet for the executive dashboard
+from services.dock_pipeline import ensure_dock1_monitor_fleet
+ensure_dock1_monitor_fleet()
+
 # --- VIEW TOGGLE ---
 render_header()
 

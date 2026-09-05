@@ -52,11 +52,10 @@ class CctvState:
         return frames
 
     def get_current_frame(self) -> str:
-        """Get the current frame path (simulates 'live' by cycling)."""
+        """Get the deterministic frame path for this dock."""
         if not self.frame_set:
             return ""
-        # Simulate live: pick a frame based on time
-        idx = int(datetime.now().timestamp() / 2) % len(self.frame_set)
+        idx = self.dock_number % len(self.frame_set)
         return self.frame_set[idx]
 
     def get_depth_map(self) -> str:

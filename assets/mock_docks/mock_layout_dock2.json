@@ -7,7 +7,7 @@
     4.0
   ],
   "fill_percentage": 72.5,
-  "loading_in_progress": false,
+  "loading_in_progress": true,
   "doors_closing": false,
   "truck_moving": false,
   "manifest": [
@@ -95,29 +95,7 @@
   "total_items_expected": 3,
   "packed_count": 3,
   "unfitted_count": 0,
-  "status": "INSPECTED_CLEAR",
-  "gemini_analysis": {
-    "status": "SIMULATED",
-    "anomaly_type": "NONE",
-    "severity": "NONE",
-    "confidence": 0.96,
-    "analysis_paragraph": "Post-reinspection scan confirms the cargo is stable and aligned with the packing plan. No spatial discrepancies detected.",
-    "affected_items": [],
-    "recommended_actions": [],
-    "spatial_discrepancy_score": 0.05
-  },
-  "anomaly_history": [
-    {
-      "anomaly_type": "MESSY_STACKING",
-      "severity": "WARNING",
-      "analysis_paragraph": "Initial scan flagged a minor stacking irregularity. Inspector verified the load and cleared the bay.",
-      "affected_items": [
-        "M2-0"
-      ],
-      "recommended_actions": [
-        "Re-inspect after repositioning"
-      ],
-      "resolved": true
-    }
-  ]
+  "status": "LOADING",
+  "gemini_analysis": {},
+  "anomaly_history": []
 }

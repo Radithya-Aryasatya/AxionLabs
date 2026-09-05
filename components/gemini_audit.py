@@ -24,8 +24,13 @@ def render_gemini_audit(fleet: Fleet):
             "Click 'Run Analysis' below to trigger a spatial review."
         )
 
-    if st.button("🔍 Run Gemini Spatial Analysis", key=f"run_analysis_{fleet.id}", type="primary"):
-        _run_analysis(fleet)
+    layout = fleet.packing_layout.get('layout', {}) if fleet.packing_layout else {}
+    packed_items = layout.get('packed_items', [])
+    if packed_items:
+        if st.button("🔍 Run Gemini Spatial Analysis", key=f"run_analysis_{fleet.id}", type="primary"):
+            _run_analysis(fleet)
+    else:
+        st.caption("Add cargo to this dock to enable spatial analysis.")
 
     st.markdown("---")
     _render_audit_history(fleet)

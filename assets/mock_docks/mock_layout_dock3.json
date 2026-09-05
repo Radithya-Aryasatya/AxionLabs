@@ -6,10 +6,10 @@
     2.0,
     4.0
   ],
-  "fill_percentage": 58.0,
-  "loading_in_progress": false,
-  "doors_closing": true,
-  "truck_moving": true,
+  "fill_percentage": 72.5,
+  "loading_in_progress": true,
+  "doors_closing": false,
+  "truck_moving": false,
   "manifest": [
     {
       "name": "Crate-A",
@@ -95,39 +95,7 @@
   "total_items_expected": 3,
   "packed_count": 3,
   "unfitted_count": 0,
-  "status": "BLOCKED",
-  "gemini_analysis": {
-    "status": "SIMULATED",
-    "anomaly_type": "UNRESOLVED_DEPARTURE_RISK",
-    "severity": "CRITICAL",
-    "confidence": 0.93,
-    "analysis_paragraph": "CRITICAL: Unresolved loading anomaly detected as departure cues (doors closing, truck moving) are present. Departure must be blocked \u2014 manager override required.",
-    "affected_items": [
-      "M3-0",
-      "M3-1",
-      "M3-2"
-    ],
-    "recommended_actions": [
-      "BLOCK departure",
-      "Manager override required"
-    ],
-    "spatial_discrepancy_score": 0.82
-  },
-  "anomaly_history": [
-    {
-      "anomaly_type": "UNRESOLVED_DEPARTURE_RISK",
-      "severity": "CRITICAL",
-      "analysis_paragraph": "CRITICAL: An unresolved loading anomaly remains uncorrected as the system detects departure cues. Block departure.",
-      "affected_items": [
-        "M3-0",
-        "M3-1",
-        "M3-2"
-      ],
-      "recommended_actions": [
-        "BLOCK departure",
-        "Manager override required"
-      ],
-      "resolved": false
-    }
-  ]
+  "status": "LOADING",
+  "gemini_analysis": {},
+  "anomaly_history": []
 }

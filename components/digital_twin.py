@@ -59,11 +59,7 @@ def render_digital_twin(fleet: Fleet):
             key=f"twin_3d_{fleet.id}",
         )
     else:
-        st.info(
-            "📦 No 3D packing layout has been generated yet. "
-            "Switch to the Worker/Planner view, create a packing plan, "
-            "and the layout will appear here automatically."
-        )
+        st.info("📦 No packed items — awaiting cargo placement.")
 
     # --- Virtual Rear-CCTV view (deterministic render of THIS layout) ---
     # A fixed virtual camera mounted outside/near the rear loading opening

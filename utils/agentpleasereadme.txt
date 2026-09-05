@@ -312,3 +312,107 @@ That is the system you're describing.
 """
 
 Above is the explanation from chatgpt regarding the next vision of this project, I will be prompting you multiple times to achieve this vision but the prompt will be partitioned into individual tasks. This is just for context, follow the exact orders I told you from my prompt
+
+Below is also part of the project's future state I envision:
+
+All four docks are always accessible from the Executive Dashboard.
+
+The old behavior was:
+
+Dock 1 button unavailable until Worker Dashboard → Render 3D Bin Layout.
+
+You now want:
+
+Dock 1 button is always clickable.
+
+But once inside Dock 1, its Virtual Twin is conditionally available:
+
+Before Worker Dashboard renders → Virtual Twin area shows an appropriate empty/not-available state.
+After Worker Dashboard renders → Dock 1's actual generated 3D layout appears, and therefore its virtual-camera representation can appear too.
+
+So accessibility of Dock 1 ≠ availability of its digital twin.
+
+For Docks 2–4, you no longer want their current staged/mock anomaly conditions at all. You don't want to open the dashboard and randomly see:
+
+Dock 3 — problem detected
+
+when you haven't actually done anything.
+
+Instead:
+
+Every dock starts in a neutral state.
+
+There are no pre-staged anomaly results.
+
+The system's detection state should be a function of the current CCTV footage.
+
+So the conceptual architecture becomes:
+
+                 EXECUTIVE DASHBOARD
+                        │
+        ┌───────────────┼───────────────┐
+        │               │               │
+      Dock 1          Dock 2          Dock 3          Dock 4
+        │               │               │               │
+     CCTV #1          CCTV #2          CCTV #3         CCTV #4
+        │               │               │               │
+        └────────────── Gemini detection ───────────────┘
+
+with the important difference that the digital twin source is:
+
+Dock 1 → worker-generated, only exists after Render 3D Bin Layout
+
+Dock 2 → predetermined layout
+Dock 3 → predetermined layout
+Dock 4 → predetermined layout
+
+But all four docks get Gemini detection capability.
+
+And all four docks will eventually have their own “Change CCTV Image” capability.
+
+For now, however, you don't want Cline to build the full interactive image-replacement workflow yet. You want each dock to simply have a constant placeholder CCTV image representing its current footage.
+
+So Cline's job at this stage is basically:
+
+Establish the infrastructure so every dock has a CCTV input and can be analyzed, but don't create artificial/staged anomaly states. The result should depend on the actual CCTV image supplied to Gemini.
+
+Then later, we can replace those constant placeholder images with:
+
+Change CCTV Image → modify multiple docks → Scan All Docks
+
+without having to redesign the detection architecture.
+
+The intended state of the system
+
+Dock 1
+
+Always clickable
+      ↓
+CCTV available
+      ↓
+Gemini available
+      ↓
+Virtual Twin:
+   not available
+      ↓
+Worker hits "Render 3D Bin Layout"
+      ↓
+Virtual Twin becomes available
+
+Dock 2–4
+
+Always clickable
+      ↓
+CCTV available
+      ↓
+Gemini available
+      ↓
+Virtual Twin already available
+      ↓
+No pre-staged anomaly
+
+And critically:
+
+No dock should have a hardcoded “problem” just because it is Dock 2, 3, or 4.
+
+The eventual anomaly state should be generated from the CCTV observation, not from the dock's identity or a staged scenario.
