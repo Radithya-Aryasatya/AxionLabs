@@ -69,5 +69,12 @@ python test_smoke.py
 #    Pass 1: invalid key  -> UI must show GEMINI STATUS: FAILED (no fake content)
 #    Pass 2: real key     -> UI must show GEMINI STATUS: SUCCESS + raw output
 python verify_gemini_ui.py
+
+# 4. Virtual rear-CCTV renderer: renders the 3D packing plan from a fixed
+#    rear-mounted virtual camera (same code path for Dock 1 live + mock
+#    docks); proves determinism (byte-identical PNGs), the rear/elevated
+#    pose, the red rear-door strip reference and graceful fallbacks.
+#    Artifacts land in assets/virtual_cctv/ for inspection.
+python verify_virtual_cctv.py
 ```
 

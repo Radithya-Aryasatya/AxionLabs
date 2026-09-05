@@ -65,6 +65,31 @@ def render_digital_twin(fleet: Fleet):
             "and the layout will appear here automatically."
         )
 
+    # --- Virtual Rear-CCTV view (deterministic render of THIS layout) ---
+    # A fixed virtual camera mounted outside/near the rear loading opening
+    # renders the packing plan as a 2D image — the digital "intended view"
+    # a real rear-mounted CCTV would approximate. Works identically for the
+    # live Dock 1 layout and the predetermined Docks 2-4 mock layouts.
+    if packed_items:
+        st.markdown("---")
+        st.caption(
+            "📹 **Virtual Rear-CCTV View** — fixed camera outside the rear "
+            "loading opening, looking in (digital intended view)"
+        )
+        try:
+            from services.virtual_camera import render_virtual_cctv_for_fleet
+            vpath = render_virtual_cctv_for_fleet(fleet)
+            if vpath:
+                st.image(vpath, width='stretch')
+                st.caption(
+                    "Deterministic render of this packing plan • red strip = "
+                    "rear-loading-door zone • reproducible PNG artifact"
+                )
+            else:
+                st.caption("Virtual rear-CCTV view unavailable for this layout.")
+        except Exception as exc:  # never break the Digital Twin panel
+            st.caption(f"Virtual rear-CCTV view unavailable: {exc}")
+
     # Display packed item details
     if packed_items:
         with st.expander("Packed Items Details"):

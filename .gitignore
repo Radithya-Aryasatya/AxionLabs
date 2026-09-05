@@ -16,3 +16,4 @@ test*
 venv
 .env
 *.env
+assets/virtual_cctv/
