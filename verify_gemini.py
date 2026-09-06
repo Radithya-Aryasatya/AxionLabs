@@ -56,7 +56,7 @@ def main() -> int:
     print("GEMINI REQUEST")
     print(f"Model: {model}")
     print(f"Text prompt length: {len(user_input)} chars")
-    print(f"CCTV image: ABSENT   Depth image: ABSENT   (pure-text probe)")
+    print(f"CCTV image: ABSENT   (pure-text probe)")
     print("Request started...")
 
     response = None

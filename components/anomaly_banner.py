@@ -81,7 +81,7 @@ def render_warning_banner(fleet_id: str, dock_number: int, analysis_text: str = 
                 <div style="font-size: 24px;">⚠️</div>
                 <div>
                     <div style="font-weight: 700; font-size: 14px; margin-bottom: 4px;">
-                        ANOMALY DETECTED: Messy Stacking at Dock {dock_number}
+                        ANOMALY DETECTED: at Dock {dock_number}
                     </div>
                     <div style="font-size: 12px; opacity: 0.9;">
                         Fleet #{fleet_id}

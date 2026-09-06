@@ -5,9 +5,7 @@ Gemini API multimodal service for spatial reasoning.
 
 Consumes:
   - CCTV RGB frame
-  - Depth Map (Depth Anything V2)
   - 3D Bin Packing Plan metadata/rendering
-  - Manifest constraints (fragile flags, total expected volume)
 
 LIVE vs SIMULATED — hard contract (no false successes):
   - When GEMINI_API_KEY is configured and the google-genai SDK is importable,
@@ -103,8 +101,8 @@ class GeminiAnalysisResult:
 
 class GeminiService:
     """
-    Handles multimodal spatial reasoning by sending CCTV footage,
-    depth maps, and 3D packing plan metadata to the Gemini API.
+    Handles multimodal spatial reasoning by sending CCTV footage
+    and 3D packing plan metadata to the Gemini API.
 
     Configuration (environment / .env):
       GEMINI_API_KEY   API key (required for live calls)
@@ -161,7 +159,6 @@ class GeminiService:
     def analyze_loading(
         self,
         cctv_frame_path: str,
-        depth_map_path: str,
         packing_plan: Dict[str, Any],
         manifest: Dict[str, Any],
         fleet_state: Dict[str, Any],
@@ -175,7 +172,11 @@ class GeminiService:
           PRIMARY   — the ACTUAL CCTV frame (`cctv_frame_path`)
           SECONDARY — the virtual rear-camera digital twin (`virtual_cctv_path`,
                       when a packing layout exists; "" for Dock 1 pre-render)
-          SUPPORT   — depth map + packing-plan/manifest metadata
+
+        IMPORTANT: `packing_plan`, `manifest`, and `fleet_state` are consumed
+        ONLY by the offline simulation engine (_simulate_analysis) and are NEVER
+        transmitted to the Gemini API. The real request is a pure visual
+        analysis (CCTV + optional twin) with no manifest/package metadata.
 
         NO silent fallback: if the real API call fails, the returned result
         has status="FAILED" plus the real error and an empty raw_response.
@@ -185,11 +186,10 @@ class GeminiService:
         """
         if self._initialized and self._client and not self.simulation_mode:
             return self._call_gemini_api(
-                cctv_frame_path, depth_map_path, packing_plan, manifest,
-                fleet_state, virtual_cctv_path,
+                cctv_frame_path, virtual_cctv_path,
             )
         result = self._simulate_analysis(
-            cctv_frame_path, depth_map_path, packing_plan, manifest,
+            cctv_frame_path, packing_plan, manifest,
             fleet_state, virtual_cctv_path,
         )
         result.status = STATUS_SIMULATED
@@ -202,7 +202,6 @@ class GeminiService:
     def detect_departure_risk(
         self,
         cctv_frame_path: str,
-        depth_map_path: str,
         previous_analysis: GeminiAnalysisResult,
         fleet_state: Dict[str, Any],
     ) -> GeminiAnalysisResult:
@@ -212,10 +211,10 @@ class GeminiService:
         """
         if self._initialized and self._client and not self.simulation_mode:
             return self._call_gemini_departure_api(
-                cctv_frame_path, depth_map_path, previous_analysis, fleet_state
+                cctv_frame_path, previous_analysis, fleet_state
             )
         result = self._simulate_departure_detection(
-            cctv_frame_path, depth_map_path, previous_analysis, fleet_state
+            cctv_frame_path, previous_analysis, fleet_state
         )
         result.status = STATUS_SIMULATED
         result.model = self.model
@@ -442,40 +441,39 @@ class GeminiService:
         )
 
     def _call_gemini_api(
-        self, cctv_frame_path, depth_map_path, packing_plan, manifest,
-        fleet_state, virtual_cctv_path="",
+        self, cctv_frame_path, virtual_cctv_path=""
     ) -> GeminiAnalysisResult:
         """REAL Gemini multimodal analysis.
 
         Part order encodes the Task 4 priority contract:
           1. prompt text  2. ACTUAL CCTV (PRIMARY)  3. virtual digital twin
-          (SECONDARY comparison context, when available)  4. depth map (support).
+          (SECONDARY comparison context, when available).
+
+        NOTE: packing_plan / manifest / fleet_state are intentionally NOT
+        transmitted to the Gemini API. They are consumed only by the offline
+        simulation engine (see _simulate_analysis). The real request carries
+        only the prompt text plus the CCTV image and (optionally) the digital
+        twin — a pure visual analysis with no manifest/package metadata.
         """
         has_twin = bool(virtual_cctv_path)
         prompt = self._build_spatial_reasoning_prompt(
-            packing_plan, manifest, fleet_state,
             digital_twin_present=has_twin,
         )
         parts = [prompt]
         cctv_part = self._load_image_part(cctv_frame_path)
         twin_part = (self._load_image_part(virtual_cctv_path)
                      if has_twin else None)
-        depth_part = self._load_image_part(depth_map_path)
         if cctv_part:
             parts.append(cctv_part)
         if twin_part:
             parts.append(twin_part)
-        if depth_part:
-            parts.append(depth_part)
 
         log.info(
             "GEMINI REQUEST\n  Model: %s\n  Text prompt length: %d chars\n"
-            "  CCTV image (PRIMARY): %s\n  Virtual digital twin (SECONDARY): %s\n"
-            "  Depth image (support): %s",
+            "  CCTV image (PRIMARY): %s\n  Virtual digital twin (SECONDARY): %s",
             self.model, len(prompt),
             "PRESENT" if cctv_part else "ABSENT",
             "PRESENT" if twin_part else "ABSENT",
-            "PRESENT" if depth_part else "ABSENT",
         )
         try:
             raw = self._generate(parts)
@@ -488,24 +486,20 @@ class GeminiService:
         return self._finalize_success(raw)
 
     def _call_gemini_departure_api(
-        self, cctv_frame_path, depth_map_path, previous_analysis, fleet_state
+        self, cctv_frame_path, previous_analysis, fleet_state
     ) -> GeminiAnalysisResult:
         """REAL Gemini departure-risk analysis (Scenario 2)."""
         prompt = self._build_departure_prompt(previous_analysis, fleet_state)
         parts = [prompt]
         cctv_part = self._load_image_part(cctv_frame_path)
-        depth_part = self._load_image_part(depth_map_path)
         if cctv_part:
             parts.append(cctv_part)
-        if depth_part:
-            parts.append(depth_part)
 
         log.info(
             "GEMINI REQUEST\n  Model: %s\n  Text prompt length: %d chars\n"
-            "  CCTV image: %s\n  Depth image: %s\n  Request type: departure-risk",
+            "  CCTV image: %s\n  Request type: departure-risk",
             self.model, len(prompt),
             "PRESENT" if cctv_part else "ABSENT",
-            "PRESENT" if depth_part else "ABSENT",
         )
         try:
             raw = self._generate(parts)
@@ -520,18 +514,18 @@ class GeminiService:
     # --- PROMPT BUILDERS ---
 
     def _build_spatial_reasoning_prompt(
-        self, packing_plan: Dict, manifest: Dict, fleet_state: Dict,
-        digital_twin_present: bool = False,
+        self, digital_twin_present: bool = False,
     ) -> str:
-        layout = packing_plan.get('layout', {})
-        packed = layout.get('packed_items', [])
-        manifest_summary = packing_plan.get('manifest_summary', [])
-        fragile_items = [item['name'] for item in manifest_summary if item.get('fragile')]
-        heavy_items = [p for p in packed if p.get('weight', 0) > 100]
+        """Build the prompt for the REAL Gemini spatial-reasoning request.
 
+        The real request is a PURE visual analysis: it receives only the prompt
+        text plus the CCTV image and (optionally) the digital-twin render. No
+        manifest, packing-plan, or fleet-state metadata is included here — that
+        data is consumed exclusively by the offline simulation engine.
+        """
         # Task 4 priority contract: the ACTUAL CCTV image is the PRIMARY
         # analysis target; the virtual rear-camera digital twin is SECONDARY
-        # comparison context; plan/manifest metadata is supporting context.
+        # comparison context. No supporting metadata is provided to the model.
         if digital_twin_present:
             input_map = """
 INPUT IMAGES (in this order):
@@ -539,8 +533,7 @@ INPUT IMAGES (in this order):
   PRIMARY evidence and the main target of your analysis.
 - IMAGE 2 - VIRTUAL DIGITAL TWIN: a deterministic rear-camera render of the
   INTENDED 3D packing layout (the plan). This is SECONDARY reference context
-  only - it is NOT the primary analysis target.
-- IMAGE 3 (if present) - DEPTH MAP: supporting visual context."""
+  only - it is NOT the primary analysis target."""
             secondary_task = """
 SECONDARY TASK - DIGITAL TWIN COMPARISON (run ONLY after the primary
 physical CCTV analysis above):
@@ -552,7 +545,10 @@ additionally (where visually supportable):
 3. Materially misplaced cargo - planned positions clearly not honored
 4. Other meaningful discrepancies between the intended and observed loading
 Use "spatial_discrepancy_score" to express how far the physical load deviates
-from the intended layout (0.0 = matches the twin, 1.0 = completely different)."""
+from the intended layout (0.0 = matches the twin, 1.0 = completely different).
+
+Please note that the digital twin has colorful visualizations for box-type differentiations. Therefore, colour of the boxes should not be a factor for CCTV image and digital twin discrepancy.
+"""
         else:
             input_map = """
 INPUT IMAGES (in this order):
@@ -584,28 +580,18 @@ where visually supportable:
 9. Any other visually detectable loading anomaly
 {secondary_task}
 
-SUPPORTING CONTEXT (metadata only - never a substitute for the CCTV footage):
-PACKING PLAN METADATA:
-- Total items packed: {len(packed)}
-- Fill percentage: {packing_plan.get('fill_percentage', 'N/A')}%
-- Fragile items in manifest: {fragile_items if fragile_items else 'None'}
-- Heavy items (>100kg): {[p['part_number'] for p in heavy_items] if heavy_items else 'None'}
-
-MANIFEST SUMMARY:
-{json.dumps(manifest_summary, indent=2, default=str)}
-
-FLEET STATE:
-- Loading in progress: {fleet_state.get('loading_in_progress', True)}
-- Rear doors status: {'Open' if fleet_state.get('loading_in_progress', True) else 'Closing'}
-- Dock engaged: {fleet_state.get('loading_in_progress', True)}
+IMPORTANT: You receive NO metadata about the cargo (no item counts, no fill
+percentage, no manifest, no fragile/heavy item lists). Base every finding
+strictly on what the ACTUAL CCTV image shows (and, when a twin was provided,
+how it compares to the intended layout).
 
 OUTPUT STRICT JSON:
 {{
   "anomaly_type": "MESSY_STACKING" | "LOADING_BIAS" | "SPATIAL_DEVIATION" | "WASTED_VOLUME" | "UNSAFE_ARRANGEMENT" | "NONE" | "OTHER",
   "severity": "WARNING" | "CRITICAL" | "NONE",
-  "confidence": 0.0-1.0,
-  "analysis_paragraph": "Detailed narrative of what the ACTUAL CCTV footage shows (and, when a twin was provided, how it compares to the intended layout)...",
-  "affected_items": ["list of item identifiers"],
+  "confidence": 0.0-100.0,
+  "analysis_paragraph": "Detailed narrative of what the ACTUAL CCTV footage shows (and, when a twin was provided, how it compares to the intended layout. Please note that the digital twin has colorful visualizations for box-type differentiations. Therefore, colour of the boxes should not be a factor for CCTV image and digital twin discrepancy)...",
+  "affected_items": ["list of item identifiers"], 
   "recommended_actions": ["actionable steps"],
   "spatial_discrepancy_score": 0.0-1.0
 }}
@@ -653,7 +639,7 @@ OUTPUT STRICT JSON:
     _SIM_LABEL = "[OFFLINE SIMULATION - NOT a live Gemini response] "
 
     def _simulate_analysis(
-        self, cctv_frame_path, depth_map_path,
+        self, cctv_frame_path,
         packing_plan, manifest, fleet_state, virtual_cctv_path=""
     ) -> GeminiAnalysisResult:
         """
@@ -662,7 +648,7 @@ OUTPUT STRICT JSON:
         is available.
         """
         result = self._simulate_analysis_raw(
-            cctv_frame_path, depth_map_path, packing_plan, manifest,
+            cctv_frame_path, packing_plan, manifest,
             fleet_state, virtual_cctv_path,
         )
         result.analysis_paragraph = self._SIM_LABEL + result.analysis_paragraph
@@ -674,7 +660,7 @@ OUTPUT STRICT JSON:
         return result
 
     def _simulate_analysis_raw(
-        self, cctv_frame_path, depth_map_path,
+        self, cctv_frame_path,
         packing_plan, manifest, fleet_state, virtual_cctv_path=""
     ) -> GeminiAnalysisResult:
         """
@@ -758,7 +744,7 @@ OUTPUT STRICT JSON:
             severity="NONE",
             confidence=0.95,
             analysis_paragraph=(
-                "The live CCTV footage and depth map align well with the optimal "
+                "The live CCTV footage aligns well with the optimal "
                 "3D bin packing plan. No significant spatial discrepancies detected. "
                 "Stacking appears stable and efficient."
             ),
@@ -770,7 +756,6 @@ OUTPUT STRICT JSON:
     def _simulate_departure_raw(
         self,
         cctv_frame_path: str,
-        depth_map_path: str,
         previous: GeminiAnalysisResult,
         fleet_state: Dict[str, Any],
     ) -> GeminiAnalysisResult:
@@ -820,13 +805,12 @@ OUTPUT STRICT JSON:
     def _simulate_departure_detection(
         self,
         cctv_frame_path: str,
-        depth_map_path: str,
         previous: GeminiAnalysisResult,
         fleet_state: Dict[str, Any],
     ) -> GeminiAnalysisResult:
         """Offline departure-risk simulation, explicitly labelled (see above)."""
         result = self._simulate_departure_raw(
-            cctv_frame_path, depth_map_path, previous, fleet_state
+            cctv_frame_path, previous, fleet_state
         )
         result.analysis_paragraph = self._SIM_LABEL + result.analysis_paragraph
         result.status = STATUS_SIMULATED
@@ -865,7 +849,7 @@ OUTPUT STRICT JSON:
             )
 
         parts.append(
-            "Visual inspection of the depth map confirms spatial voids and "
+            "Visual inspection of the CCTV footage confirms spatial voids and "
             "tilted stacking patterns that deviate from the optimal layout. "
             "Recommended immediate actions include pausing the loading process, "
             "redistributing heavy items to the truck floor, and re-positioning "

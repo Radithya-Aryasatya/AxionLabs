@@ -84,7 +84,6 @@ class Fleet:
     status: FleetStatus = FleetStatus.LOADING
     fill_percentage: float = 0.0         # Volumetric fill % (0-100)
     cctv_frame_path: str = ""            # Path to current CCTV frame image
-    depth_map_path: str = ""             # Path to depth map image
     gemini_analysis: Dict[str, Any] = field(default_factory=dict)
     anomaly_history: List[AnomalyRecord] = field(default_factory=list)
     created_at: datetime = field(default_factory=datetime.now)

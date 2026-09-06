@@ -32,9 +32,8 @@ def main() -> int:
     print(f"Gemini API configured: {'YES' if api_key else 'NO'}")
     print(f"Gemini model: {os.getenv('GEMINI_MODEL', 'gemini-2.5-flash')}")
 
-    cctv, depth = ensure_dock_assets(1)
+    cctv = ensure_dock_assets(1)
     print(f"CCTV asset: {cctv} (exists={os.path.exists(cctv)})")
-    print(f"Depth asset: {depth} (exists={os.path.exists(depth)})")
 
     fleet = Fleet(
         id="E2E-LIVE-01",
@@ -68,7 +67,6 @@ def main() -> int:
         status=FleetStatus.LOADING,
         fill_percentage=6.3,
         cctv_frame_path=cctv,
-        depth_map_path=depth,
     )
 
     print("-" * 64)

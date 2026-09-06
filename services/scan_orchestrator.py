@@ -62,12 +62,10 @@ def _resolve_dock_context(dock_number):
         fleet = dock_state.fleet()
 
     cctv_path = ""
-    depth_path = ""
     twin_path = None
 
     if fleet is not None:
         cctv_path = resolve_dock_cctv(dock_number)
-        depth_path = fleet.depth_map_path or ""
         try:
             from services.virtual_camera import render_virtual_cctv_for_fleet
             twin_path = render_virtual_cctv_for_fleet(fleet)
@@ -78,7 +76,6 @@ def _resolve_dock_context(dock_number):
         "dock_number": dock_number,
         "fleet": fleet,
         "cctv_path": cctv_path,
-        "depth_path": depth_path,
         "twin_path": twin_path,
         "has_twin": bool(twin_path),
     }

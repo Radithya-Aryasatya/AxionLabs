@@ -87,7 +87,6 @@ class AnomalyEngine:
         the resulting anomaly decision.
         """
         cctv_frame_path = fleet.cctv_frame_path or self._get_default_cctv(fleet)
-        depth_map_path = fleet.depth_map_path or self._get_default_depth(fleet)
         packing_plan = fleet.packing_layout
         manifest = fleet.manifest
         fleet_state = self._fleet_to_state_dict(fleet)
@@ -95,7 +94,6 @@ class AnomalyEngine:
         # Run Gemini loading analysis
         gemini_result = self.gemini.analyze_loading(
             cctv_frame_path=cctv_frame_path,
-            depth_map_path=depth_map_path,
             packing_plan=packing_plan,
             manifest=manifest,
             fleet_state=fleet_state,
@@ -122,7 +120,6 @@ class AnomalyEngine:
         # Check for departure risk
         departure_result = self.gemini.detect_departure_risk(
             cctv_frame_path=cctv_frame_path,
-            depth_map_path=depth_map_path,
             previous_analysis=gemini_result,
             fleet_state=fleet_state,
         )
@@ -217,7 +214,7 @@ class AnomalyEngine:
                 fleet_status=FleetStatus.ANOMALY_DETECTED,
                 ui_action="SHOW_WARNING_BANNER",
                 requires_override=False,
-                banner_message=f"⚠️ ANOMALY DETECTED: Messy Stacking at {dock_str}",
+                banner_message=f"⚠️ ANOMALY DETECTED: at {dock_str}",
                 banner_type="warning",
             )
 
@@ -276,20 +273,4 @@ class AnomalyEngine:
             for f in os.listdir(img_dir):
                 if f.lower().endswith(('.jpg', '.jpeg', '.png')):
                     return os.path.join(img_dir, f)
-        return ""
-
-    def _get_default_depth(self, fleet: Fleet) -> str:
-        """Return default depth map path based on dock number."""
-        import os
-        path = os.path.join(
-            os.path.dirname(os.path.dirname(__file__)),
-            "assets", "depth_maps", f"depth_dock_{fleet.dock_number}.png"
-        )
-        if os.path.exists(path):
-            return path
-        depth_path = os.path.join(
-            os.path.dirname(os.path.dirname(__file__)), "my_photo_depth.png"
-        )
-        if os.path.exists(depth_path):
-            return depth_path
         return ""

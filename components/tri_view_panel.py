@@ -56,10 +56,22 @@ def render_tri_view_panel(fleet: Fleet):
             dock_number=fleet.dock_number,
             cctv_frame_path=effective_cctv,
         )
-        # Task 4: allow changing the CCTV image from the investigation layer.
-        with st.expander("📷 Change CCTV Image", expanded=False):
+        # Task 4.1: allow changing the CCTV image from the individual dock
+        # screening/inspection view only. The dashboard must NOT expose this.
+        with st.expander("More", expanded=False):
             from services.cctv_manager import render_cctv_change_control
             render_cctv_change_control(fleet.dock_number)
+
+        # Surface staleness: if the CCTV evidence changed after the last scan,
+        # tell the operator the displayed result no longer reflects the current
+        # CCTV input (existing state model — no new field).
+        from state.dock_state import get_dock_scan_state
+        if get_dock_scan_state(fleet.dock_number).get("stale"):
+            st.warning(
+                "📷 This dock's CCTV image was replaced after its last scan — "
+                "the displayed analysis reflects the previous CCTV input. Run a "
+                "new scan to re-evaluate."
+            )
 
     with col_center:
         st.markdown("### 2️⃣ Digital Twin (3D Bin Packing Plan)")

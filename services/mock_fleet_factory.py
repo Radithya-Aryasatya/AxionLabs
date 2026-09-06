@@ -28,15 +28,13 @@ from state.dock_state import (
 _BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 _IMG_DIR = os.path.join(_BASE_DIR, "img")
 _CCTV_DIR = os.path.join(_BASE_DIR, "assets", "cctv_frames")
-_DEPTH_DIR = os.path.join(_BASE_DIR, "assets", "depth_maps")
 _MOCK_DIR = os.path.join(_BASE_DIR, "assets", "mock_docks")
 
 
-# --- CCTV / depth asset pinning (deterministic) ---
+# --- CCTV asset pinning (deterministic) ---
 
 def _ensure_dirs():
     os.makedirs(_CCTV_DIR, exist_ok=True)
-    os.makedirs(_DEPTH_DIR, exist_ok=True)
     os.makedirs(_MOCK_DIR, exist_ok=True)
 
 
@@ -48,8 +46,8 @@ def _available_images():
 
 
 def ensure_dock_assets(dock_number: int):
-    """Pin a deterministic CCTV frame + depth map for a dock.
-    Returns (cctv_path, depth_path). Copies from img/ if needed."""
+    """Pin a deterministic CCTV frame for a dock.
+    Returns the cctv_path. Copies from img/ if needed."""
     _ensure_dirs()
     images = _available_images()
 
@@ -59,16 +57,7 @@ def ensure_dock_assets(dock_number: int):
         idx = (dock_number - 1) % len(images)
         shutil.copy2(images[idx], cctv_path)
 
-    depth_name = f"depth_dock_{dock_number}.png"
-    depth_path = os.path.join(_DEPTH_DIR, depth_name)
-    if not os.path.exists(depth_path):
-        fallback = os.path.join(_BASE_DIR, "my_photo_depth.png")
-        if os.path.exists(fallback):
-            shutil.copy2(fallback, depth_path)
-        elif os.path.exists(cctv_path):
-            shutil.copy2(cctv_path, depth_path)
-
-    return cctv_path, depth_path
+    return cctv_path
 
 
 # --- Editable placeholder layouts ---
@@ -333,9 +322,7 @@ def seed_mock_docks():
         data = _load_mock_layout(dock_number)
         data['dock_number'] = dock_number  # ensure correct dock linkage
         fleet, packed = _build_fleet_from_layout(data)
-        cctv, depth = ensure_dock_assets(dock_number)
-        fleet.cctv_frame_path = cctv
-        fleet.depth_map_path = depth
+        fleet.cctv_frame_path = ensure_dock_assets(dock_number)
 
         # Replace the old fleet in the active list (preserve list ordering).
         st.session_state.active_fleets = [

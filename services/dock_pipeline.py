@@ -5,7 +5,7 @@ The Render -> Gemini -> Notify orchestration for Dock 1.
 
 When the worker clicks "Render 3D Bin Layout", this module:
   1. upserts the Dock 1 fleet (pins dock_number=1),
-  2. pairs a deterministic CCTV frame + depth map,
+  2. pairs a deterministic CCTV frame,
   3. runs REAL Gemini spatial reasoning with a hard timeout,
   4. persists the analysis, records anomalies, and pushes a cross-view
      notification + toast.
@@ -88,9 +88,7 @@ def analyze_with_fallback(
     engine = AnomalyEngine(gemini_service=svc)
 
     cctv = fleet.cctv_frame_path or mock_fleet_factory.ensure_dock_assets(
-        fleet.dock_number)[0]
-    depth = fleet.depth_map_path or mock_fleet_factory.ensure_dock_assets(
-        fleet.dock_number)[1]
+        fleet.dock_number)
 
     # Normalize the twin path: only pass it when the file actually exists.
     twin = virtual_cctv_path if (virtual_cctv_path and os.path.isfile(virtual_cctv_path)) else ""
@@ -98,7 +96,6 @@ def analyze_with_fallback(
     def _call():
         return svc.analyze_loading(
             cctv_frame_path=cctv,
-            depth_map_path=depth,
             packing_plan=fleet.packing_layout,
             manifest=fleet.manifest,
             fleet_state=engine._fleet_to_state_dict(fleet),
@@ -147,7 +144,7 @@ def ensure_dock1_monitor_fleet():
 
     Idempotent:
       - If a live Dock-1 fleet already exists, it is left untouched — only the
-        CCTV/depth-map pairing is refreshed.
+        CCTV pairing is refreshed.
       - If no live Dock-1 fleet exists, a neutral monitor placeholder is
         created (empty packing layout, CCTV assets pinned, stage
         ``MONITORED``, analysis source ``NONE``) so the dashboard always has
@@ -192,18 +189,14 @@ def ensure_dock1_monitor_fleet():
             truck_moving=False,
             source="live",
         )
-        cctv, depth = mock_fleet_factory.ensure_dock_assets(1)
-        fleet.cctv_frame_path = cctv
-        fleet.depth_map_path = depth
+        fleet.cctv_frame_path = mock_fleet_factory.ensure_dock_assets(1)
         st.session_state.active_fleets.append(fleet)
         upsert_dock_fleet(1, fleet.id)
         set_dock_stage(1, DockStage.MONITORED)
         set_analysis_source(1, AnalysisSource.NONE)
     else:
         # Existing live fleet — refresh asset pairing only, do not overwrite
-        cctv, depth = mock_fleet_factory.ensure_dock_assets(1)
-        existing.cctv_frame_path = cctv
-        existing.depth_map_path = depth
+        existing.cctv_frame_path = mock_fleet_factory.ensure_dock_assets(1)
 
 
 def run_dock1_render_pipeline(
@@ -255,10 +248,8 @@ def _run_dock1_render_pipeline(partno, fig, manifest, packer,
     st.session_state['last_3d_figure'] = fig
     st.session_state.setdefault('fleet_3d_figures', {})[partno] = fig
 
-    # --- 2. Pair CCTV frame + depth map ---
-    cctv, depth = mock_fleet_factory.ensure_dock_assets(1)
-    fleet.cctv_frame_path = cctv
-    fleet.depth_map_path = depth
+    # --- 2. Pair CCTV frame ---
+    fleet.cctv_frame_path = mock_fleet_factory.ensure_dock_assets(1)
 
     # Task 4: if the operator already chose a replacement CCTV image for
     # Dock 1, restore it — asset pairing above would otherwise overwrite

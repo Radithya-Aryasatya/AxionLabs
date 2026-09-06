@@ -113,9 +113,9 @@ def _render_scan_all_control():
 
     st.markdown("### 🔍 Centralized Scan Control")
     st.caption(
-        "Replace any dock's CCTV image above, then press the button below to "
-        "analyze all four docks. Each dock is scanned independently — one "
-        "failure never blocks the others."
+        "Analyze the current CCTV state of all four docks. Each dock is scanned "
+        "independently — one failure never blocks the others. To change a dock's "
+        "CCTV image, investigate that dock individually first."
     )
 
     c1, c2 = st.columns([1, 3])
@@ -174,14 +174,16 @@ def _render_dock_grid():
         with cols[i]:
             render_fleet_card_compact(dock.fleet())
 
-            # Task 4: scan-state chip + per-dock CCTV change control.
+            # Task 4: scan-state chip only. The dashboard is a monitoring/navigation
+            # surface — it must NOT expose any CCTV-replacement control. The
+            # "Change CCTV Image" workflow exists solely in the individual dock
+            # screening view (components/tri_view_panel.py).
             from state.dock_state import get_dock_scan_state
-            scan_chip = get_dock_scan_state(dn)
-            st.caption(scan_chip)
-
-            with st.expander(f"📷 Change CCTV — Dock {dn}", expanded=False):
-                from services.cctv_manager import render_cctv_change_control
-                render_cctv_change_control(dn)
+            scan_state = get_dock_scan_state(dn)
+            chip = f"Dock {dn}: {scan_state.get('state', '—')}"
+            if scan_state.get("stale"):
+                chip += " · STALE"
+            st.caption(chip)
 
             # Select-for-investigation button
             if st.button(

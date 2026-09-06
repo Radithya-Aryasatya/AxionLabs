@@ -1,7 +1,7 @@
 # AxionLabs — 3D Bin Packing Fleet Monitor
 
 Streamlit app for 3D truck-loading optimisation with **real Google Gemini
-spatial-reasoning analysis** of loading docks (CCTV frame + depth map +
+spatial-reasoning analysis** of loading docks (CCTV frame +
 packing plan), an executive fleet dashboard, and anomaly alerting.
 
 ## Gemini API configuration
@@ -93,26 +93,42 @@ The Executive Control Tower now supports a centralized scanning workflow:
 ### Workflow
 
 1. Operator opens the Executive Dashboard.
-2. All four docks are visible, each with its current CCTV image.
-3. Operator can **Change CCTV Image** for ANY dock (or multiple docks):
-   - preset gallery picker + file uploader
-   - updates only the dock's current CCTV input
-   - does NOT trigger Gemini
+2. All four docks are visible with their status and current CCTV image.
+3. Operator **investigates an individual dock** (drill-in) and, inside that
+   dock's screening view, uses **Change CCTV Image**:
+   - Upload a frame → **Preview** it → press **Save CCTV Image**
+   - uploading alone never replaces the active source — only Save does
+   - no preset gallery, no repository-image picker (cannot switch between
+     existing dock assets)
 4. Operator presses **SCAN ALL DOCKS**.
 5. The system analyzes the current CCTV state of all four docks.
 6. Per-dock results flow back to the dashboard; operator can drill in.
+
+> The CCTV-replacement workflow exists **only** in the individual dock
+> screening view (`components/tri_view_panel.py`). The Executive Dashboard is
+> a pure monitoring/navigation surface and deliberately exposes no Change CCTV
+> control, preset gallery, uploader, or repository-image picker.
 
 ### Architecture
 
 **Per-dock CCTV replacement** (`services/cctv_manager.py`)
 - Single canonical store: `Fleet.cctv_frame_path` (unchanged).
+- `validate_uploaded_image(filename, data)` → rejects empty / wrong-type /
+  corrupt / oversized uploads before anything is written, so a bad upload can
+  never corrupt the current CCTV source.
+- `persist_uploaded_cctv(dock_number, filename, data)` → writes the frame to
+  `assets/cctv_uploads/` (gitignored, separate from the pinned mock assets)
+  under a **content-addressed** name; the original filename is not used for
+  storage, so unsafe names / path-traversal inputs are harmless.
+- `handle_cctv_upload(dock_number, filename, data)` → the **Save** step:
+  validate → persist → select. Called only from the explicit Save action.
 - `set_dock_cctv(dock_number, path)` → updates the linked fleet, records the
   choice in `st.session_state['cctv_selections']`, stamps
   `DockState.cctv_updated_at`, and does NOT trigger analysis.
 - `apply_cctv_selections()` re-applies choices after seeding (seeding would
   otherwise overwrite them with deterministic placeholders).
-- `render_cctv_change_control(dock_number)` → reusable widget block
-  (selectbox + file uploader in an expander).
+- `render_cctv_change_control(dock_number)` → Upload → Preview → Save widget
+  block (no preset gallery, no reset) hosted in the individual dock view.
 
 **Scan orchestration** (`services/scan_orchestrator.py`)
 - `run_scan_all_docks()` processes all four docks sequentially (quota-conscious),
@@ -126,7 +142,7 @@ The Executive Control Tower now supports a centralized scanning workflow:
 **Gemini input structure** (`services/gemini_service.py`)
 - PRIMARY: actual CCTV image.
 - SECONDARY: virtual digital-twin rear-camera render (when available).
-- Request parts are ordered `[prompt, ACTUAL CCTV, VIRTUAL TWIN (if any), depth]`.
+- Request parts are ordered `[prompt, ACTUAL CCTV, VIRTUAL TWIN (if any)]`.
 - Dock 1 before worker render: no twin → CCTV-only analysis.
 - Dock 1 after worker render: worker layout present → twin rendered as
   secondary context.

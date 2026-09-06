@@ -1,18 +1,16 @@
 """
 services/cctv_simulator.py
 ============================
-Simulates CCTV camera feeds and depth maps for demo purposes.
+Simulates CCTV camera feeds for demo purposes.
 
 Since we don't have real CCTV cameras, this service:
 1. Maps existing static images to "CCTV frames" per dock
-2. Generates or uses pre-computed depth maps (Depth Anything V2)
-3. Simulates "live" variation (random frame selection from a set)
-4. Provides departure-cue simulation (door closing, truck movement)
+2. Simulates "live" variation (random frame selection from a set)
+3. Provides departure-cue simulation (door closing, truck movement)
 """
 
 import os
 import random
-import shutil
 from typing import Dict, Any, Tuple, Optional
 from datetime import datetime
 
@@ -21,7 +19,6 @@ from datetime import datetime
 _BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 _IMG_DIR = os.path.join(_BASE_DIR, "img")
 _CCTV_DIR = os.path.join(_BASE_DIR, "assets", "cctv_frames")
-_DEPTH_DIR = os.path.join(_BASE_DIR, "assets", "depth_maps")
 
 
 # Simulated CCTV states for each dock
@@ -58,25 +55,6 @@ class CctvState:
         idx = self.dock_number % len(self.frame_set)
         return self.frame_set[idx]
 
-    def get_depth_map(self) -> str:
-        """Get the corresponding depth map path."""
-        depth_name = f"depth_dock_{self.dock_number}.png"
-        depth_path = os.path.join(_DEPTH_DIR, depth_name)
-        if os.path.exists(depth_path):
-            return depth_path
-
-        # Fallback to pre-computed depth or generate one
-        fallback = os.path.join(_BASE_DIR, "my_photo_depth.png")
-        if os.path.exists(fallback):
-            return fallback
-
-        # Copy first available frame as fallback
-        if self.frame_set and os.path.exists(self.frame_set[0]):
-            shutil.copy2(self.frame_set[0], depth_path)
-            return depth_path
-
-        return ""
-
     def simulate_departure(self):
         """Simulate the truck beginning to depart."""
         self.doors_closing = True
@@ -99,7 +77,6 @@ class CctvSimulator:
         self._states: Dict[int, CctvState] = {}
         # Ensure directories exist
         os.makedirs(_CCTV_DIR, exist_ok=True)
-        os.makedirs(_DEPTH_DIR, exist_ok=True)
 
     def get_state(self, dock_number: int) -> CctvState:
         """Get or create the CCTV state for a dock."""
@@ -110,10 +87,6 @@ class CctvSimulator:
     def get_frame(self, dock_number: int) -> str:
         """Get current frame for a dock."""
         return self.get_state(dock_number).get_current_frame()
-
-    def get_depth_map(self, dock_number: int) -> str:
-        """Get depth map for a dock."""
-        return self.get_state(dock_number).get_depth_map()
 
     def simulate_departure(self, dock_number: int):
         """Trigger departure simulation for a dock."""
