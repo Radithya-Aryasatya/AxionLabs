@@ -5,7 +5,6 @@ Executive Control Tower — Main View 2 controller.
 
 Landing view for the Manager role. Displays:
   - Persistent anomaly alert banners (all active fleets)
-  - Auto-refreshing control-room status ticker
   - 4-dock fixed grid (Dock 1 LIVE, Docks 2–4 editable placeholder pages)
   - 3-dock fixed grid (Dock 1 LIVE, Docks 2 & 3 MOCK demo data)
   - Tri-View Detail Inspection Panel (when a fleet is selected)
@@ -21,7 +20,6 @@ from state.dock_state import get_all_docks
 from components.fleet_card import render_fleet_card_compact
 from components.anomaly_banner import render_anomaly_banners
 from components.tri_view_panel import render_tri_view_panel
-from components.status_ticker import render_status_ticker
 from services.mock_fleet_factory import seed_mock_docks
 from services.dock_pipeline import ensure_dock1_monitor_fleet
 
@@ -58,9 +56,6 @@ def render_executive_dashboard():
             </div>
         </div>
     """, unsafe_allow_html=True)
-
-    # --- Control-room status ticker (auto-refreshing) ---
-    render_status_ticker()
 
     fleets = st.session_state.get('active_fleets', [])
 
