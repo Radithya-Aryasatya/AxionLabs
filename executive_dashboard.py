@@ -180,8 +180,7 @@ def _render_dock_grid():
                 chip += " · STALE"
             st.caption(chip)
 
-    st.caption("Dock 1 is live from the Worker Interface • Docks 2, 3, 4 are editable placeholder pages")
-
+    
 
 def _render_status_summary(fleets):
     """Render a quick summary of fleet statuses."""
