@@ -61,11 +61,9 @@ class GeminiAnalysisResult:
 
     anomaly_type: str = "NONE"
     severity: str = "NONE"
-    confidence: float = 0.0
     analysis_paragraph: str = ""
     affected_items: list = field(default_factory=list)
     recommended_actions: list = field(default_factory=list)
-    spatial_discrepancy_score: float = 0.0
     status: str = ""
     model: str = ""
     raw_response: str = ""
@@ -76,6 +74,11 @@ class GeminiAnalysisResult:
         # Assign known fields; collect unknown kwargs into `extra` so that
         # additional Gemini output is preserved instead of crashing.
         leftover = dict(kwargs)
+        # Legacy fields removed from the system (they were display-only and
+        # served no functional purpose). Drop them outright instead of letting
+        # them leak into `extra` (which the audit UI would surface).
+        for legacy in ("confidence", "spatial_discrepancy_score"):
+            leftover.pop(legacy, None)
         for f in dc_fields(self):
             if f.name in leftover:
                 setattr(self, f.name, leftover.pop(f.name))
@@ -411,11 +414,22 @@ class GeminiService:
                 raw_response=raw,
                 extra={"parse_error": "response was not valid JSON"},
             )
-        known = {"anomaly_type", "severity", "confidence", "analysis_paragraph",
-                 "affected_items", "recommended_actions",
-                 "spatial_discrepancy_score"}
-        core = {k: parsed[k] for k in known if k in parsed}
+        known = {"anomaly_type", "severity", "analysis_paragraph",
+                 "affected_items", "recommended_actions"}
+        core = {}
+        for k in known:
+            if k in parsed:
+                if k in ("affected_items", "recommended_actions"):
+                    # Guard against non-list values from the model.
+                    if not isinstance(parsed[k], list):
+                        continue
+                core[k] = parsed[k]
+        # Legacy removed fields (confidence / spatial_discrepancy_score) must
+        # never leak into `extra` — the audit UI surfaces `extra` verbatim as
+        # \"Raw Gemini Observations\".
         extra = {k: v for k, v in parsed.items() if k not in known}
+        for legacy in ("confidence", "spatial_discrepancy_score"):
+            extra.pop(legacy, None)
         if not core.get("analysis_paragraph"):
             # Keep the model's voice even when it skipped the paragraph field.
             core["analysis_paragraph"] = raw
@@ -432,7 +446,6 @@ class GeminiService:
         return GeminiAnalysisResult(
             anomaly_type="OTHER",
             severity="NONE",
-            confidence=0.0,
             analysis_paragraph="",
             status=STATUS_FAILED,
             model=self.model,
@@ -544,8 +557,6 @@ additionally (where visually supportable):
 2. Significant physical-vs-planned spatial deviation
 3. Materially misplaced cargo - planned positions clearly not honored
 4. Other meaningful discrepancies between the intended and observed loading
-Use "spatial_discrepancy_score" to express how far the physical load deviates
-from the intended layout (0.0 = matches the twin, 1.0 = completely different).
 
 Please note that the digital twin has colorful visualizations for box-type differentiations. Therefore, colour of the boxes should not be a factor for CCTV image and digital twin discrepancy.
 """
@@ -589,11 +600,9 @@ OUTPUT STRICT JSON:
 {{
   "anomaly_type": "MESSY_STACKING" | "LOADING_BIAS" | "SPATIAL_DEVIATION" | "WASTED_VOLUME" | "UNSAFE_ARRANGEMENT" | "NONE" | "OTHER",
   "severity": "WARNING" | "CRITICAL" | "NONE",
-  "confidence": 0.0-100.0,
   "analysis_paragraph": "Detailed narrative of what the ACTUAL CCTV footage shows (and, when a twin was provided, how it compares to the intended layout. Please note that the digital twin has colorful visualizations for box-type differentiations. Therefore, colour of the boxes should not be a factor for CCTV image and digital twin discrepancy)...",
   "affected_items": ["list of item identifiers"], 
-  "recommended_actions": ["actionable steps"],
-  "spatial_discrepancy_score": 0.0-1.0
+  "recommended_actions": ["actionable steps"]
 }}
 """
 
@@ -609,7 +618,6 @@ TASK: Determine if the truck is attempting to depart while carrying
 PREVIOUS ANALYSIS:
 - Anomaly type: {previous.anomaly_type}
 - Severity: {previous.severity}
-- Confidence: {previous.confidence}
 
 FLEET STATE:
 - Doors closing: {fleet_state.get('doors_closing', False)}
@@ -626,11 +634,9 @@ OUTPUT STRICT JSON:
 {{
   "anomaly_type": "UNRESOLVED_DEPARTURE_RISK" | "NONE",
   "severity": "CRITICAL" | "NONE",
-  "confidence": 0.0-1.0,
   "analysis_paragraph": "Detailed warning about uncorrected anomaly during departure...",
   "affected_items": [],
-  "recommended_actions": [],
-  "spatial_discrepancy_score": 0.0-1.0
+  "recommended_actions": []
 }}
 """
 
@@ -694,21 +700,23 @@ OUTPUT STRICT JSON:
                 if heavy_over_fragile:
                     break
 
-        # Compute simulated spatial discrepancy score
-        discrepancy = 0.0
+        # Compute a local risk heuristic that drives the deterministic anomaly
+        # classification below. This is an internal decision input only — the
+        # former display-only \"confidence\" / \"spatial_discrepancy_score\"
+        # fields were removed from the system; this number is never surfaced.
+        risk_score = 0.0
         if heavy_over_fragile:
-            discrepancy += 0.35
+            risk_score += 0.35
         if fill_pct < 50:
-            discrepancy += 0.25
+            risk_score += 0.25
         if heavy_items and len(heavy_items) > len(packed) * 0.3:
-            discrepancy += 0.20
-        discrepancy = min(1.0, discrepancy)
+            risk_score += 0.20
+        risk_score = min(1.0, risk_score)
 
-        if discrepancy >= 0.4 and loading_in_progress:
+        if risk_score >= 0.4 and loading_in_progress:
             return GeminiAnalysisResult(
                 anomaly_type="MESSY_STACKING",
                 severity="WARNING",
-                confidence=round(0.75 + (discrepancy - 0.4) * 0.5, 2),
                 analysis_paragraph=self._generate_messy_stacking_paragraph(
                     heavy_over_fragile, fill_pct, len(heavy_items), has_fragile
                 ),
@@ -720,14 +728,12 @@ OUTPUT STRICT JSON:
                     "Ensure stable stacking with no overhangs",
                     "Pause loading and re-inspect the current configuration",
                 ],
-                spatial_discrepancy_score=round(discrepancy, 3),
             )
 
-        if discrepancy > 0.0:
+        if risk_score > 0.0:
             return GeminiAnalysisResult(
                 anomaly_type="MESSY_STACKING",
                 severity="WARNING",
-                confidence=round(0.6 + discrepancy * 0.2, 2),
                 analysis_paragraph=self._generate_mild_discrepancy_paragraph(
                     fill_pct, has_fragile, heavy_over_fragile
                 ),
@@ -736,13 +742,11 @@ OUTPUT STRICT JSON:
                     "Monitor stacking pattern during continued loading",
                     "Proceed with caution",
                 ],
-                spatial_discrepancy_score=round(discrepancy, 3),
             )
 
         return GeminiAnalysisResult(
             anomaly_type="NONE",
             severity="NONE",
-            confidence=0.95,
             analysis_paragraph=(
                 "The live CCTV footage aligns well with the optimal "
                 "3D bin packing plan. No significant spatial discrepancies detected. "
@@ -750,7 +754,6 @@ OUTPUT STRICT JSON:
             ),
             affected_items=[],
             recommended_actions=[],
-            spatial_discrepancy_score=0.0,
         )
 
     def _simulate_departure_raw(
@@ -775,7 +778,6 @@ OUTPUT STRICT JSON:
             return GeminiAnalysisResult(
                 anomaly_type="UNRESOLVED_DEPARTURE_RISK",
                 severity="CRITICAL",
-                confidence=0.92,
                 analysis_paragraph=self._generate_departure_paragraph(
                     doors_closing, truck_moving, previous
                 ),
@@ -786,20 +788,17 @@ OUTPUT STRICT JSON:
                     "Re-inspect cargo before allowing departure",
                     "Document the incident in fleet log",
                 ],
-                spatial_discrepancy_score=previous.spatial_discrepancy_score,
             )
 
         return GeminiAnalysisResult(
             anomaly_type="NONE",
             severity="NONE",
-            confidence=0.95,
             analysis_paragraph=(
                 "No departure risk detected. The truck is not exhibiting "
                 "departure cues, or all prior anomalies have been resolved."
             ),
             affected_items=[],
             recommended_actions=[],
-            spatial_discrepancy_score=0.0,
         )
 
     def _simulate_departure_detection(
@@ -884,8 +883,8 @@ OUTPUT STRICT JSON:
         cue_str = " and ".join(cues) if cues else "departure cues detected"
 
         return (
-            f"CRITICAL: An unresolved loading anomaly (severity: {previous.severity}, "
-            f"confidence: {previous.confidence:.0%}) remains uncorrected as the "
+            f"CRITICAL: An unresolved loading anomaly (severity: {previous.severity}) "
+            f"remains uncorrected as the "
             f"system detects that the {cue_str}. The truck is attempting to depart "
             "with a messy, unstable, or severely underfilled cargo configuration.\n\n"
             "OPERATIONAL RISKS:\n"

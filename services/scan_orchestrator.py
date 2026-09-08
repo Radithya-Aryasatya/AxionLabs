@@ -140,7 +140,6 @@ def _persist_failure(outcome, fleet, dock_number, error_msg):
         fleet.gemini_analysis = GeminiAnalysisResult(
             anomaly_type="GEMINI_REQUEST_FAILED",
             severity="NONE",
-            confidence=0.0,
             analysis_paragraph="",
             status=STATUS_FAILED,
             model="",

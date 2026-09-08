@@ -51,11 +51,8 @@ def _render_current_analysis(analysis: dict, fleet: Fleet):
 
     anomaly_type = analysis.get('anomaly_type', 'UNKNOWN')
     severity = analysis.get('severity', 'NONE')
-    confidence = analysis.get('confidence', 0.0)
     paragraph = analysis.get('analysis_paragraph', '')
-    affected = analysis.get('affected_items', [])
     recommendations = analysis.get('recommended_actions', [])
-    discrepancy = analysis.get('spatial_discrepancy_score', 0.0)
     extra = analysis.get('extra', {})
 
     severity_color = {
@@ -74,9 +71,7 @@ def _render_current_analysis(analysis: dict, fleet: Fleet):
                         Anomaly Type: {anomaly_type}
                     </div>
                     <div style="font-size: 12px; color: #94A3B8;">
-                        Severity: <span style="color: {severity_color}; font-weight: 600;">{severity}</span> |
-                        Confidence: {confidence * 100:.1f}% |
-                        Discrepancy: {discrepancy:.3f}
+                        Severity: <span style="color: {severity_color}; font-weight: 600;">{severity}</span>
                     </div>
                 </div>
             </div>
@@ -97,11 +92,6 @@ def _render_current_analysis(analysis: dict, fleet: Fleet):
                 st.markdown(f"**{label}:** {val}")
             else:
                 st.markdown(f"**{label}:** {val}")
-
-    if affected:
-        st.markdown("#### Affected Items")
-        for item in affected:
-            st.markdown(f"- `{item}`")
 
     if recommendations:
         st.markdown("#### Recommended Actions")
@@ -182,11 +172,6 @@ def _render_audit_history(fleet: Fleet):
             st.markdown(f"**Severity:** {record.severity}")
             st.markdown(f"**Resolved:** {resolved_icon}")
             st.markdown(f"**Analysis:**\n\n{record.analysis_paragraph}")
-
-            if record.affected_items:
-                st.markdown("**Affected Items:**")
-                for item in record.affected_items:
-                    st.markdown(f"- {item}")
 
             if record.recommended_actions:
                 st.markdown("**Recommended Actions:**")

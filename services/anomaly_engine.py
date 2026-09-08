@@ -53,9 +53,6 @@ class AnomalyEngine:
     and determine UI behaviors.
     """
 
-    DISCREPANCY_WARNING_THRESHOLD = 0.40
-    DISCREPANCY_CRITICAL_THRESHOLD = 0.70
-
     def __init__(self, gemini_service=None):
         from services.gemini_service import GeminiService
         self.gemini = gemini_service or GeminiService()

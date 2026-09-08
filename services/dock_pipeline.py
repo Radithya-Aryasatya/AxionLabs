@@ -59,7 +59,7 @@ def _cache_analysis(fleet_id: str, result: GeminiAnalysisResult):
 def _failed_from_exception(svc: GeminiService, exc: Exception) -> GeminiAnalysisResult:
     """Wrap an unexpected pipeline error as an honest FAILED result."""
     return GeminiAnalysisResult(
-        anomaly_type="OTHER", severity="NONE", confidence=0.0,
+        anomaly_type="OTHER", severity="NONE",
         analysis_paragraph="", status=STATUS_FAILED, model=svc.model,
         raw_response="", error=f"{type(exc).__name__}: {exc}",
     )
@@ -113,7 +113,7 @@ def analyze_with_fallback(
             ANALYSIS_TIMEOUT_S, svc.model,
         )
         result = GeminiAnalysisResult(
-            anomaly_type="OTHER", severity="NONE", confidence=0.0,
+            anomaly_type="OTHER", severity="NONE",
             analysis_paragraph="", status=STATUS_FAILED, model=svc.model,
             raw_response="",
             error=(f"RequestTimeout: Gemini ({svc.model}) did not respond "

@@ -77,8 +77,6 @@ def main() -> int:
     print(f"Model                  : {result.model}")
     print(f"Anomaly type           : {result.anomaly_type}")
     print(f"Severity               : {result.severity}")
-    print(f"Confidence             : {result.confidence}")
-    print(f"Discrepancy score      : {result.spatial_discrepancy_score}")
     print(f"Error                  : {result.error or '(none)'}")
     print(f"Raw response length    : {len(result.raw_response or '')}")
     print("-" * 64)

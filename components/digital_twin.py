@@ -85,16 +85,3 @@ def render_digital_twin(fleet: Fleet):
                 st.caption("Virtual rear-CCTV view unavailable for this layout.")
         except Exception as exc:  # never break the Digital Twin panel
             st.caption(f"Virtual rear-CCTV view unavailable: {exc}")
-
-    # Display packed item details
-    if packed_items:
-        with st.expander("Packed Items Details"):
-            for item in packed_items:
-                pos = [float(v) for v in item.get('position', [0, 0, 0])]
-                dims = [float(v) for v in item.get('dimensions', [0, 0, 0])]
-                st.markdown(
-                    f"**{item['part_number']}** — "
-                    f"Pos: ({pos[0]:.0f}, {pos[1]:.0f}, {pos[2]:.0f}) cm | "
-                    f"Dims: ({dims[0]:.0f}, {dims[1]:.0f}, {dims[2]:.0f}) cm | "
-                    f"Weight: {item.get('weight', 0):.0f} kg"
-                )
