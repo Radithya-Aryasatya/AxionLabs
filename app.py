@@ -216,6 +216,39 @@ def calculate_load_distribution(items: list[PackedItem]) -> tuple[dict[str, floa
                 
     return weight_on_top, support_graph
 
+def detect_floating_items(items: list[PackedItem], support_threshold: float = 0.75) -> tuple[int, list[str]]:
+    """Detect items with insufficient support (floating or cantilevered packages).
+
+    An item is considered "floating" if the ratio of its supported footprint
+    area to its total footprint area is below the support_threshold.
+
+    Returns (count_of_floating_items, list_of_floating_item_names).
+    """
+    floating = []
+    for item in items:
+        if item.y == 0:
+            continue  # resting on bin floor, always fully supported
+        footprint_area = item.w * item.d
+        if footprint_area <= 0:
+            continue
+        supported_area = 0.0
+        for other in items:
+            if other.name == item.name:
+                continue
+            # Check for strict vertical physical contact (other's top == item's bottom)
+            if abs(item.y - (other.y + other.h)) < 1e-3:
+                area = calculate_overlap_area(
+                    item.x, item.w, item.z, item.d,
+                    other.x, other.w, other.z, other.d
+                )
+                supported_area += area
+        support_ratio = supported_area / footprint_area
+        if support_ratio < support_threshold:
+            floating.append(item.name)
+    return len(floating), floating
+
+
+
 def calculate_offloading_score(items, manifest_lookup):
     """
     Higher score = easier unloading.
@@ -1293,192 +1326,194 @@ if st.button("Run AI Optimization"):
             def sequence_to_level(sequence):
                 return 1
 
-        packer = Packer()
+        with st.spinner("Running 3D bin packing optimization..."):
+            packer = Packer()
 
-        packer.addBin(
-                Bin(
-                    "Truck",
-                    (
-                        truck_w * 100,
-                        truck_h * 100,
-                        truck_d * 100
-                      ),
-                    truck_weight
+            packer.addBin(
+                    Bin(
+                        "Truck",
+                        (
+                            truck_w * 100,
+                            truck_h * 100,
+                            truck_d * 100
+                          ),
+                        truck_weight
+                    )
                 )
-            )
 
-        counter = 0
+            counter = 0
 
-        for obj in loading_order:
+            for obj in loading_order:
 
-                for i in range(obj["quantity"]):
+                    for i in range(obj["quantity"]):
 
-                    packer.addItem(
+                        packer.addItem(
 
-                        Item(
+                            Item(
 
-                            partno=f"ITEM-{counter}",
+                                partno=f"ITEM-{counter}",
 
-                            name=f'{obj["name"]} #{i+1}',
+                                name=f'{obj["name"]} #{i+1}',
 
-                            typeof="cube",
+                                typeof="cube",
 
-                            WHD=(
-                                float(obj["w"]) * 100,
-                                float(obj["h"]) * 100,
-                                float(obj["d"]) * 100
-                            ),
+                                WHD=(
+                                    float(obj["w"]) * 100,
+                                    float(obj["h"]) * 100,
+                                    float(obj["d"]) * 100
+                                ),
 
-                            weight=obj["weight"],
+                                weight=obj["weight"],
 
-                            # Bucket sequence into 3 coarse tiers (matching
-                            # py3dbp's documented level range) so loadbear/
-                            # volume still drives fit within each tier.
-                            level=sequence_to_level(obj["sequence"]),
+                                # Bucket sequence into 3 coarse tiers (matching
+                                # py3dbp's documented level range) so loadbear/
+                                # volume still drives fit within each tier.
+                                level=sequence_to_level(obj["sequence"]),
 
-                            loadbear=obj["max_load"],
+                                loadbear=obj["max_load"],
 
-                            updown=False,
+                                updown=False,
 
-                            color=get_color(obj["name"])
+                                color=get_color(obj["name"])
 
-                        )
-
-                    )
-
-                    counter += 1
-
-        packer.pack(
-
-                bigger_first=False,
-
-                fix_point=True,
-
-                check_stable=True,
-
-                support_surface_ratio=0.45,
-
-                number_of_decimals=3 
-
-            )
-
-        packer.putOrder()
-
-        packed_geometries = []
-
-        manifest_lookup = {
-
-                f"{item['name']} #{i+1}": item
-
-                for item in st.session_state.manifest
-
-                for i in range(item["quantity"])
-
-            }
-
-        for b in packer.bins:
-
-                for item in b.items:
-
-                    m = manifest_lookup[item.name]
-
-                    pos = item.position
-
-                    dim = item.getDimension()
-
-                    packed_geometries.append(
-
-                        PackedItem(
-
-                            name=item.name,
-
-                            x=float(pos[0]) / 100,
-                            y=float(pos[1]) / 100,
-                            z=float(pos[2]) / 100,
-
-                            w=float(dim[0]) / 100,
-                            h=float(dim[1]) / 100,
-                            d=float(dim[2]) / 100,
-
-                            weight=float(item.weight),
-
-                            max_load=m["max_load"]
+                            )
 
                         )
 
-                    )
+                        counter += 1
 
-        utilization = calculate_utilization(
-                packed_geometries,
-                float(truck_w * truck_h * truck_d)
-            )
+            packer.pack(
 
-        load_distribution, _ = calculate_load_distribution(
-                packed_geometries
-            )
+                    bigger_first=False,
 
-        safe_count = sum(
-                1
-                for item in packed_geometries
-                if load_distribution[item.name] <= item.max_load
-            )
+                    fix_point=True,
 
-        safety_rate = (
-                safe_count / len(packed_geometries) * 100
-                if packed_geometries else 0
-            )
+                    check_stable=True,
 
-        offloading_score = calculate_offloading_score(
-                packed_geometries,
-                manifest_lookup
-            )
+                    support_surface_ratio=0.75,
 
-        overall_score = (
-                utilization * 0.4
-                + safety_rate * 0.4
-                + offloading_score * 0.2
-            )
+                    number_of_decimals=3 
 
-        all_layouts.append({
+                )
 
-                "packer": packer,
+            packer.putOrder()
 
-                "packed": packed_geometries,
+            packed_geometries = []
 
-                "utilization": utilization,
+            manifest_lookup = {
 
-                "safety": safety_rate,
+                    f"{item['name']} #{i+1}": item
 
-                "offloading": offloading_score,
+                    for item in st.session_state.manifest
 
-                "overall": overall_score
-            })
+                    for i in range(item["quantity"])
 
-        if len(all_layouts) == 0:
+                }
 
-            st.error("No layout generated.")
+            for b in packer.bins:
 
-        else:
-            all_layouts.sort(
-                key=lambda x: x["overall"],
-                reverse=True
-            )
+                    for item in b.items:
 
-            st.session_state.layouts = all_layouts
-            best_layout = all_layouts[0]
+                        m = manifest_lookup[item.name]
 
-            st.session_state.last_packer = best_layout["packer"]
+                        pos = item.position
 
-            # --- Register fleet in View 2 (Executive Control Tower) ---
-            # Auto-register this packing result as an active fleet
-            register_fleet_from_packing_result(
-                manifest=st.session_state.manifest,
-                packer=st.session_state.last_packer,
-                truck_w=truck_w,
-                truck_h=truck_h,
-                truck_d=truck_d,
-                truck_name=f"Truck-{len(st.session_state.get('active_fleets', [])) + 1}",
-            )
+                        dim = item.getDimension()
+
+                        packed_geometries.append(
+
+                            PackedItem(
+
+                                name=item.name,
+
+                                x=float(pos[0]) / 100,
+                                y=float(pos[1]) / 100,
+                                z=float(pos[2]) / 100,
+
+                                w=float(dim[0]) / 100,
+                                h=float(dim[1]) / 100,
+                                d=float(dim[2]) / 100,
+
+                                weight=float(item.weight),
+
+                                max_load=m["max_load"]
+
+                            )
+
+                        )
+
+            utilization = calculate_utilization(
+                    packed_geometries,
+                    float(truck_w * truck_h * truck_d)
+                )
+
+            load_distribution, _ = calculate_load_distribution(
+                    packed_geometries
+                )
+
+            safe_count = sum(
+                    1
+                    for item in packed_geometries
+                    if load_distribution[item.name] <= item.max_load
+                )
+
+            safety_rate = (
+                    safe_count / len(packed_geometries) * 100
+                    if packed_geometries else 0
+                )
+
+            offloading_score = calculate_offloading_score(
+                    packed_geometries,
+                    manifest_lookup
+                )
+
+            overall_score = (
+                    utilization * 0.4
+                    + safety_rate * 0.4
+                    + offloading_score * 0.2
+                )
+
+            all_layouts.append({
+
+                    "packer": packer,
+
+                    "packed": packed_geometries,
+
+                    "utilization": utilization,
+
+                    "safety": safety_rate,
+
+                    "offloading": offloading_score,
+
+                    "overall": overall_score
+                })
+
+            if len(all_layouts) == 0:
+
+                st.error("No layout generated.")
+
+            else:
+                all_layouts.sort(
+                    key=lambda x: x["overall"],
+                    reverse=True
+                )
+
+                st.session_state.layouts = all_layouts
+                best_layout = all_layouts[0]
+
+                st.session_state.last_packer = best_layout["packer"]
+
+                # --- Register fleet in View 2 (Executive Control Tower) ---
+                # Auto-register this packing result as an active fleet
+                register_fleet_from_packing_result(
+                    manifest=st.session_state.manifest,
+                    packer=st.session_state.last_packer,
+                    truck_w=truck_w,
+                    truck_h=truck_h,
+                    truck_d=truck_d,
+                    truck_name=f"Truck-{len(st.session_state.get('active_fleets', [])) + 1}",
+                )
+
 
 # --- VISUALIZATION AND REPORTING OUTPUT LAYER ---
 if 'last_packer' in st.session_state:

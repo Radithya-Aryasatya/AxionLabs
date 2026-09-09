@@ -179,13 +179,17 @@ class Bin:
                     [w,h,d] = dimension
                     [x,y,z] = [float(pivot[0]),float(pivot[1]),float(pivot[2])]
 
-                    for i in range(3):
+                    for _ in range(3):
+                        y_prev, x_prev, z_prev = y, x, z
                         # fix height
                         y = self.checkHeight([x,x+float(w),y,y+float(h),z,z+float(d)])
                         # fix width
                         x = self.checkWidth([x,x+float(w),y,y+float(h),z,z+float(d)])
                         # fix depth
                         z = self.checkDepth([x,x+float(w),y,y+float(h),z,z+float(d)])
+                        # Converged: deterministic in (x,y,z) -> stop.
+                        if (x, y, z) == (x_prev, y_prev, z_prev):
+                            break
 
                     # BUG FIX: checkHeight/checkWidth/checkDepth above can move
                     # the item to a different (x, y, z) than the pivot position
@@ -203,10 +207,11 @@ class Bin:
                             fit = False
                             return fit
 
-                    # check stability on item 
-                    # rule : 
+                    # check stability on item
+                    # rule :
                     # 1. Define a support ratio, if the ratio below the support surface does not exceed this ratio, compare the second rule.
                     # 2. If there is no support under any vertices of the bottom of the item, then fit = False.
+                    # 3. Center of mass must be supported (the item's footprint center must rest on a supporter or the bin floor).
                     #
                     # "Below" is the vertical (height) axis, i.e. pivot's y / self.height,
                     # NOT the depth (z) axis. The supporting surface is therefore the
@@ -214,36 +219,138 @@ class Bin:
                     # against other items whose top face (i[3], their y1) sits exactly
                     # at this item's bottom (y). An item resting directly on the bin
                     # floor (y == 0) is always fully supported.
+                    MIN_VERTEX_RULE_SUPPORT = 0.25  # minimum support ratio to allow the 4-vertex fallback
                     if self.check_stable == True :
                         if y == 0 :
                             support_area_upper = None  # fully supported by the bin floor
+                            center_supported = True
                         else :
                             # Cal the footprint (width x depth) area of the item.
                             item_area_lower = int(dimension[0] * dimension[2])
                             # Cal the area of the underlying support.
                             support_area_upper = 0
+                            center_supported = False
                             for i in self.fit_items:
                                 # Verify that the lower support surface area is greater than the upper support surface area * support_surface_ratio.
                                 if y == i[3] :
-                                    area = len(set([ j for j in range(int(x),int(x+int(w)))]) & set([ j for j in range(int(i[0]),int(i[1]))])) * \
-                                    len(set([ j for j in range(int(z),int(z+int(d)))]) & set([ j for j in range(int(i[4]),int(i[5]))]))
+                                    ix0 = int(x); ix1 = int(x + int(w))
+                                    jx0 = int(i[0]); jx1 = int(i[1])
+                                    iz0 = int(z); iz1 = int(z + int(d))
+                                    jz0 = int(i[4]); jz1 = int(i[5])
+                                    ox = (min(ix1, jx1) - max(ix0, jx0)) if (max(ix0, jx0) < min(ix1, jx1)) else 0
+                                    oz = (min(iz1, jz1) - max(iz0, jz0)) if (max(iz0, jz0) < min(iz1, jz1)) else 0
+                                    area = ox * oz
                                     support_area_upper += area
+                                    # Track whether the item's center of mass is supported
+                                    cx = x + float(w) / 2
+                                    cz = z + float(d) / 2
+                                    if (i[0] <= cx <= i[1]) and (i[4] <= cz <= i[5]):
+                                        center_supported = True
 
-                        # If not , get four vertices of the bottom of the item.
-                        if support_area_upper is not None and support_area_upper / item_area_lower < self.support_surface_ratio :
-                            four_vertices = [[x,z],[x+float(w),z],[x,z+float(d)],[x+float(w),z+float(d)]]
-                            #  If any vertices is not supported, fit = False.
-                            c = [False,False,False,False]
-                            for i in self.fit_items:
-                                if y == i[3] :
-                                    for jdx,j in enumerate(four_vertices) :
-                                        if (i[0] <= j[0] <= i[1]) and (i[4] <= j[1] <= i[5]) :
-                                            c[jdx] = True
-                            if False in c :
+                        # Check stability rules
+                        stable = True
+                        if support_area_upper is not None:
+                            # Rule 1: support ratio must meet threshold
+                            if support_area_upper / item_area_lower < self.support_surface_ratio:
+                                # Rule 2: four vertices (only if minimum support met)
+                                if support_area_upper / item_area_lower < MIN_VERTEX_RULE_SUPPORT:
+                                    stable = False
+                                else:
+                                    four_vertices = [[x,z],[x+float(w),z],[x,z+float(d)],[x+float(w),z+float(d)]]
+                                    c = [False,False,False,False]
+                                    for i in self.fit_items:
+                                        if y == i[3] :
+                                            for jdx,j in enumerate(four_vertices) :
+                                                if (i[0] <= j[0] <= i[1]) and (i[4] <= j[1] <= i[5]) :
+                                                    c[jdx] = True
+                                    if False in c:
+                                        stable = False
+                            # Rule 3: center of mass must be supported
+                            if stable and not center_supported:
+                                stable = False
+
+                        if not stable:
+                            # Slide-to-support rescue: try sliding toward the largest supporter
+                            rescued = False
+                            if support_area_upper is not None and support_area_upper > 0:
+                                # Find the largest supporter
+                                best_supporter = None
+                                best_area = 0
+                                for i in self.fit_items:
+                                    if y == i[3]:
+                                        ix0 = int(x); ix1 = int(x + int(w))
+                                        jx0 = int(i[0]); jx1 = int(i[1])
+                                        iz0 = int(z); iz1 = int(z + int(d))
+                                        jz0 = int(i[4]); jz1 = int(i[5])
+                                        ox = (min(ix1, jx1) - max(ix0, jx0)) if (max(ix0, jx0) < min(ix1, jx1)) else 0
+                                        oz = (min(iz1, jz1) - max(iz0, jz0)) if (max(iz0, jz0) < min(iz1, jz1)) else 0
+                                        area = ox * oz
+                                        if area > best_area:
+                                            best_area = area
+                                            best_supporter = i
+                                if best_supporter is not None:
+                                    sup_cx = (best_supporter[0] + best_supporter[1]) / 2
+                                    sup_cz = (best_supporter[4] + best_supporter[5]) / 2
+                                    item_cx = x + float(w) / 2
+                                    item_cz = z + float(d) / 2
+                                    slide_x = sup_cx - item_cx
+                                    slide_z = sup_cz - item_cz
+                                    slide_dist = (slide_x ** 2 + slide_z ** 2) ** 0.5
+                                    if slide_dist > 0.5:
+                                        for factor in [1.0, 0.5, 1.5]:
+                                            trial_x = x + slide_x * factor
+                                            trial_z = z + slide_z * factor
+                                            trial_x = max(0.0, min(trial_x, float(self.width) - float(w)))
+                                            trial_z = max(0.0, min(trial_z, float(self.depth) - float(d)))
+                                            item.position = [set2Decimal(trial_x), set2Decimal(y), set2Decimal(trial_z)]
+                                            collision = False
+                                            for current_item_in_bin in self.items:
+                                                if intersect(current_item_in_bin, item):
+                                                    collision = True
+                                                    break
+                                            if collision:
+                                                continue
+                                            trial_stable = True
+                                            trial_support = 0
+                                            trial_center_ok = False
+                                            for i in self.fit_items:
+                                                if y == i[3]:
+                                                    ix0 = int(trial_x); ix1 = int(trial_x + int(w))
+                                                    jx0 = int(i[0]); jx1 = int(i[1])
+                                                    iz0 = int(trial_z); iz1 = int(trial_z + int(d))
+                                                    jz0 = int(i[4]); jz1 = int(i[5])
+                                                    ox = (min(ix1, jx1) - max(ix0, jx0)) if (max(ix0, jx0) < min(ix1, jx1)) else 0
+                                                    oz = (min(iz1, jz1) - max(iz0, jz0)) if (max(iz0, jz0) < min(iz1, jz1)) else 0
+                                                    trial_support += ox * oz
+                                                    cx = trial_x + float(w) / 2
+                                                    cz = trial_z + float(d) / 2
+                                                    if (i[0] <= cx <= i[1]) and (i[4] <= cz <= i[5]):
+                                                        trial_center_ok = True
+                                            if trial_support / item_area_lower < self.support_surface_ratio:
+                                                if trial_support / item_area_lower < MIN_VERTEX_RULE_SUPPORT:
+                                                    trial_stable = False
+                                                else:
+                                                    four_vertices = [[trial_x,trial_z],[trial_x+float(w),trial_z],[trial_x,trial_z+float(d)],[trial_x+float(w),trial_z+float(d)]]
+                                                    c = [False,False,False,False]
+                                                    for i in self.fit_items:
+                                                        if y == i[3]:
+                                                            for jdx,j in enumerate(four_vertices):
+                                                                if (i[0] <= j[0] <= i[1]) and (i[4] <= j[1] <= i[5]):
+                                                                    c[jdx] = True
+                                                    if False in c:
+                                                        trial_stable = False
+                                            if trial_stable and not trial_center_ok:
+                                                trial_stable = False
+                                            if trial_stable:
+                                                x = trial_x
+                                                z = trial_z
+                                                rescued = True
+                                                break
+                            if not rescued:
                                 item.position = valid_item_position
                                 fit = False
                                 return fit
-                        
+
                     self.fit_items = np.append(self.fit_items,np.array([[x,x+float(w),y,y+float(h),z,z+float(d)]]),axis=0)
                     item.position = [set2Decimal(x),set2Decimal(y),set2Decimal(z)]
 
@@ -265,15 +372,13 @@ class Bin:
         ''' fix item position z '''
         z_ = [[0,0],[float(self.depth),float(self.depth)]]
         for j in self.fit_items:
-            # creat x set
-            x_bottom = set([i for i in range(int(j[0]),int(j[1]))])
-            x_top = set([i for i in range(int(unfix_point[0]),int(unfix_point[1]))])
-            # creat y set
-            y_bottom = set([i for i in range(int(j[2]),int(j[3]))])
-            y_top = set([i for i in range(int(unfix_point[2]),int(unfix_point[3]))])
-            # find intersection on x set and y set.
-            if len(x_bottom & x_top) != 0 and len(y_bottom & y_top) != 0 :
-                z_.append([float(j[4]),float(j[5])])
+            x0 = int(j[0]); x1 = int(j[1])
+            x2 = int(unfix_point[0]); x3 = int(unfix_point[1])
+            if x0 < x3 and x2 < x1:
+                y0 = int(j[2]); y1 = int(j[3])
+                y2 = int(unfix_point[2]); y3 = int(unfix_point[3])
+                if y0 < y3 and y2 < y1:
+                    z_.append([float(j[4]), float(j[5])])
         top_depth = unfix_point[5] - unfix_point[4]
         # find diff set on z_.
         z_ = sorted(z_, key = lambda z_ : z_[1])
@@ -287,15 +392,13 @@ class Bin:
         ''' fix item position x ''' 
         x_ = [[0,0],[float(self.width),float(self.width)]]
         for j in self.fit_items:
-            # creat z set
-            z_bottom = set([i for i in range(int(j[4]),int(j[5]))])
-            z_top = set([i for i in range(int(unfix_point[4]),int(unfix_point[5]))])
-            # creat y set
-            y_bottom = set([i for i in range(int(j[2]),int(j[3]))])
-            y_top = set([i for i in range(int(unfix_point[2]),int(unfix_point[3]))])
-            # find intersection on z set and y set.
-            if len(z_bottom & z_top) != 0 and len(y_bottom & y_top) != 0 :
-                x_.append([float(j[0]),float(j[1])])
+            z0 = int(j[4]); z1 = int(j[5])
+            z2 = int(unfix_point[4]); z3 = int(unfix_point[5])
+            if z0 < z3 and z2 < z1:
+                y0 = int(j[2]); y1 = int(j[3])
+                y2 = int(unfix_point[2]); y3 = int(unfix_point[3])
+                if y0 < y3 and y2 < y1:
+                    x_.append([float(j[0]), float(j[1])])
         top_width = unfix_point[1] - unfix_point[0]
         # find diff set on x_bottom and x_top.
         x_ = sorted(x_,key = lambda x_ : x_[1])
@@ -309,15 +412,13 @@ class Bin:
         '''fix item position y '''
         y_ = [[0,0],[float(self.height),float(self.height)]]
         for j in self.fit_items:
-            # creat x set
-            x_bottom = set([i for i in range(int(j[0]),int(j[1]))])
-            x_top = set([i for i in range(int(unfix_point[0]),int(unfix_point[1]))])
-            # creat z set
-            z_bottom = set([i for i in range(int(j[4]),int(j[5]))])
-            z_top = set([i for i in range(int(unfix_point[4]),int(unfix_point[5]))])
-            # find intersection on x set and z set.
-            if len(x_bottom & x_top) != 0 and len(z_bottom & z_top) != 0 :
-                y_.append([float(j[2]),float(j[3])])
+            x0 = int(j[0]); x1 = int(j[1])
+            x2 = int(unfix_point[0]); x3 = int(unfix_point[1])
+            if x0 < x3 and x2 < x1:
+                z0 = int(j[4]); z1 = int(j[5])
+                z2 = int(unfix_point[4]); z3 = int(unfix_point[5])
+                if z0 < z3 and z2 < z1:
+                    y_.append([float(j[2]), float(j[3])])
         top_height = unfix_point[3] - unfix_point[2]
         # find diff set on y_bottom and y_top.
         y_ = sorted(y_,key = lambda y_ : y_[1])

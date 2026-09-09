@@ -49,13 +49,6 @@ log = logging.getLogger("dock_pipeline")
 ANALYSIS_TIMEOUT_S = float(os.getenv("ANALYSIS_TIMEOUT_S", "120"))
 
 
-def _cache_analysis(fleet_id: str, result: GeminiAnalysisResult):
-    """Cache a SUCCESSFUL live result for telemetry/inspection purposes only —
-    cached data is never substituted for a live or failed request."""
-    import streamlit as st
-    st.session_state.setdefault("gemini_cache", {})[fleet_id] = result
-
-
 def _failed_from_exception(svc: GeminiService, exc: Exception) -> GeminiAnalysisResult:
     """Wrap an unexpected pipeline error as an honest FAILED result."""
     return GeminiAnalysisResult(
@@ -126,7 +119,6 @@ def analyze_with_fallback(
 
     # Honest provenance mapping — simulated/failed data is never labelled live.
     if result.status == STATUS_SUCCESS:
-        _cache_analysis(fleet.id, result)
         return result, AnalysisSource.LIVE_GEMINI
     if result.status == STATUS_FAILED:
         log.error(
