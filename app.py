@@ -1451,6 +1451,11 @@ if st.button("Run AI Optimization"):
                     packed_geometries
                 )
 
+            floating_count, floating_names = detect_floating_items(
+                    packed_geometries,
+                    support_threshold=0.75
+                )
+
             safe_count = sum(
                     1
                     for item in packed_geometries
@@ -1485,6 +1490,8 @@ if st.button("Run AI Optimization"):
 
                     "offloading": offloading_score,
 
+                    "floating_count": floating_count,
+                    "floating_names": floating_names,
                     "overall": overall_score
                 })
 
@@ -1584,6 +1591,25 @@ if 'last_packer' in st.session_state:
                 offloading_stars
             )
             st.caption(offloading_text)
+
+        # --- Floating / cantilevered-item check (TASK 4.1B) ---
+        floating_count, floating_names = detect_floating_items(
+            packed_geometries,
+            support_threshold=0.75
+        )
+        if floating_count:
+            names_preview = ", ".join(floating_names[:8])
+            if len(floating_names) > 8:
+                names_preview += f" (+{len(floating_names) - 8} more)"
+            st.warning(
+                f"⚠️ **{floating_count} floating/cantilevered item(s) detected** "
+                f"resting on less than 75% of their footprint: {names_preview}"
+            )
+        else:
+            st.caption(
+                "✅ Floating-item check passed — every item rests on at least 75% "
+                "of its footprint; no floating/cantilevered packages."
+            )
         if prioritize_sequence:
             st.caption(
                 "ℹ️ Packed with sequence prioritized over space efficiency. "
