@@ -297,6 +297,183 @@ def calculate_offloading_score(items, manifest_lookup):
 
     return score
 
+def calculate_zone_segmentation(items, manifest_lookup):
+    """Option A diagnostics: how well does the pack respect depth zones?
+
+    Returns a dict with:
+      - overlap_fraction: share of the truck depth spanned by >1 sequence's
+        z-range (0 = perfectly segmented, 1 = total overlap).
+      - split_sequences: count of sequences whose boxes span >1 disjoint
+        depth band (gap >= one box-depth between sorted box starts).
+      - ordered: True when mean z-center decreases monotonically with
+        increasing sequence number (deep seqs actually sit deeper).
+      - z_mean_by_seq: {sequence: mean z-center in meters}.
+    """
+    if not items:
+        return {
+            "overlap_fraction": 0.0,
+            "split_sequences": 0,
+            "ordered": True,
+            "z_mean_by_seq": {},
+        }
+    EPS = 1e-9
+    by_seq = {}
+    for item in items:
+        try:
+            seq = int(manifest_lookup[item.name]["sequence"])
+        except (KeyError, TypeError, ValueError):
+            continue
+        z0 = float(item.z)
+        z1 = float(item.z) + float(item.d)
+        by_seq.setdefault(seq, []).append((z0, z1, float(item.z) + float(item.d) / 2.0))
+    if not by_seq:
+        return {
+            "overlap_fraction": 0.0,
+            "split_sequences": 0,
+            "ordered": True,
+            "z_mean_by_seq": {},
+        }
+    overall_min = min(z0 for boxes in by_seq.values() for z0, _, _ in boxes)
+    overall_max = max(z1 for boxes in by_seq.values() for _, z1, _ in boxes)
+    overall_span = overall_max - overall_min
+    events = []
+    for boxes in by_seq.values():
+        lo = min(z0 for z0, _, _ in boxes)
+        hi = max(z1 for _, z1, _ in boxes)
+        events.append((lo, +1))
+        events.append((hi, -1))
+    # End events (-1) before start events (+1) at the same coordinate so
+    # touching-but-disjoint zones are NOT counted as overlapping.
+    events.sort(key=lambda e: (e[0], e[1]))
+    overlap_len = 0.0
+    active = 0
+    prev = None
+    for coord, delta in events:
+        if prev is not None and active > 1:
+            overlap_len += coord - prev
+        active += delta
+        prev = coord
+    overlap_fraction = (overlap_len / overall_span) if overall_span > EPS else 0.0
+    split_sequences = 0
+    for boxes in by_seq.values():
+        starts = sorted(z0 for z0, _, _ in boxes)
+        if len(starts) < 2:
+            continue
+        depths = sorted((z1 - z0) for z0, z1, _ in boxes)
+        gap_threshold = max(depths) if depths else 0.0
+        if any((b - a) >= max(gap_threshold, 1e-6) for a, b in zip(starts, starts[1:])):
+            split_sequences += 1
+    z_mean_by_seq = {
+        seq: sum(c for _, _, c in boxes) / len(boxes)
+        for seq, boxes in by_seq.items()
+    }
+    ordered_seqs = sorted(z_mean_by_seq)
+    ordered = all(
+        z_mean_by_seq[a] + 1e-9 >= z_mean_by_seq[b]
+        for a, b in zip(ordered_seqs, ordered_seqs[1:])
+    )
+    return {
+        "overlap_fraction": float(max(0.0, min(1.0, overlap_fraction))),
+        "split_sequences": int(split_sequences),
+        "ordered": bool(ordered),
+        "z_mean_by_seq": {int(k): float(v) for k, v in z_mean_by_seq.items()},
+    }
+
+def pack_strict_sequence_zones(packer, manifest):
+    """Option A: one depth zone per unloading sequence.
+
+    Deepest sequence (highest number) packs first at the back wall (z=0).
+    Zone depths are proportional to each sequence's total box volume.
+    Overflow cascades FORWARD toward the door only, never backward.
+    Returns (bounds, overflow_count) where bounds = {seq: (z0, z1)} in cm.
+    """
+    bin_obj = packer.bins[0]
+    bin_obj.formatNumbers(3)
+    for _it in packer.items:
+        _it.formatNumbers(3)
+    packer.binding = []
+    seq_of = {}
+    for _it in packer.items:
+        _base = _it.name.rsplit(" #", 1)[0]
+        _seq = next(
+            (o["sequence"] for o in manifest if o["name"] == _base), 1,
+        )
+        seq_of[id(_it)] = _seq
+    seq_groups = {}
+    for _it in packer.items:
+        seq_groups.setdefault(seq_of[id(_it)], []).append(_it)
+    _vol = {}
+    for _s, _lst in seq_groups.items():
+        _v = 0.0
+        for _it in _lst:
+            try:
+                _v += float(_it.width) * float(_it.height) * float(_it.depth)
+            except (TypeError, ValueError):
+                pass
+        _vol[_s] = _v
+    _total_vol = sum(_vol.values()) or 1.0
+    _truck_depth_cm = float(bin_obj.depth)
+    _ordered = sorted(seq_groups.keys(), reverse=True)
+    _bounds = {}
+    _cursor = 0.0
+    for _idx, _s in enumerate(_ordered):
+        if _idx < len(_ordered) - 1:
+            _share = _vol.get(_s, 0.0) / _total_vol
+            _maxd = 0.0
+            for _it in seq_groups[_s]:
+                try:
+                    _maxd = max(_maxd, float(_it.depth))
+                except (TypeError, ValueError):
+                    pass
+            _zsize = max(_share * _truck_depth_cm, _maxd or 0.0)
+            _zsize = min(_zsize, _truck_depth_cm - _cursor)
+        else:
+            _zsize = _truck_depth_cm - _cursor
+        _bounds[_s] = (round(_cursor, 3), round(_cursor + _zsize, 3))
+        _cursor = round(_cursor + _zsize, 3)
+    _overflow = 0
+    for _s in _ordered:
+        _grp = list(seq_groups[_s])
+        _grp.sort(key=lambda x: float(x.width) * float(x.height) * float(x.depth))
+        _grp.sort(key=lambda x: x.loadbear, reverse=True)
+        _grp.sort(key=lambda x: x.level, reverse=False)
+        for _it in _grp:
+            _placed = False
+            _pos = _ordered.index(_s)
+            for _zs in _ordered[_pos:]:
+                _z0, _z1 = _bounds[_zs]
+                _before = len(bin_obj.items)
+                packer.pack2Bin(bin_obj, _it, True, True, 0.75,
+                                z_min=_z0, z_max=_z1)
+                if len(bin_obj.items) > _before:
+                    _placed = True
+                    if _zs != _s:
+                        _overflow += 1
+                    break
+                for _lst in (getattr(bin_obj, "unfitted_items", []),
+                             getattr(packer, "unfit_items", [])):
+                    try:
+                        while _it in _lst:
+                            _lst.remove(_it)
+                    except (ValueError, AttributeError):
+                        pass
+            if not _placed:
+                try:
+                    if _it not in bin_obj.unfitted_items:
+                        bin_obj.unfitted_items.append(_it)
+                except AttributeError:
+                    pass
+                try:
+                    if _it not in packer.unfit_items:
+                        packer.unfit_items.append(_it)
+                except AttributeError:
+                    packer.unfit_items = [_it]
+    try:
+        bin_obj.gravity = packer.gravityCenter(bin_obj)
+    except Exception:
+        pass
+    return _bounds, _overflow
+
 def score_to_stars(score):
     """
     Converts a percentage score into a star rating.
@@ -1266,6 +1443,17 @@ prioritize_sequence = st.checkbox(
         "Volume Utilization score after running."
     )
 )
+strict_sequence_zones = st.checkbox(
+    "Enforce strict sequence zones (one depth zone per sequence)",
+    value=False,
+    help=(
+        "Option A: partition depth into one zone per sequence, sized by each "
+        "sequence's total box volume. Highest sequence packs first at the back "
+        "wall; overflow cascades FORWARD toward the door only, never backward. "
+        "Same-sequence boxes stay contiguous for a single drop-off. Strongest "
+        "sequence guarantee; fill rate can drop vs free packing."
+    )
+)
 if st.button("Run AI Optimization"):
     if not st.session_state.manifest:
         st.error("Your cargo manifest is completely empty!")
@@ -1382,7 +1570,13 @@ if st.button("Run AI Optimization"):
 
                         counter += 1
 
-            packer.pack(
+            if strict_sequence_zones:
+                _zone_bounds, _zone_overflow = pack_strict_sequence_zones(
+                    packer, st.session_state.manifest,
+                )
+            else:
+                _zone_bounds, _zone_overflow = None, 0
+                packer.pack(
 
                     bigger_first=False,
 
@@ -1472,6 +1666,11 @@ if st.button("Run AI Optimization"):
                     manifest_lookup
                 )
 
+            zone_seg = calculate_zone_segmentation(
+                packed_geometries,
+                manifest_lookup
+            )
+
             overall_score = (
                     utilization * 0.4
                     + safety_rate * 0.4
@@ -1492,6 +1691,10 @@ if st.button("Run AI Optimization"):
 
                     "floating_count": floating_count,
                     "floating_names": floating_names,
+                    "zone_seg": zone_seg,
+                    "zone_bounds": _zone_bounds,
+                    "zone_overflow": _zone_overflow,
+                    "strict_zones": bool(strict_sequence_zones),
                     "overall": overall_score
                 })
 
@@ -1616,6 +1819,17 @@ if 'last_packer' in st.session_state:
                 "Compare Space Volume Utilization against a run with the checkbox off "
                 "to see the trade-off."
             )
+        _best = (st.session_state.get("layouts") or [{}])[0]
+        if (_best or {}).get("strict_zones"):
+            _zs = (_best or {}).get("zone_seg") or {}
+            _ov = (_best or {}).get("zone_overflow", 0)
+            _bd = (_best or {}).get("zone_bounds") or {}
+            _ovl = float(_zs.get("overlap_fraction", 0.0)) * 100.0
+            _sp = int(_zs.get("split_sequences", 0))
+            _ok = bool(_zs.get("ordered", False))
+            st.info("Strict zones: overlap %.1f pc | split %d | order %s | fwd-overflow %d." % (_ovl, _sp, ("OK" if _ok else "VIOLATED"), _ov))
+            if _bd:
+                st.caption("Zone map m from back wall: " + ", ".join(["seq %s: %s-%s" % (s, round(z0/100.0,2), round(z1/100.0,2)) for s, (z0, z1) in sorted(_bd.items())]))
         unfitted = getattr(b, 'unfitted_items', [])
         if unfitted:
             st.subheader("⚠️ Unpacked Items (Rejected By Constraints)")

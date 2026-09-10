@@ -143,27 +143,71 @@ class Bin:
         return set2Decimal(total_weight, self.number_of_decimals)
 
 
-    def putItem(self, item, pivot,axis=None):
-        ''' put item in bin '''
+    def putItem(self, item, pivot,axis=None, z_min=None, z_max=None):
+        ''' put item in bin.
+
+        Optional strict depth-zone clamps (backward compatible — both
+        default to None = no clamping, existing callers unaffected):
+          z_min: item's depth-start (pivot z) must be >= z_min. Prevents
+                 backfilling a gap left in an earlier (deeper) zone.
+          z_max: item's depth-end (pivot z + depth) must be <= z_max.
+                 Keeps the item inside its own zone; overflow is handled
+                 by the caller cascading the item forward (toward the door).
+        '''
         fit = False
         valid_item_position = item.position
         item.position = pivot
         rotate = RotationType.ALL if item.updown == True else RotationType.Notupdown
+        if z_min is not None:
+            try:
+                # 5e-4 = half a 3-decimal quantization step; zone pivots are
+                # quantized to 3 decimals and can sit up to 0.0005 below a
+                # fractional floor, which the old 1e-9 epsilon rejected.
+                if float(pivot[2]) < float(z_min) - 5e-4:
+                    item.position = valid_item_position
+                    return False
+            except (TypeError, IndexError):
+                pass
         for i in range(0, len(rotate)):
             item.rotation_type = i
             dimension = item.getDimension()
             # rotatate
+            # NOTE: pivot may carry Decimals (first-item path reuses
+            # bin.fit_items entries) while dimension entries may be Decimal
+            # or float — compare in float space so mixed types never raise.
+            try:
+                _px, _py, _pz = float(pivot[0]), float(pivot[1]), float(pivot[2])
+                _dw, _dh, _dd = float(dimension[0]), float(dimension[1]), float(dimension[2])
+            except (TypeError, IndexError, ValueError):
+                continue
             if (
-                self.width < pivot[0] + dimension[0] or
-                self.height < pivot[1] + dimension[1] or
-                self.depth < pivot[2] + dimension[2]
+                float(self.width) < _px + _dw or
+                float(self.height) < _py + _dh or
+                float(self.depth) < _pz + _dd
             ):
                 continue
+            if z_max is not None:
+                try:
+                    # 5e-4: half a 3-decimal quantization step (see z_min note)
+                    if _pz + _dd > float(z_max) + 5e-4:
+                        continue
+                except (TypeError, IndexError):
+                    pass
 
             fit = True
 
             for current_item_in_bin in self.items:
-                if intersect(current_item_in_bin, item):
+                try:
+                    _hit = intersect(current_item_in_bin, item)
+                except TypeError:
+                    # Mixed Decimal/float positions (strict-zone Decimal
+                    # pivots vs legacy items) — normalize and retry once.
+                    try:
+                        item.position = [set2Decimal(float(v)) for v in item.position]
+                        _hit = intersect(current_item_in_bin, item)
+                    except (TypeError, ValueError, IndexError):
+                        _hit = True
+                if _hit:
                     fit = False
                     break
 
@@ -171,25 +215,57 @@ class Bin:
                 # cal total weight
                 if self.getTotalWeight() + item.weight > self.max_weight:
                     fit = False
+                    item.position = valid_item_position
                     return fit
-                
+
                 # fix point float prob
                 if self.fix_point == True :
                         
                     [w,h,d] = dimension
                     [x,y,z] = [float(pivot[0]),float(pivot[1]),float(pivot[2])]
-
-                    for _ in range(3):
-                        y_prev, x_prev, z_prev = y, x, z
-                        # fix height
-                        y = self.checkHeight([x,x+float(w),y,y+float(h),z,z+float(d)])
-                        # fix width
-                        x = self.checkWidth([x,x+float(w),y,y+float(h),z,z+float(d)])
-                        # fix depth
-                        z = self.checkDepth([x,x+float(w),y,y+float(h),z,z+float(d)])
-                        # Converged: deterministic in (x,y,z) -> stop.
-                        if (x, y, z) == (x_prev, y_prev, z_prev):
-                            break
+                    if (z_min is not None or z_max is not None):
+                        # STRICT ZONE fast path: keep the pivot EXACTLY where
+                        # the zone logic put it (already z-validated above).
+                        # The legacy checkHeight/Width/Depth fix-point assumes
+                        # a (0,0,0) origin and slides mid-truck pivots back to
+                        # origin on an empty bin, so skip it for zoned items.
+                        # Keep 3-decimal precision: 0-decimal set2Decimal
+                        # truncates the stored z up to 1 cm behind the
+                        # z-validated pivot (and fractional zone floors).
+                        item.position = [set2Decimal(x, 3), set2Decimal(y, 3), set2Decimal(z, 3)]
+                        for current_item_in_bin in self.items:
+                            try:
+                                if intersect(current_item_in_bin, item):
+                                    item.position = valid_item_position
+                                    return False
+                            except TypeError:
+                                item.position = valid_item_position
+                                return False
+                        self.fit_items = np.append(self.fit_items,np.array([[x,x+float(w),y,y+float(h),z,z+float(d)]]),axis=0)
+                        item.position = [set2Decimal(x,3),set2Decimal(y,3),set2Decimal(z,3)]
+                        # Weight check (mirrors the legacy path's check so
+                        # zoned items can't overload the truck).
+                        if self.getTotalWeight() + item.weight > self.max_weight:
+                            item.position = valid_item_position
+                            return False
+                        # Register placement exactly like the legacy path at
+                        # the end of putItem (line ~433) does - this early
+                        # return otherwise skips that append, so zoned items
+                        # never appear in bin.items.
+                        self.items.append(copy.deepcopy(item))
+                        return True
+                    else:
+                        for _ in range(3):
+                            y_prev, x_prev, z_prev = y, x, z
+                            # fix height
+                            y = self.checkHeight([x,x+float(w),y,y+float(h),z,z+float(d)])
+                            # fix width
+                            x = self.checkWidth([x,x+float(w),y,y+float(h),z,z+float(d)])
+                            # fix depth
+                            z = self.checkDepth([x,x+float(w),y,y+float(h),z,z+float(d)])
+                            # Converged: deterministic in (x,y,z) -> stop.
+                            if (x, y, z) == (x_prev, y_prev, z_prev):
+                                break
 
                     # BUG FIX: checkHeight/checkWidth/checkDepth above can move
                     # the item to a different (x, y, z) than the pivot position
@@ -220,8 +296,17 @@ class Bin:
                     # at this item's bottom (y). An item resting directly on the bin
                     # floor (y == 0) is always fully supported.
                     MIN_VERTEX_RULE_SUPPORT = 0.25  # minimum support ratio to allow the 4-vertex fallback
+                    # Zone-floor equivalence: a zoned box at y == 0 rests on
+                    # the truck floor no matter what z it sits at — height
+                    # support does not depend on the depth zone. (The legacy
+                    # grid check below reads zero support for any z != 0 on
+                    # an empty bin, which wrongly rejects mid-truck pivots.)
+                    _zoned_floor = (
+                        (z_min is not None or z_max is not None)
+                        and abs(float(y)) < 1e-6
+                    )
                     if self.check_stable == True :
-                        if y == 0 :
+                        if y == 0 and (z_min is None and z_max is None or _zoned_floor):
                             support_area_upper = None  # fully supported by the bin floor
                             center_supported = True
                         else :
@@ -497,12 +582,27 @@ class Packer:
         return self.items.append(item)
 
 
-    def pack2Bin(self, bin, item,fix_point,check_stable,support_surface_ratio):
-        ''' pack item to bin '''
+    def pack2Bin(self, bin, item,fix_point,check_stable,support_surface_ratio,z_min=None,z_max=None):
+        ''' pack item to bin.
+
+        Optional z_min / z_max are forwarded to every putItem call so a
+        strict depth zone can be enforced (Option A zonal packing in
+        app.py). Defaults keep the legacy unclamped behaviour.
+        '''
         fitted = False
         bin.fix_point = fix_point
         bin.check_stable = check_stable
         bin.support_surface_ratio = support_surface_ratio
+        if z_min is not None:
+            try:
+                z_min = float(z_min)
+            except (TypeError, ValueError):
+                z_min = None
+        if z_max is not None:
+            try:
+                z_max = float(z_max)
+            except (TypeError, ValueError):
+                z_max = None
 
         # first put item on (0,0,0) , if corner exist ,first add corner in box. 
         if bin.corner != 0 and not bin.items:
@@ -511,10 +611,32 @@ class Packer:
                 bin.putCorner(i,corner_lst[i])
 
         elif not bin.items:
-            response = bin.putItem(item, item.position)
+            if z_min is not None:
+                # First item of a forward zone must not start at 0,0,0.
+                # fit_items[0] is the raw [0,W,0,H,0,0] seed row (its z1 is
+                # 0, NOT the truck depth), so build (0,0,floor) explicitly.
+                # Keep Decimals so intersect() never mixes Decimal+float.
+                # 3-decimal quantization: 0-decimal truncates a fractional
+                # zone floor BELOW z_min and the z guard rejects its own
+                # pivot (215.4 -> 215 < 215.4).
+                try:
+                    pivot = [set2Decimal(0, 3), set2Decimal(0, 3),
+                             set2Decimal(z_min, 3)]
+                except (TypeError, ValueError):
+                    pivot = [bin.fit_items[0][0], bin.fit_items[0][2],
+                             set2Decimal(z_min, 3)]
+            else:
+                pivot = item.position
+            response = bin.putItem(item, pivot, z_min=z_min, z_max=z_max)
 
             if not response:
+                # putItem registered the item itself on success (fast path
+                # appends a deepcopy); only failures are recorded here.
                 bin.unfitted_items.append(item)
+                try:
+                    self.unfit_items.append(item)
+                except AttributeError:
+                    self.unfit_items = [item]
             return
 
         for axis in range(0, 3):
@@ -528,14 +650,66 @@ class Packer:
                     pivot = [ib.position[0],ib.position[1] + h,ib.position[2]]
                 elif axis == Axis.DEPTH:
                     pivot = [ib.position[0],ib.position[1],ib.position[2] + d]
-                    
-                if bin.putItem(item, pivot, axis):
+                if z_min is not None:
+                    try:
+                        # 5e-4: half a 3-decimal quantization step (see putItem)
+                        if float(pivot[2]) < float(z_min) - 5e-4:
+                            # Forward clone clamped onto the zone floor, kept
+                            # as Decimals so intersect() never mixes types.
+                            # Only triggers for the first box of each zone;
+                            # later pivots sit at/ahead of the floor.
+                            try:
+                                # 3-decimal quantization: set2Decimal's
+                                # default (0 decimals) truncates a fractional
+                                # zone floor (215.4 -> 215) BELOW z_min, so
+                                # putItem's own z guard would reject it.
+                                _fwd = [pivot[0], pivot[1], set2Decimal(z_min, 3)]
+                            except (TypeError, IndexError, ValueError):
+                                _fwd = None
+                            if _fwd is not None and bin.putItem(
+                                item, _fwd, axis, z_min=z_min, z_max=z_max
+                            ):
+                                fitted = True
+                                break
+                            continue
+                    except (TypeError, IndexError, ValueError):
+                        continue
+                if bin.putItem(item, pivot, axis, z_min=z_min, z_max=z_max):
                     fitted = True
                     break
             if fitted:
                 break
+        if not fitted and z_min is not None:
+            # STRICT ZONE floor-starter: exactly ONE extra putItem at
+            # (0,0,floor). This seeds a new zone whose floor sits ahead of
+            # every existing pivot (which were all skipped above). No loop,
+            # no scan — a single O(placed) attempt, so zero perf risk.
+            # The z_min guard inside putItem accepts this pivot (== floor),
+            # while every other pivot stayed behind the floor.
+            # Zone pivots are Decimal-safe: explicit (0,0,floor). Note
+            # fit_items[0] is the raw [0,W,0,H,0,0] seed row whose z1 is 0,
+            # NOT the truck depth — never derive z from it.
+            try:
+                # 3-decimal quantization (see _fwd above): a 0-decimal
+                # set2Decimal(z_min) truncates below the floor and the
+                # starter pivot then fails putItem's z_min guard.
+                _starter = [set2Decimal(0, 3), set2Decimal(0, 3),
+                            set2Decimal(z_min, 3)]
+            except (IndexError, TypeError, ValueError):
+                _starter = None
+            if _starter is not None and bin.putItem(
+                item, _starter, Axis.DEPTH, z_min=z_min, z_max=z_max
+            ):
+                fitted = True
+        # NOTE: no bin.items.append here - putItem already appends a
+        # deepcopy on success (legacy path line ~433, strict-zone fast
+        # path in putItem). Appending again would duplicate every item.
         if not fitted:
             bin.unfitted_items.append(item)
+            try:
+                self.unfit_items.append(item)
+            except AttributeError:
+                self.unfit_items = [item]
 
 
     def sortBinding(self,bin):
