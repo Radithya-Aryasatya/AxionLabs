@@ -1087,7 +1087,6 @@ if import_manifest and uploaded_file is not None:
                     ),
 
                     "sequence": int(row["Unloading Sequence"])
-
                 })
 
             st.session_state.import_queue = imported_items
@@ -1372,6 +1371,14 @@ if st.button("Run AI Optimization"):
 
                                 loadbear=obj["max_load"],
 
+                                # Orientation policy: the user freely picks the cargo's
+                                # stance in the orientation editor (any of the 6 poses —
+                                # standing, on its side, etc.). That chosen stance is
+                                # stored in the manifest as w/h/d and passed here as the
+                                # item's base dimensions. updown=False then tells the
+                                # solver to RESPECT that stance: it may only SPIN the
+                                # box on the floor (. _ .), never TIP it onto a
+                                # different face (_ | _).
                                 updown=False,
 
                                 color=get_color(obj["name"])

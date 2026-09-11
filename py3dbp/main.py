@@ -149,8 +149,15 @@ class Bin:
         valid_item_position = item.position
         item.position = pivot
         rotate = RotationType.ALL if item.updown == True else RotationType.Notupdown
-        for i in range(0, len(rotate)):
-            item.rotation_type = i
+
+        # Iterate over the rotation types themselves (not their positions in the
+        # list). The old `for i in range(len(rotate)): item.rotation_type = i`
+        # silently ignored the contents of `rotate` and only ever tried the
+        # first N poses — so Notupdown = [RT_WHD, RT_HWD] was the *only* combo
+        # that "worked", and it even permitted a tip-over. Using the values
+        # makes the allowed-list an actual source of truth.
+        for rotation_type in rotate:
+            item.rotation_type = rotation_type
             dimension = item.getDimension()
             # rotatate
             if (
@@ -719,6 +726,21 @@ class Packer:
                         if item.partno == no :
                             self.items.remove(item)
                             break
+
+        # --- Orientation enforcement audit (defence-in-depth) ----------------
+        # Steps 1 + 2 already guarantee putItem only ever assigns an allowed
+        # rotation, but this guard makes the rule explicit at the output
+        # boundary: any item flagged updown=False that somehow ended up in a
+        # tipped pose is moved to unfitted_items instead of being silently
+        # shipped as a forbidden "(_I_) flip".
+        for bin in self.bins:
+            still_fitted = []
+            for item in bin.items:
+                if item.updown == False and item.rotation_type not in RotationType.Notupdown:
+                    bin.unfitted_items.append(item)
+                else:
+                    still_fitted.append(item)
+            bin.items = still_fitted
 
         # put order of items
         self.putOrder()

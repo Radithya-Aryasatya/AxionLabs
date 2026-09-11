@@ -43,6 +43,12 @@ def generate_orientations(w, h, d):
     100x50x200
     50x200x100
     50x100x200
+
+    The editor offers the user FULL freedom to pick any of these poses —
+    standing the box up, laying it on its side, etc. Whichever pose the user
+    confirms becomes the cargo's chosen stance. The 3D bin packing solver
+    must then RESPECT that stance: it may only spin the box on the floor
+    (. _ .), never tip it onto a different face (_ | _).
     """
 
     orientations = []
