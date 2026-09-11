@@ -444,25 +444,58 @@ def pack_strict_sequence_zones(packer, manifest):
 
     # Highest sequence first -> deepest zone (at the back wall, z=0).
     _ordered = sorted(seq_groups.keys(), reverse=True)
+    _maxd = {}
+    for _s in _ordered:
+        _m = 0.0
+        for _it in seq_groups[_s]:
+            try:
+                _m = max(_m, float(_it.depth))
+            except (TypeError, ValueError):
+                pass
+        _maxd[_s] = _m
+
+    # FEASIBLE zone sizing: every zone is first guaranteed the depth of
+    # its deepest single box (a degenerate zero-depth zone -- what the
+    # old volume-only split gave sequence 1 -- can never happen), then
+    # the residual depth is shared proportionally to volume so bigger
+    # sequences get bigger zones.
+    _floors = {s: min(_maxd[s], _truck_depth_cm) for s in _ordered}
+    _floor_sum = sum(_floors.values())
+    if _floor_sum < _truck_depth_cm:
+        _residual = _truck_depth_cm - _floor_sum
+        _sizes = {
+            s: _floors[s] + _residual * (_vol.get(s, 0.0) / _total_vol)
+            for s in _ordered
+        }
+    else:
+        # Infeasible (deepest-box floors alone exceed the truck depth):
+        # pure volume-proportional slabs. No zone can hold its deepest
+        # boxes, so those cascade forward through later zones as overflow.
+        _sizes = {s: _vol.get(s, 0.0) / _total_vol * _truck_depth_cm
+                  for s in _ordered}
+
+    # INTEGER zone boundaries: the engine quantizes settled positions to
+    # whole centimetres (set2Decimal defaults to 0 decimals), so a
+    # sub-centimetre floor truncates the box *into* the deeper zone
+    # behind it (a box seeded at floor 59.353 landed at z=59.0 -> no
+    # containing zone). Rounding the cumulative boundaries to integers
+    # keeps every settled position exactly on its zone wall and still
+    # allocates the full truck depth end to end.
+    _D_int = int(round(float(bin_obj.depth)))
     _bounds = {}
-    _cursor = 0.0
+    _cursor_f = 0.0
+    _cursor_i = 0
     for _idx, _s in enumerate(_ordered):
-        if _idx < len(_ordered) - 1:
-            _share = _vol.get(_s, 0.0) / _total_vol
-            _maxd = 0.0
-            for _it in seq_groups[_s]:
-                try:
-                    _maxd = max(_maxd, float(_it.depth))
-                except (TypeError, ValueError):
-                    pass
-            _zsize = max(_share * _truck_depth_cm, _maxd or 0.0)
-            _zsize = min(_zsize, _truck_depth_cm - _cursor)
+        if _idx == len(_ordered) - 1:
+            _edge = _D_int
         else:
-            # Last (lowest) sequence: take all remaining depth so the whole
-            # truck depth is always fully allocated.
-            _zsize = _truck_depth_cm - _cursor
-        _bounds[_s] = (round(_cursor, 3), round(_cursor + _zsize, 3))
-        _cursor = round(_cursor + _zsize, 3)
+            _cursor_f += _sizes[_s]
+            _edge = int(round(_cursor_f))
+            # every zone keeps at least 1 cm; never squeeze later zones out
+            _edge = max(_edge, _cursor_i + 1)
+            _edge = min(_edge, _D_int - (len(_ordered) - 1 - _idx))
+        _bounds[_s] = (_cursor_i, _edge)
+        _cursor_i = _edge
 
     _overflow = 0
     # Pack each sequence in descending order; within a sequence, prefer the

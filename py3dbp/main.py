@@ -223,43 +223,12 @@ class Bin:
                     fit = False
                     return fit
 
-                # STRICT ZONE fast path: when the caller supplies depth-zone
-                # clamps, skip the origin-anchored fix-point + stability logic
-                # (which would slide boxes back toward the back wall and break
-                # LIFO). Place the box exactly at the already-validated pivot,
-                # re-check collision there, and register it. This keeps every
-                # box inside its own zone so same-sequence boxes stay
-                # contiguous and low-sequence boxes can never backfill near
-                # high-sequence boxes.
-                if z_min is not None or z_max is not None:
-                    item.position = [set2Decimal(_px, 3), set2Decimal(_py, 3), set2Decimal(_pz, 3)]
-                    _collides = False
-                    for current_item_in_bin in self.items:
-                        try:
-                            if intersect(current_item_in_bin, item):
-                                _collides = True
-                                break
-                        except TypeError:
-                            # Mixed Decimal/float positions — normalize and retry once.
-                            try:
-                                item.position = [set2Decimal(float(v)) for v in item.position]
-                                if intersect(current_item_in_bin, item):
-                                    _collides = True
-                                    break
-                            except (TypeError, ValueError, IndexError):
-                                _collides = True
-                                break
-                    if _collides:
-                        item.position = valid_item_position
-                        return False
-                    self.fit_items = np.append(
-                        self.fit_items,
-                        np.array([[_px, _px + _dw, _py, _py + _dh, _pz, _pz + _dd]]),
-                        axis=0,
-                    )
-                    item.position = [set2Decimal(_px, 3), set2Decimal(_py, 3), set2Decimal(_pz, 3)]
-                    self.items.append(copy.deepcopy(item))
-                    return True
+                # STRICT ZONE: clamped packing now flows through the normal
+                # fix-point + stability logic below. checkDepth() is bounded
+                # by z_min (the zone floor acts as the back wall), so gravity
+                # settles each box onto the nearest free depth INSIDE its own
+                # zone instead of floating it at the raw pivot (the old fast
+                # path) or sliding it behind the floor.
 
                 # fix point float prob
                 if self.fix_point == True :
@@ -274,7 +243,7 @@ class Bin:
                         # fix width
                         x = self.checkWidth([x,x+float(w),y,y+float(h),z,z+float(d)])
                         # fix depth
-                        z = self.checkDepth([x,x+float(w),y,y+float(h),z,z+float(d)])
+                        z = self.checkDepth([x,x+float(w),y,y+float(h),z,z+float(d)], z_min=z_min)
                         # Converged: deterministic in (x,y,z) -> stop.
                         if (x, y, z) == (x_prev, y_prev, z_prev):
                             break
@@ -294,6 +263,18 @@ class Bin:
                             item.position = valid_item_position
                             fit = False
                             return fit
+
+                    # STRICT ZONE re-validation: settling (bounded by
+                    # checkDepth's z_min seed) must have kept the box inside
+                    # its zone. If the settled depth still leaves the zone,
+                    # REJECT -- never move a box after its geometry was
+                    # settled; the caller cascades it forward coherently.
+                    if z_min is not None and float(z) < float(z_min) - 5e-4:
+                        item.position = valid_item_position
+                        return False
+                    if z_max is not None and float(z) + float(d) > float(z_max) + 5e-4:
+                        item.position = valid_item_position
+                        return False
 
                     # check stability on item
                     # rule :
@@ -389,7 +370,9 @@ class Bin:
                                             trial_x = x + slide_x * factor
                                             trial_z = z + slide_z * factor
                                             trial_x = max(0.0, min(trial_x, float(self.width) - float(w)))
-                                            trial_z = max(0.0, min(trial_z, float(self.depth) - float(d)))
+                                            _zlo = float(z_min) if z_min is not None else 0.0
+                                            _zhi = (float(z_max) - float(d)) if z_max is not None else (float(self.depth) - float(d))
+                                            trial_z = max(_zlo, min(trial_z, _zhi))
                                             item.position = [set2Decimal(trial_x), set2Decimal(y), set2Decimal(trial_z)]
                                             collision = False
                                             for current_item_in_bin in self.items:
@@ -456,10 +439,22 @@ class Bin:
         return fit
 
 
-    def checkDepth(self,unfix_point):
-        ''' fix item position z '''
-        z_ = [[0,0],[float(self.depth),float(self.depth)]]
+    def checkDepth(self,unfix_point,z_min=None):
+        ''' fix item position z.
+
+        z_min (optional strict-zone back wall): when set, settling treats
+        z_min as the back wall. The gap list is seeded with [z_min, z_min]
+        so the settled z can never land behind the zone floor, and boxes
+        from deeper zones are ignored as settle targets, so a box settles
+        onto the nearest free depth INSIDE its own zone.
+        '''
+        _wall = float(z_min) if z_min is not None else 0.0
+        z_ = [[_wall,_wall],[float(self.depth),float(self.depth)]]
         for j in self.fit_items:
+            if z_min is not None and float(j[5]) <= _wall + 5e-4:
+                # Deeper-zone box (fully behind this zone's floor): not a
+                # valid settle target for this item.
+                continue
             x0 = int(j[0]); x1 = int(j[1])
             x2 = int(unfix_point[0]); x3 = int(unfix_point[1])
             if x0 < x3 and x2 < x1:
@@ -605,12 +600,33 @@ class Packer:
 
         elif not bin.items:
             response = bin.putItem(item, item.position, z_min=z_min, z_max=z_max)
+            if not response and z_min is not None:
+                # Empty-bin + strict zone: the default pivot (0,0,0) sits
+                # behind every zone floor except the first one, so seed
+                # the bin with a single attempt at the zone floor instead.
+                try:
+                    _starter = [set2Decimal(0, 3), set2Decimal(0, 3), set2Decimal(z_min, 3)]
+                except (TypeError, ValueError):
+                    _starter = None
+                if _starter is not None:
+                    response = bin.putItem(
+                        item, _starter, Axis.DEPTH, z_min=z_min, z_max=z_max
+                    )
 
             if not response:
                 bin.unfitted_items.append(item)
             return
 
-        for axis in range(0, 3):
+        # STRICT ZONE: try depth-axis pivots first so gravity spreads
+        # boxes along the zone depth (rows) before stacking them upward;
+        # the classic WIDTH->HEIGHT->DEPTH order fills width, then stacks
+        # height, and leaves the zone front depth empty (the tower
+        # layout). Non-zoned packing keeps the original order.
+        if z_min is not None:
+            _axes = (Axis.DEPTH, Axis.WIDTH, Axis.HEIGHT)
+        else:
+            _axes = (Axis.WIDTH, Axis.HEIGHT, Axis.DEPTH)
+        for axis in _axes:
             items_in_bin = bin.items
             for ib in items_in_bin:
                 pivot = [0, 0, 0]
