@@ -163,10 +163,18 @@ class Bin:
                 # 5e-4 = half a 3-decimal quantization step; zone pivots are
                 # quantized to 3 decimals and can sit up to 0.0005 below a
                 # fractional floor, which the old 1e-9 epsilon rejected.
-                if float(pivot[2]) < float(z_min) - 5e-4:
+                # z_min only binds BIN-FLOOR items (y == 0): it prevents
+                # backfilling a gap left in a deeper zone. A stacked item
+                # (y > 0) is exempt -- its support is an already-placed box
+                # (same-or-deeper sequence, packed earlier), so it may sit
+                # behind its own room's floor. That is the LIFO-safe headroom
+                # reuse: an early-unload box (seq 3) on top of a late-unload
+                # column (seq 4) is lifted off before seq 4 is ever touched.
+                if (abs(float(pivot[1])) < 1e-6
+                        and float(pivot[2]) < float(z_min) - 5e-4):
                     item.position = valid_item_position
                     return False
-            except (TypeError, IndexError):
+            except (TypeError, IndexError, ValueError):
                 pass
         for i in range(0, len(rotate)):
             item.rotation_type = i
@@ -189,7 +197,12 @@ class Bin:
             if z_max is not None:
                 try:
                     # 5e-4: half a 3-decimal quantization step (see z_min note)
-                    if _pz + _dd > float(z_max) + 5e-4:
+                    # z_max only binds BIN-FLOOR items (y == 0), keeping a
+                    # room's floor footprint inside the room. Stacked items
+                    # may overhang the wall onto a supporter's top (LIFO-safe
+                    # reuse of headroom above a same-or-deeper-sequence box).
+                    if (_py < 1e-6
+                            and _pz + _dd > float(z_max) + 5e-4):
                         continue
                 except (TypeError, IndexError):
                     pass
@@ -239,6 +252,49 @@ class Bin:
                                     item.position = valid_item_position
                                     return False
                             except TypeError:
+                                item.position = valid_item_position
+                                return False
+                        # ROOT-CAUSE FIX (TASK 4.2B): the strict zone fast path
+                        # commits the pivot EXACTLY as the zone logic handed
+                        # it -- but it never ran the legacy stability/support
+                        # block, so a box with nothing underneath it (e.g. a
+                        # "forward clone" whose z was snapped to a zone floor
+                        # but whose y came from a stack elsewhere) was placed
+                        # FLOATING in mid-air. Mirror the legacy support rules
+                        # here before registering the placement. The strict
+                        # path has NO slide-to-support rescue either, so
+                        # partial support can never be healed after the fact.
+                        # Accept only what the app's own floating detector
+                        # (detect_floating_items, 75% threshold) accepts:
+                        #   y == 0 rests on the bin floor -> always supported
+                        #   y >  0 needs >= support_surface_ratio footprint
+                        #     from fit_items rows whose top (i[3]) == y.
+                        # The legacy 25% four-vertex fallback is deliberately
+                        # NOT mirrored here: corners resting on separate
+                        # pillar tops pass the 4-vertex rule while the middle
+                        # of the box hangs in the air -- exactly the
+                        # bridge/cantilevered boxes the UI then reports as
+                        # floating. A rejected pivot is not lost: pack2Bin
+                        # keeps trying other candidates (on top of each
+                        # placed box, floor pivots in forward zones), so a
+                        # box lands fully supported or is honestly unfitted.
+                        if self.check_stable:
+                            _fsupported = abs(float(y)) < 1e-6
+                            if not _fsupported:
+                                _fsup = 0.0
+                                _follow_area = float(w) * float(d)
+                                if _follow_area > 0:
+                                    for _frow in self.fit_items:
+                                        if abs(float(y) - float(_frow[3])) < 1e-6:
+                                            _fox = (min(float(x) + float(w), float(_frow[1]))
+                                                    - max(float(x), float(_frow[0])))
+                                            _foz = (min(float(z) + float(d), float(_frow[5]))
+                                                    - max(float(z), float(_frow[4])))
+                                            if _fox > 0 and _foz > 0:
+                                                _fsup += _fox * _foz
+                                    _fsupported = (_fsup / _follow_area
+                                                   >= self.support_surface_ratio)
+                            if not _fsupported:
                                 item.position = valid_item_position
                                 return False
                         self.fit_items = np.append(self.fit_items,np.array([[x,x+float(w),y,y+float(h),z,z+float(d)]]),axis=0)
@@ -653,11 +709,21 @@ class Packer:
                 if z_min is not None:
                     try:
                         # 5e-4: half a 3-decimal quantization step (see putItem)
-                        if float(pivot[2]) < float(z_min) - 5e-4:
+                        # Only BIN-FLOOR pivots (y == 0) behind the zone floor
+                        # get the forward clone: a floor item must not
+                        # backfill a deeper room. A stacked pivot (y > 0)
+                        # sits on an already-placed box's top and may stay on
+                        # the deeper box (LIFO-safe), so it falls through to
+                        # the direct putItem below unchanged -- this was the
+                        # source of mid-air placements (the clone snapped z
+                        # forward but kept a stack's y with no box below).
+                        if (abs(float(pivot[1])) < 1e-6
+                                and float(pivot[2]) < float(z_min) - 5e-4):
                             # Forward clone clamped onto the zone floor, kept
                             # as Decimals so intersect() never mixes types.
-                            # Only triggers for the first box of each zone;
-                            # later pivots sit at/ahead of the floor.
+                            # Only triggers for the first floor box of each
+                            # zone; later floor pivots sit at/ahead of the
+                            # floor.
                             try:
                                 # 3-decimal quantization: set2Decimal's
                                 # default (0 decimals) truncates a fractional

@@ -380,12 +380,26 @@ def calculate_zone_segmentation(items, manifest_lookup):
     }
 
 def pack_strict_sequence_zones(packer, manifest):
-    """Option A: one depth zone per unloading sequence.
+    """Strict sequence rooms with LIFO-safe shared headroom.
 
-    Deepest sequence (highest number) packs first at the back wall (z=0).
-    Zone depths are proportional to each sequence's total box volume.
-    Overflow cascades FORWARD toward the door only, never backward.
-    Returns (bounds, overflow_count) where bounds = {seq: (z0, z1)} in cm.
+    The truck is sliced into one depth room per unloading sequence, sized
+    by each sequence's total box volume; the deepest sequence packs first
+    against the back wall (z=0). Two rules mimic a real load:
+
+      1. FLOOR OWNS ITS ROOM - a box resting on the truck floor must start
+         inside its own room's [z_min, z_max]. Overflow cascades FORWARD
+         toward the door only, never backward into an earlier room.
+      2. ROOF IS SHARED, LIFO-SAFE - headroom above an already-placed
+         stack may be filled by an earlier-or-equal unloading sequence
+         (seq(top) <= seq(bottom)): the top box is lifted off before
+         anything it rests on is touched. Room walls bind floor boxes
+         only (engine-side), so e.g. seq-3 boxes can fill the air above
+         a seq-4 column - space reuse without breaking the unloading
+         order.
+
+    Every placement must still pass the packer's physical support check
+    (>= 75% footprint), so nothing floats. Returns (bounds, overflow_count)
+    where bounds = {seq: (z0, z1)} in cm.
     """
     bin_obj = packer.bins[0]
     bin_obj.formatNumbers(3)
@@ -399,6 +413,10 @@ def pack_strict_sequence_zones(packer, manifest):
             (o["sequence"] for o in manifest if o["name"] == _base), 1,
         )
         seq_of[id(_it)] = _seq
+    # Base cargo name -> unloading sequence. Placed copies inside bin.items
+    # are deepcopies (different ids), so id()-keyed lookups cannot reach
+    # them; name-based lookups can.
+    _seq_by_base = {o["name"]: o["sequence"] for o in manifest}
     seq_groups = {}
     for _it in packer.items:
         seq_groups.setdefault(seq_of[id(_it)], []).append(_it)
@@ -446,6 +464,44 @@ def pack_strict_sequence_zones(packer, manifest):
                 packer.pack2Bin(bin_obj, _it, True, True, 0.75,
                                 z_min=_z0, z_max=_z1)
                 if len(bin_obj.items) > _before:
+                    # LIFO roof-share guard (rule 2 above): a stacked box may
+                    # only rest on same-or-later-unloading cargo. Deepest-
+                    # first packing order makes violations impossible today;
+                    # this verifies the guarantee on the placed copy so the
+                    # invariant survives future refactors. A violating
+                    # placement is rolled back and the box cascades forward.
+                    _new = bin_obj.items[-1]
+                    _y_new = float(_new.position[1])
+                    _lifo_ok = True
+                    if _y_new > 1e-6:
+                        _nd = _new.getDimension()
+                        _nx0 = float(_new.position[0])
+                        _nx1 = _nx0 + float(_nd[0])
+                        _nz0 = float(_new.position[2])
+                        _nz1 = _nz0 + float(_nd[2])
+                        _seq_new = _seq_by_base.get(
+                            _new.name.rsplit(" #", 1)[0], 1)
+                        for _sup in bin_obj.items[:-1]:
+                            _sd = _sup.getDimension()
+                            if abs(_y_new - (float(_sup.position[1])
+                                             + float(_sd[1]))) > 1e-6:
+                                continue
+                            _sx0 = float(_sup.position[0])
+                            _sz0 = float(_sup.position[2])
+                            if (min(_nx1, _sx0 + float(_sd[0])) - max(_nx0, _sx0) > 1e-6
+                                    and min(_nz1, _sz0 + float(_sd[2])) - max(_nz0, _sz0) > 1e-6
+                                    and _seq_by_base.get(
+                                        _sup.name.rsplit(" #", 1)[0], 1) < _seq_new):
+                                # supporter unloads EARLIER than the box on
+                                # top of it -> the top box would trap it.
+                                _lifo_ok = False
+                                break
+                    if not _lifo_ok:
+                        # undo the just-registered copy and its fit row,
+                        # then try the next (forward) zone
+                        bin_obj.items.pop()
+                        bin_obj.fit_items = bin_obj.fit_items[:-1]
+                        continue
                     _placed = True
                     if _zs != _s:
                         _overflow += 1
