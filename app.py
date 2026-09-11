@@ -1,6 +1,7 @@
 #app.py
 import streamlit as st
 from py3dbp import Packer, Bin, Item
+from py3dbp.constants import RotationType
 import plotly.graph_objects as go
 from dataclasses import dataclass
 from orientation_editor import launch_orientation_editor
