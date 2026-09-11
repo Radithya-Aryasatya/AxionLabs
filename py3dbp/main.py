@@ -143,15 +143,40 @@ class Bin:
         return set2Decimal(total_weight, self.number_of_decimals)
 
 
-    def putItem(self, item, pivot,axis=None):
-        ''' put item in bin '''
+    def putItem(self, item, pivot, axis=None, z_min=None, z_max=None):
+        ''' put item in bin.
+
+        Optional strict depth-zone clamps (backward compatible — both
+        default to None = no clamping, existing callers unaffected):
+          z_min: item's depth-start (pivot z) must be >= z_min. Prevents
+                 backfilling a gap left in an earlier (deeper) zone.
+          z_max: item's depth-end (pivot z + depth) must be <= z_max.
+                 Keeps the item inside its own zone; overflow is handled
+                 by the caller cascading the item forward (toward the door).
+        '''
         fit = False
         valid_item_position = item.position
         item.position = pivot
         rotate = RotationType.ALL if item.updown == True else RotationType.Notupdown
 
-        # Iterate over the rotation types themselves (not their positions in the
-        # list). The old `for i in range(len(rotate)): item.rotation_type = i`
+        # Zone floor guard: reject any pivot that sits behind (deeper than)
+        # the zone's back wall. Without this, a face-pivot generated from a
+        # box in a deeper zone can land inside the current zone's forbidden
+        # space, which would violate LIFO (low-sequence boxes backfilling
+        # near high-sequence boxes). 5e-4 = half a 3-decimal quantization
+        # step (zone floors are quantized to 3 decimals and can sit up to
+        # 0.0005 below a fractional floor, which a tiny epsilon would
+        # reject).
+        if z_min is not None:
+            try:
+                if float(pivot[2]) < float(z_min) - 5e-4:
+                    item.position = valid_item_position
+                    return False
+            except (TypeError, IndexError):
+                pass
+
+        # Iterate over the rotation types themselves (not their positions in
+        # the list). The old `for i in range(len(rotate)): item.rotation_type = i`
         # silently ignored the contents of `rotate` and only ever tried the
         # first N poses — so Notupdown = [RT_WHD, RT_HWD] was the *only* combo
         # that "worked", and it even permitted a tip-over. Using the values
@@ -159,13 +184,31 @@ class Bin:
         for rotation_type in rotate:
             item.rotation_type = rotation_type
             dimension = item.getDimension()
-            # rotatate
+            # rotate
+            # NOTE: pivot may carry Decimals (first-item path reuses
+            # bin.fit_items entries) while dimension entries may be Decimal
+            # or float — compare in float space so mixed types never raise.
+            try:
+                _px, _py, _pz = float(pivot[0]), float(pivot[1]), float(pivot[2])
+                _dw, _dh, _dd = float(dimension[0]), float(dimension[1]), float(dimension[2])
+            except (TypeError, IndexError, ValueError):
+                continue
             if (
-                self.width < pivot[0] + dimension[0] or
-                self.height < pivot[1] + dimension[1] or
-                self.depth < pivot[2] + dimension[2]
+                float(self.width) < _px + _dw or
+                float(self.height) < _py + _dh or
+                float(self.depth) < _pz + _dd
             ):
                 continue
+            # Zone ceiling guard: reject any rotation whose depth-end exceeds
+            # the zone's front wall. Combined with the floor guard above,
+            # this keeps the box fully inside its own zone; the caller
+            # cascades overflow forward toward the door instead.
+            if z_max is not None:
+                try:
+                    if _pz + _dd > float(z_max) + 5e-4:
+                        continue
+                except (TypeError, IndexError):
+                    pass
 
             fit = True
 
@@ -179,7 +222,45 @@ class Bin:
                 if self.getTotalWeight() + item.weight > self.max_weight:
                     fit = False
                     return fit
-                
+
+                # STRICT ZONE fast path: when the caller supplies depth-zone
+                # clamps, skip the origin-anchored fix-point + stability logic
+                # (which would slide boxes back toward the back wall and break
+                # LIFO). Place the box exactly at the already-validated pivot,
+                # re-check collision there, and register it. This keeps every
+                # box inside its own zone so same-sequence boxes stay
+                # contiguous and low-sequence boxes can never backfill near
+                # high-sequence boxes.
+                if z_min is not None or z_max is not None:
+                    item.position = [set2Decimal(_px, 3), set2Decimal(_py, 3), set2Decimal(_pz, 3)]
+                    _collides = False
+                    for current_item_in_bin in self.items:
+                        try:
+                            if intersect(current_item_in_bin, item):
+                                _collides = True
+                                break
+                        except TypeError:
+                            # Mixed Decimal/float positions — normalize and retry once.
+                            try:
+                                item.position = [set2Decimal(float(v)) for v in item.position]
+                                if intersect(current_item_in_bin, item):
+                                    _collides = True
+                                    break
+                            except (TypeError, ValueError, IndexError):
+                                _collides = True
+                                break
+                    if _collides:
+                        item.position = valid_item_position
+                        return False
+                    self.fit_items = np.append(
+                        self.fit_items,
+                        np.array([[_px, _px + _dw, _py, _py + _dh, _pz, _pz + _dd]]),
+                        axis=0,
+                    )
+                    item.position = [set2Decimal(_px, 3), set2Decimal(_py, 3), set2Decimal(_pz, 3)]
+                    self.items.append(copy.deepcopy(item))
+                    return True
+
                 # fix point float prob
                 if self.fix_point == True :
                         
@@ -504,21 +585,26 @@ class Packer:
         return self.items.append(item)
 
 
-    def pack2Bin(self, bin, item,fix_point,check_stable,support_surface_ratio):
-        ''' pack item to bin '''
+    def pack2Bin(self, bin, item, fix_point, check_stable, support_surface_ratio, z_min=None, z_max=None):
+        ''' pack item to bin.
+
+        Optional strict depth-zone clamps (backward compatible — both
+        default to None = no clamping, existing callers unaffected):
+          z_min / z_max: forwarded to Bin.putItem; see its docstring.
+        '''
         fitted = False
         bin.fix_point = fix_point
         bin.check_stable = check_stable
         bin.support_surface_ratio = support_surface_ratio
 
-        # first put item on (0,0,0) , if corner exist ,first add corner in box. 
+        # first put item on (0,0,0) , if corner exist ,first add corner in box.
         if bin.corner != 0 and not bin.items:
             corner_lst = bin.addCorner()
             for i in range(len(corner_lst)) :
                 bin.putCorner(i,corner_lst[i])
 
         elif not bin.items:
-            response = bin.putItem(item, item.position)
+            response = bin.putItem(item, item.position, z_min=z_min, z_max=z_max)
 
             if not response:
                 bin.unfitted_items.append(item)
@@ -535,12 +621,29 @@ class Packer:
                     pivot = [ib.position[0],ib.position[1] + h,ib.position[2]]
                 elif axis == Axis.DEPTH:
                     pivot = [ib.position[0],ib.position[1],ib.position[2] + d]
-                    
-                if bin.putItem(item, pivot, axis):
+
+                if bin.putItem(item, pivot, axis, z_min=z_min, z_max=z_max):
                     fitted = True
                     break
             if fitted:
                 break
+
+        # STRICT ZONE floor-starter: if no face-pivot worked (common for the
+        # first box of a new zone, whose floor sits ahead of every existing
+        # pivot), seed the zone with a single attempt at (0, 0, floor). This
+        # is O(placed) — a single putItem call, no loop, no scan — so zero
+        # perf risk. The z_min guard inside putItem accepts this pivot
+        # (== floor), while every other pivot stayed behind the floor.
+        if not fitted and z_min is not None:
+            try:
+                _starter = [set2Decimal(0, 3), set2Decimal(0, 3), set2Decimal(z_min, 3)]
+            except (TypeError, ValueError):
+                _starter = None
+            if _starter is not None and bin.putItem(
+                item, _starter, Axis.DEPTH, z_min=z_min, z_max=z_max
+            ):
+                fitted = True
+
         if not fitted:
             bin.unfitted_items.append(item)
 

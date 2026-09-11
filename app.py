@@ -297,6 +297,239 @@ def calculate_offloading_score(items, manifest_lookup):
 
     return score
 
+
+def calculate_zone_segmentation(items, manifest_lookup):
+    """Option A diagnostics: how well does the pack respect depth zones?
+
+    Returns a dict with:
+      - overlap_fraction: share of the truck depth spanned by >1 sequence's
+        z-range (0 = perfectly segmented, 1 = total overlap).
+      - split_sequences: count of sequences whose boxes span >1 disjoint
+        depth band (gap >= one box-depth between sorted box starts).
+      - ordered: True when mean z-center decreases monotonically with
+        increasing sequence number (deep seqs actually sit deeper).
+      - z_mean_by_seq: {sequence: mean z-center in meters}.
+    """
+    if not items:
+        return {
+            "overlap_fraction": 0.0,
+            "split_sequences": 0,
+            "ordered": True,
+            "z_mean_by_seq": {},
+        }
+    EPS = 1e-9
+    by_seq = {}
+    for item in items:
+        try:
+            seq = int(manifest_lookup[item.name]["sequence"])
+        except (KeyError, TypeError, ValueError):
+            continue
+        z0 = float(item.z)
+        z1 = float(item.z) + float(item.d)
+        by_seq.setdefault(seq, []).append((z0, z1, float(item.z) + float(item.d) / 2.0))
+    if not by_seq:
+        return {
+            "overlap_fraction": 0.0,
+            "split_sequences": 0,
+            "ordered": True,
+            "z_mean_by_seq": {},
+        }
+    overall_min = min(z0 for boxes in by_seq.values() for z0, _, _ in boxes)
+    overall_max = max(z1 for boxes in by_seq.values() for _, z1, _ in boxes)
+    overall_span = overall_max - overall_min
+    events = []
+    for boxes in by_seq.values():
+        lo = min(z0 for z0, _, _ in boxes)
+        hi = max(z1 for _, z1, _ in boxes)
+        events.append((lo, +1))
+        events.append((hi, -1))
+    # End events (-1) before start events (+1) at the same coordinate so
+    # touching-but-disjoint zones are NOT counted as overlapping.
+    events.sort(key=lambda e: (e[0], e[1]))
+    overlap_len = 0.0
+    active = 0
+    prev = None
+    for coord, delta in events:
+        if prev is not None and active > 1:
+            overlap_len += coord - prev
+        active += delta
+        prev = coord
+    overlap_fraction = (overlap_len / overall_span) if overall_span > EPS else 0.0
+    split_sequences = 0
+    for boxes in by_seq.values():
+        starts = sorted(z0 for z0, _, _ in boxes)
+        if len(starts) < 2:
+            continue
+        depths = sorted((z1 - z0) for z0, z1, _ in boxes)
+        gap_threshold = max(depths) if depths else 0.0
+        if any((b - a) >= max(gap_threshold, 1e-6) for a, b in zip(starts, starts[1:])):
+            split_sequences += 1
+    z_mean_by_seq = {
+        seq: sum(c for _, _, c in boxes) / len(boxes)
+        for seq, boxes in by_seq.items()
+    }
+    ordered_seqs = sorted(z_mean_by_seq)
+    ordered = all(
+        z_mean_by_seq[a] + 1e-9 >= z_mean_by_seq[b]
+        for a, b in zip(ordered_seqs, ordered_seqs[1:])
+    )
+    return {
+        "overlap_fraction": float(max(0.0, min(1.0, overlap_fraction))),
+        "split_sequences": int(split_sequences),
+        "ordered": bool(ordered),
+        "z_mean_by_seq": {int(k): float(v) for k, v in z_mean_by_seq.items()},
+    }
+
+
+def pack_strict_sequence_zones(packer, manifest):
+    """Option A: one depth zone per unloading sequence (LIFO + segmentation).
+
+    The truck depth is sliced into one contiguous zone per sequence, ordered
+    from the back wall (z=0) toward the door. The highest-numbered sequence
+    (unloaded last) gets the zone at the very back; sequence 1 (unloaded
+    first) ends up nearest the door.
+
+    Zone sizes are proportional to each sequence's total box volume (with a
+    floor of the deepest single box in that sequence so the zone can always
+    fit at least one box), and the last sequence receives whatever depth
+    remains. Every box is clamped to stay fully inside its own zone: it may
+    only be placed so its z-range sits in [zone_floor, zone_ceiling]. If a
+    zone is too small, the box cascades FORWARD into the next zone toward the
+    door (counted as overflow) -- never backward. This guarantees that a
+    low-sequence box can never backfill a gap beside a high-sequence box, even
+    when empty space exists there.
+
+    The packer's items must already be added; this function does NOT call
+    packer.pack(). It calls packer.pack2Bin directly with per-item zone
+    clamps. All items keep level=1; sequence ordering is enforced purely by
+    the zone clamps and the packing order, not by py3dbp's internal sort.
+
+    Returns (bounds, overflow_count) where bounds = {seq: (z0, z1)} in cm.
+    """
+    bin_obj = packer.bins[0]
+    # 3-decimal precision: matches the zone quantisation and avoids the
+    # "measuring tape disagrees with itself by half a hair" rejection that a
+    # sub-5e-4 epsilon would cause.
+    bin_obj.formatNumbers(3)
+    for _it in packer.items:
+        _it.formatNumbers(3)
+    packer.binding = []
+
+    # Map every packed item to its unloading sequence.
+    seq_of = {}
+    for _it in packer.items:
+        _base = _it.name.rsplit(" #", 1)[0]
+        _seq = next(
+            (o["sequence"] for o in manifest if o["name"] == _base), 1,
+        )
+        seq_of[id(_it)] = _seq
+
+    seq_groups = {}
+    for _it in packer.items:
+        seq_groups.setdefault(seq_of[id(_it)], []).append(_it)
+
+    # Volume per sequence (in cm^3) drives zone sizing.
+    _vol = {}
+    for _s, _lst in seq_groups.items():
+        _v = 0.0
+        for _it in _lst:
+            try:
+                _v += float(_it.width) * float(_it.height) * float(_it.depth)
+            except (TypeError, ValueError):
+                pass
+        _vol[_s] = _v
+    _total_vol = sum(_vol.values()) or 1.0
+    _truck_depth_cm = float(bin_obj.depth)
+
+    # Highest sequence first -> deepest zone (at the back wall, z=0).
+    _ordered = sorted(seq_groups.keys(), reverse=True)
+    _bounds = {}
+    _cursor = 0.0
+    for _idx, _s in enumerate(_ordered):
+        if _idx < len(_ordered) - 1:
+            _share = _vol.get(_s, 0.0) / _total_vol
+            _maxd = 0.0
+            for _it in seq_groups[_s]:
+                try:
+                    _maxd = max(_maxd, float(_it.depth))
+                except (TypeError, ValueError):
+                    pass
+            _zsize = max(_share * _truck_depth_cm, _maxd or 0.0)
+            _zsize = min(_zsize, _truck_depth_cm - _cursor)
+        else:
+            # Last (lowest) sequence: take all remaining depth so the whole
+            # truck depth is always fully allocated.
+            _zsize = _truck_depth_cm - _cursor
+        _bounds[_s] = (round(_cursor, 3), round(_cursor + _zsize, 3))
+        _cursor = round(_cursor + _zsize, 3)
+
+    _overflow = 0
+    # Pack each sequence in descending order; within a sequence, prefer the
+    # same ordering py3dbp would use (level asc, loadbear desc, volume asc).
+    for _s in _ordered:
+        _grp = list(seq_groups[_s])
+        _grp.sort(key=lambda x: float(x.width) * float(x.height) * float(x.depth))
+        _grp.sort(key=lambda x: x.loadbear, reverse=True)
+        _grp.sort(key=lambda x: x.level, reverse=False)
+        for _it in _grp:
+            _placed = False
+            _pos = _ordered.index(_s)
+            # Try the box's own zone first, then cascade forward (toward the
+            # door) through later zones only.
+            for _zs in _ordered[_pos:]:
+                _z0, _z1 = _bounds[_zs]
+                _before = len(bin_obj.items)
+                packer.pack2Bin(
+                    bin_obj, _it, True, True, 0.75,
+                    z_min=_z0, z_max=_z1,
+                )
+                if len(bin_obj.items) > _before:
+                    _placed = True
+                    if _zs != _s:
+                        _overflow += 1
+                    break
+                # Remove this item from any unfitted list pack2Bin may have
+                # appended it to, so a later zone attempt isn't blocked.
+                for _lst in (getattr(bin_obj, "unfitted_items", []),
+                             getattr(packer, "unfit_items", [])):
+                    try:
+                        while _it in _lst:
+                            _lst.remove(_it)
+                    except (ValueError, AttributeError):
+                        pass
+            if not _placed:
+                try:
+                    if _it not in bin_obj.unfitted_items:
+                        bin_obj.unfitted_items.append(_it)
+                except AttributeError:
+                    pass
+                try:
+                    if _it not in packer.unfit_items:
+                        packer.unfit_items.append(_it)
+                except AttributeError:
+                    packer.unfit_items = [_it]
+
+    # Defence-in-depth orientation audit (mirrors pack()): any updown=False
+    # item that somehow ended up in a tipped pose is moved to unfitted.
+    for _bin in packer.bins:
+        _still = []
+        for _it in _bin.items:
+            if _it.updown is False and _it.rotation_type not in RotationType.Notupdown:
+                try:
+                    _bin.unfitted_items.append(_it)
+                except AttributeError:
+                    pass
+            else:
+                _still.append(_it)
+        _bin.items = _still
+
+    try:
+        bin_obj.gravity = packer.gravityCenter(bin_obj)
+    except Exception:
+        pass
+    return _bounds, _overflow
+
+
 def score_to_stars(score):
     """
     Converts a percentage score into a star rating.
@@ -1258,11 +1491,15 @@ prioritize_sequence = st.checkbox(
     "Prioritize unloading sequence over space efficiency",
     value=False,
     help=(
-        "Off (default): packs for maximum space usage. Sequence still breaks ties "
-        "between identical-size, identical-weight-limit items, but otherwise doesn't "
-        "influence placement. On: groups cargo into rough front/door zones by sequence "
-        "first - this can leave more empty space in the truck, so check the Space "
-        "Volume Utilization score after running."
+        "Off (default): packs for maximum space usage. Sequence only breaks ties "
+        "between otherwise-identical items. On: enforces a strict LIFO + "
+        "segmentation layout — the truck depth is sliced into one contiguous zone "
+        "per unloading sequence, highest sequence at the back wall (z=0), lowest "
+        "at the door. Same-sequence boxes always stay together in one band; a box "
+        "can never backfill a gap beside a higher-sequence box, even when empty "
+        "space exists there. Overflow cascades forward toward the door only. This "
+        "is the correct unloading order but can leave more empty space, so compare "
+        "the Space Volume Utilization score against a run with the box off."
     )
 )
 if st.button("Run AI Optimization"):
@@ -1287,43 +1524,27 @@ if st.button("Run AI Optimization"):
             st.session_state.manifest
         )
 
-        # py3dbp re-sorts every item internally right before packing, by
-        # level -> loadbear -> volume, and that internal sort (not the
-        # order we add items in) is what actually decides placement.
-        # This is a greedy "first-fit against already-placed items"
-        # algorithm (see pack2Bin) with no lookahead or backtracking, so
-        # it's highly sensitive to item order - the loadbear-descending /
-        # volume-ascending order it uses by default is what keeps the
-        # pack space-efficient.
+        # All items keep level=1. Sequence ordering is handled one of two
+        # ways depending on the checkbox:
         #
-        # Forcing sequence into `level` (tried previously) overrides that
-        # order and reliably costs space efficiency, in ways that are hard
-        # to predict from the code alone. So by default we leave level=1
-        # for everyone - identical to pre-sequence-feature behavior, zero
-        # efficiency risk. Sequence still acts as a free tie-break: items
-        # that end up with identical loadbear AND identical volume keep
-        # the sequence-sorted order they arrived in (build_loading_priority
-        # sorts loading_order by -sequence first), with no downside since
-        # that only ever resolves ties that would otherwise be arbitrary.
+        #  - Checkbox OFF (default): we hand py3dbp the loading_order
+        #    (build_loading_priority sorts by -sequence first), but py3dbp
+        #    re-sorts internally by level -> loadbear -> volume right before
+        #    packing (see Packer.pack), so the sequence order only survives
+        #    as a free tie-break between otherwise-identical items. The
+        #    greedy first-fit-against-already-placed-items algorithm then
+        #    packs for maximum space efficiency. Sequence has no real
+        #    influence on placement - identical to pre-sequence-feature
+        #    behavior, zero efficiency risk.
         #
-        # Only when the user explicitly opts in (accepting the efficiency
-        # trade-off) do we bucket sequence into 2 coarse zones via level,
-        # to more directly bias which half of the truck cargo ends up in.
-        max_sequence = max(
-            (obj["sequence"] for obj in loading_order),
-            default=1
-        )
-
-        if prioritize_sequence:
-            NUM_TIERS = 2
-            tier_size = max(1, -(-max_sequence // NUM_TIERS))  # ceil division
-
-            def sequence_to_level(sequence):
-                bucket = -(-sequence // tier_size)      # 1..NUM_TIERS, low seq -> low bucket
-                return NUM_TIERS - bucket + 1            # invert: low seq -> high level (packed last)
-        else:
-            def sequence_to_level(sequence):
-                return 1
+        #  - Checkbox ON: we bypass packer.pack() entirely and call
+        #    pack_strict_sequence_zones(), which slices the truck depth into
+        #    one contiguous zone per sequence and clamps every box to its own
+        #    zone. LIFO + segmentation is enforced directly by the clamps,
+        #    independent of py3dbp's internal sort. This is the correct
+        #    unloading order but can cost space efficiency.
+        def sequence_to_level(sequence):
+            return 1
 
         with st.spinner("Running 3D bin packing optimization..."):
             packer = Packer()
@@ -1364,9 +1585,10 @@ if st.button("Run AI Optimization"):
 
                                 weight=obj["weight"],
 
-                                # Bucket sequence into 3 coarse tiers (matching
-                                # py3dbp's documented level range) so loadbear/
-                                # volume still drives fit within each tier.
+                                # Level is always 1; sequence ordering is
+                                # enforced by pack_strict_sequence_zones() when
+                                # the checkbox is on (see the branch below),
+                                # not by py3dbp's level sort.
                                 level=sequence_to_level(obj["sequence"]),
 
                                 loadbear=obj["max_load"],
@@ -1389,7 +1611,16 @@ if st.button("Run AI Optimization"):
 
                         counter += 1
 
-            packer.pack(
+            if prioritize_sequence:
+                # LIFO + segmentation: slice the truck into one zone per
+                # sequence and clamp every box to its own zone. This bypasses
+                # packer.pack() entirely; the zone logic handles placement.
+                _zone_bounds, _zone_overflow = pack_strict_sequence_zones(
+                    packer, st.session_state.manifest,
+                )
+            else:
+                _zone_bounds, _zone_overflow = None, 0
+                packer.pack(
 
                     bigger_first=False,
 
@@ -1399,7 +1630,7 @@ if st.button("Run AI Optimization"):
 
                     support_surface_ratio=0.75,
 
-                    number_of_decimals=3 
+                    number_of_decimals=3
 
                 )
 
@@ -1479,6 +1710,11 @@ if st.button("Run AI Optimization"):
                     manifest_lookup
                 )
 
+            zone_seg = calculate_zone_segmentation(
+                    packed_geometries,
+                    manifest_lookup
+                )
+
             overall_score = (
                     utilization * 0.4
                     + safety_rate * 0.4
@@ -1499,6 +1735,10 @@ if st.button("Run AI Optimization"):
 
                     "floating_count": floating_count,
                     "floating_names": floating_names,
+                    "zone_seg": zone_seg,
+                    "zone_bounds": _zone_bounds,
+                    "zone_overflow": _zone_overflow,
+                    "strict_zones": bool(prioritize_sequence),
                     "overall": overall_score
                 })
 
@@ -1623,6 +1863,28 @@ if 'last_packer' in st.session_state:
                 "Compare Space Volume Utilization against a run with the checkbox off "
                 "to see the trade-off."
             )
+            # Surface the LIFO + segmentation diagnostics for the best layout.
+            _best = (st.session_state.get("layouts") or [{}])[0]
+            if (_best or {}).get("strict_zones"):
+                _zs = (_best or {}).get("zone_seg") or {}
+                _ov = (_best or {}).get("zone_overflow", 0)
+                _bd = (_best or {}).get("zone_bounds") or {}
+                _ovl = float(_zs.get("overlap_fraction", 0.0)) * 100.0
+                _sp = int(_zs.get("split_sequences", 0))
+                _ok = bool(_zs.get("ordered", False))
+                st.info(
+                    "Strict zones: overlap %.1f%% | split seqs %d | order %s | fwd-overflow %d."
+                    % (_ovl, _sp, ("OK" if _ok else "VIOLATED"), _ov)
+                )
+                if _bd:
+                    st.caption(
+                        "Zone map (m from back wall): "
+                        + ", ".join(
+                            "seq %s: %s-%s"
+                            % (s, round(z0 / 100.0, 2), round(z1 / 100.0, 2))
+                            for s, (z0, z1) in sorted(_bd.items())
+                        )
+                    )
         unfitted = getattr(b, 'unfitted_items', [])
         if unfitted:
             st.subheader("⚠️ Unpacked Items (Rejected By Constraints)")
