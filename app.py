@@ -1234,6 +1234,51 @@ def render_packing_visual(bin_partno: str, packed_geometries: list[PackedItem], 
 st.set_page_config(page_title="Axion Labs Fleet Optimizer", layout="wide", initial_sidebar_state="expanded")
 st.title("Axion Labs: Fleet Space Optimization")
 
+# --- SIDEBAR RESTORE CONTROL (v2) ---
+# Streamlit's own collapse/expand arrow lives at a DOM location that has
+# changed data-testid across versions (collapsedControl -> 
+# stSidebarCollapseButton -> newer names since), so clicking it via guessed
+# JS selectors is unreliable and version-dependent - that's why the first
+# attempt at this didn't work.
+#
+# This version doesn't touch Streamlit's native control at all. It owns
+# sidebar visibility completely with a plain session_state flag + CSS, and
+# permanently hides whichever native toggle control exists (best-effort;
+# harmless if the selector doesn't match) so there's only one way to
+# toggle it - our button - which can never get out of sync or go missing.
+if "sidebar_visible" not in st.session_state:
+    st.session_state.sidebar_visible = True
+
+st.markdown(
+    """
+    <style>
+    [data-testid="collapsedControl"],
+    [data-testid="stSidebarCollapseButton"],
+    [data-testid^="stSidebarCollapse"] {
+        display: none !important;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
+if not st.session_state.sidebar_visible:
+    st.markdown(
+        """
+        <style>
+        [data-testid="stSidebar"] { display: none !important; }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+if st.button(
+    "☰ Hide Manifest Panel" if st.session_state.sidebar_visible else "☰ Show Manifest Panel",
+    key="sidebar_toggle_btn"
+):
+    st.session_state.sidebar_visible = not st.session_state.sidebar_visible
+    st.rerun()
+
 st.sidebar.header("1. Define Vehicle Space")
 truck_w = st.sidebar.number_input("Truck Width (m)", value=2.4, step = 1.0)
 truck_h = st.sidebar.number_input("Truck Height (m)", value=2.4, step = 1.0)
