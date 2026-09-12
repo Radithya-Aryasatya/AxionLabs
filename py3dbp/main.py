@@ -615,6 +615,14 @@ class Packer:
 
             if not response:
                 bin.unfitted_items.append(item)
+            else:
+                try:
+                    if getattr(bin, '_seq_floor', None) is None:
+                        bin._seq_floor = {}
+                    if z_min is not None:
+                        bin._seq_floor[item.partno] = float(z_min)
+                except Exception:
+                    pass
             return
 
         # STRICT ZONE: try depth-axis pivots first so gravity spreads
@@ -662,6 +670,13 @@ class Packer:
 
         if not fitted:
             bin.unfitted_items.append(item)
+        elif z_min is not None:
+            try:
+                if getattr(bin, '_seq_floor', None) is None:
+                    bin._seq_floor = {}
+                bin._seq_floor[item.partno] = float(z_min)
+            except Exception:
+                pass
 
 
     def sortBinding(self,bin):
@@ -692,6 +707,226 @@ class Packer:
 
         self.items = front + sort_bind + back
         return
+
+
+    def _compactBin(self, bin, fix_point, check_stable, support_surface_ratio):
+        '''Small fix: gentle push-together to close walkways between groups.
+
+        Two passes, both height-preserving:
+          A) inside each delivery zone, slide boxes back then left;
+          B) slide each whole delivery zone back toward the rear wall so
+             empty air between colour groups closes up. Delivery order is
+             kept: zones never cross each other, boxes never leave their
+             own zone, support is re-checked for every move.
+        '''
+        if len(bin.items) <= 1:
+            return
+        try:
+            seq_floor = getattr(bin, '_seq_floor', None) or {}
+        except Exception:
+            seq_floor = {}
+
+        def _f(v):
+            try:
+                return float(v)
+            except Exception:
+                return 0.0
+
+        def _box_of(it):
+            d = it.getDimension()
+            p = it.position
+            return (_f(p[0]), _f(p[0]) + _f(d[0]),
+                    _f(p[1]), _f(p[1]) + _f(d[1]),
+                    _f(p[2]), _f(p[2]) + _f(d[2]))
+
+        def _overlaps(a, b):
+            eps = 1e-9
+            return (a[0] < b[1] - eps and b[0] < a[1] - eps and
+                    a[2] < b[3] - eps and b[2] < a[3] - eps and
+                    a[4] < b[5] - eps and b[4] < a[5] - eps)
+
+        def _supported(it):
+            if not check_stable:
+                return True
+            try:
+                return self.checkStable(bin, it, fix_point, support_surface_ratio)
+            except Exception:
+                return True
+
+        ordered = sorted(list(bin.items),
+                         key=lambda it: (_f(it.position[1]), _f(it.position[2]), _f(it.position[0])))
+        for item in ordered:
+            try:
+                dim = item.getDimension()
+                dw, dh, dd = _f(dim[0]), _f(dim[1]), _f(dim[2])
+                if dw <= 0 or dh <= 0 or dd <= 0:
+                    continue
+                ox = float(item.position[0])
+                oy = float(item.position[1])
+                oz = float(item.position[2])
+                try:
+                    q = item.number_of_decimals
+                except Exception:
+                    q = 0
+                try:
+                    floor = seq_floor.get(item.partno, None)
+                    z_low = float(floor) if floor is not None else 0.0
+                except Exception:
+                    z_low = 0.0
+                # Try one candidate spot: inside truck, no overlap, supported.
+                def _ok_at(nx, nz):
+                    if nx < -1e-9 or nz < -1e-9:
+                        return False
+                    if nx + dw > _f(bin.width) + 1e-9:
+                        return False
+                    if nz + dd > _f(bin.depth) + 1e-9:
+                        return False
+                    if float(nz) < float(z_low) - 1e-9:
+                        return False
+                    cand = (nx, nx + dw, oy, oy + dh, nz, nz + dd)
+                    for other in bin.items:
+                        if other is item:
+                            continue
+                        if _overlaps(cand, _box_of(other)):
+                            return False
+                    old = list(item.position)
+                    item.position = [set2Decimal(nx, q), set2Decimal(oy, q), set2Decimal(nz, q)]
+                    ok = _supported(item)
+                    item.position = old
+                    return ok
+
+                step_z = max(float(dd) / 20.0, float(bin.depth) / 200.0, 0.05)
+                step_x = max(float(dw) / 20.0, float(bin.width) / 200.0, 0.05)
+                cx, cz = ox, oz
+                guard = 0
+                while guard < 60:
+                    nz = round(cz - step_z, 9)
+                    if nz < z_low:
+                        nz = float(z_low)
+                    if nz < 0:
+                        nz = 0.0
+                    if abs(nz - cz) < 1e-12:
+                        break
+                    if _ok_at(cx, nz):
+                        cz = nz
+                        if cz <= z_low + 1e-12:
+                            break
+                    else:
+                        nz2 = round(cz - step_z / 4.0, 9)
+                        if nz2 < z_low:
+                            nz2 = float(z_low)
+                        if abs(nz2 - cz) > 1e-12 and _ok_at(cx, nz2):
+                            cz = nz2
+                        break
+                    guard += 1
+                guard = 0
+                while guard < 60:
+                    nx = round(cx - step_x, 9)
+                    if nx < 0:
+                        nx = 0.0
+                    if abs(nx - cx) < 1e-12:
+                        break
+                    if _ok_at(nx, cz):
+                        cx = nx
+                        if cx <= 0:
+                            break
+                    else:
+                        nx2 = round(cx - step_x / 4.0, 9)
+                        if nx2 < 0:
+                            nx2 = 0.0
+                        if abs(nx2 - cx) > 1e-12 and _ok_at(nx2, cz):
+                            cx = nx2
+                        break
+                    guard += 1
+                if abs(cx - ox) > 1e-9 or abs(cz - oz) > 1e-9:
+                    item.position = [set2Decimal(cx, q), set2Decimal(oy, q), set2Decimal(cz, q)]
+            except Exception:
+                continue
+
+        # Pass B: close the walkway BETWEEN delivery zones. Move each zone
+        # (deepest first) back as one solid block until it touches the zone
+        # behind it or the rear wall. Inside-zone layout never changes, so
+        # boxes keep their neighbours and support; only empty air between
+        # colour groups disappears. Zones can never cross: each stops at
+        # the front face of the zone behind it.
+        try:
+            if seq_floor:
+                groups = {}
+                for it in bin.items:
+                    try:
+                        groups.setdefault(float(seq_floor.get(it.partno, 0.0)), []).append(it)
+                    except Exception:
+                        continue
+                if len(groups) > 1:
+                    ordered_floors = sorted(groups.keys())
+                    front_of = {}
+                    for _fl in ordered_floors:
+                        _max = 0.0
+                        for _it in groups[_fl]:
+                            try:
+                                _dd = _box_of(_it)
+                                _max = max(_max, _dd[5])
+                            except Exception:
+                                pass
+                        front_of[_fl] = _max
+                    shift_of = {}
+                    for _idx, _fl in enumerate(ordered_floors):
+                        _back = min(
+                            _f(_it.position[2]) for _it in groups[_fl]
+                        )
+                        if _idx == 0:
+                            _target = 0.0
+                        else:
+                            _prev = ordered_floors[_idx - 1]
+                            _target = front_of[_prev] + shift_of[_prev]
+                        _shift = min(0.0, _target - _back)
+                        shift_of[_fl] = _shift
+                    for _fl in ordered_floors:
+                        _shift = shift_of.get(_fl, 0.0)
+                        if abs(_shift) < 1e-9:
+                            continue
+                        _ok_all = True
+                        for _it in groups[_fl]:
+                            try:
+                                _q = _it.number_of_decimals
+                            except Exception:
+                                _q = 0
+                            _old = list(_it.position)
+                            try:
+                                _nz = float(_it.position[2]) + _shift
+                            except Exception:
+                                _ok_all = False
+                                break
+                            if _nz < -1e-9:
+                                _ok_all = False
+                                break
+                            _it.position = [set2Decimal(float(_old[0]), _q),
+                                            set2Decimal(float(_old[1]), _q),
+                                            set2Decimal(_nz, _q)]
+                            if not _supported(_it):
+                                _it.position = _old
+                                _ok_all = False
+                                break
+                            _it.position = _old
+                        if not _ok_all:
+                            continue
+                        for _it in groups[_fl]:
+                            try:
+                                _q = _it.number_of_decimals
+                            except Exception:
+                                _q = 0
+                            _it.position = [set2Decimal(float(_it.position[0]), _q),
+                                            set2Decimal(float(_it.position[1]), _q),
+                                            set2Decimal(float(_it.position[2]) + _shift, _q)]
+                    try:
+                        for _fl in ordered_floors:
+                            for _it in groups[_fl]:
+                                seq_floor[_it.partno] = float(_fl) + float(shift_of.get(_fl, 0.0))
+                        bin._seq_floor = seq_floor
+                    except Exception:
+                        pass
+        except Exception:
+            pass
 
 
     def putOrder(self):
@@ -835,6 +1070,18 @@ class Packer:
                 for item in self.items:
                     self.pack2Bin(bin, item,fix_point,check_stable,support_surface_ratio)
             
+            # --- Small fix: gentle push-together (gap compaction) ---------------
+            # Slides every box as far back (-depth) and then as far left
+            # (-width) as it can go until it touches another box or the
+            # truck wall. Moves are blocked by real boxes so a front-stop
+            # box can never jump behind a back-stop box; support + bounds
+            # are re-checked for every move. This only closes empty
+            # walkways between colour groups, it never changes stacking.
+            try:
+                self._compactBin(bin, fix_point, check_stable, support_surface_ratio)
+            except Exception:
+                pass
+
             # Deviation Of Cargo Gravity Center 
             self.bins[idx].gravity = self.gravityCenter(bin)
 

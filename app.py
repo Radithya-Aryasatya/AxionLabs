@@ -561,6 +561,14 @@ def pack_strict_sequence_zones(packer, manifest):
         bin_obj.gravity = packer.gravityCenter(bin_obj)
     except Exception:
         pass
+    # Small fix: same gentle push-together used by Packer.pack(). The app
+    # path packs via pack2Bin (zone by zone), so Packer.pack()'s own call
+    # never runs here — call it directly. Sequence floors recorded on the
+    # bin keep every box inside its own delivery zone.
+    try:
+        packer._compactBin(bin_obj, True, True, 0.75)
+    except Exception:
+        pass
     return _bounds, _overflow
 
 
