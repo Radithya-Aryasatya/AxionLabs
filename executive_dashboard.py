@@ -205,8 +205,7 @@ def _render_status_summary(fleets):
         st.metric("Cleared", status_counts['INSPECTED - CLEAR'])
     with col3:
         st.metric("Anomaly", status_counts['ANOMALY DETECTED'])
-    with col4:
-        st.metric("Blocked", status_counts['BLOCKED FROM DEPARTURE'])
+    
 
 
 def _render_empty_state():

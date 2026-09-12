@@ -867,7 +867,6 @@ def render_packing_visual(bin_partno: str, packed_geometries: list[PackedItem], 
 
     if st.button("Render 3D Packing Layout Matrix", key=f"render_plot_{bin_partno}"):
         st.session_state[render_key] = True
-        st.session_state["dock1_pending_pipeline"] = bin_partno   # arm Dock 1 pipeline
 
     if not st.session_state[render_key]:
         return
@@ -876,8 +875,6 @@ def render_packing_visual(bin_partno: str, packed_geometries: list[PackedItem], 
     if total_packed == 0:
         st.info("No packages to display in the 3D view.")
         return
-
-    truck_w, truck_h, truck_d = truck_dims
 
     camera_presets = {
         "Isometric": dict(x=1.7, y=-1.7, z=1.2),
@@ -895,22 +892,6 @@ def render_packing_visual(bin_partno: str, packed_geometries: list[PackedItem], 
     # layout, plus a global 'last_3d_figure' for backwards compatibility.
     st.session_state['last_3d_figure'] = fig
     st.session_state.setdefault('fleet_3d_figures', {})[bin_partno] = fig
-
-    # --- Dock 1 pipeline trigger (one-shot, fires after the figure renders) ---
-    # When the worker clicks "Render", this runs the full Dock 1 chain:
-    # fleet upsert -> CCTV pairing -> Gemini analysis (with timeout fallback)
-    # -> anomaly recording -> cross-view notification + toast.
-    if st.session_state.get("dock1_pending_pipeline") == bin_partno:
-        st.session_state["dock1_pending_pipeline"] = None
-        with st.spinner("🛰️ Gemini spatial reasoning in progress…"):
-            from services.dock_pipeline import run_dock1_render_pipeline
-            run_dock1_render_pipeline(
-                partno=bin_partno,
-                fig=fig,
-                manifest=st.session_state.get("manifest", []),
-                packer=st.session_state.get("last_packer"),
-                truck_w=truck_dims[0], truck_h=truck_dims[1], truck_d=truck_dims[2],
-            )
 
     # Trace 0 = rear door. After that, each item contributes exactly 2 traces
     # in order: (mesh cube, edge lines) — matching render_3d_packing_plot's

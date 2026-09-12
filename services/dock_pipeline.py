@@ -1,14 +1,16 @@
 """
 services/dock_pipeline.py
 =========================
-The Render -> Gemini -> Notify orchestration for Dock 1.
+Dock 1 fleet plumbing for the Executive dashboard.
 
-When the worker clicks "Render 3D Bin Layout", this module:
-  1. upserts the Dock 1 fleet (pins dock_number=1),
-  2. pairs a deterministic CCTV frame,
-  3. runs REAL Gemini spatial reasoning with a hard timeout,
-  4. persists the analysis, records anomalies, and pushes a cross-view
-     notification + toast.
+Note: the worker's "Render" button triggers NO analysis and shows NO
+notifications - Gemini scans are started exclusively from the
+Executive dashboard.
+
+- analyze_with_fallback: REAL Gemini spatial reasoning with a hard timeout,
+  used by the Executive dashboard scan orchestrator and audit panel.
+- ensure_dock1_monitor_fleet: keeps a neutral Dock-1 placeholder fleet so
+  the Executive dashboard always has something to display.
 
 Provenance contract (no false successes):
   - A successful REAL Gemini reply is labelled AnalysisSource.LIVE_GEMINI.
@@ -22,18 +24,13 @@ Provenance contract (no false successes):
 import logging
 import os
 from concurrent.futures import ThreadPoolExecutor, TimeoutError
-from datetime import datetime
 from typing import Optional, Tuple
 
-from state.fleet_state import (
-    Fleet, FleetStatus, AnomalyRecord, add_anomaly_record,
-    register_fleet_from_packing_result,
-)
+from state.fleet_state import Fleet
 from state.dock_state import (
     upsert_dock_fleet, set_dock_stage, set_analysis_source,
-    set_dock_alert, DockStage, AnalysisSource,
+    DockStage, AnalysisSource,
 )
-from state.notifications import push_notification
 from services.gemini_service import (
     GeminiService, GeminiAnalysisResult,
     STATUS_SUCCESS, STATUS_FAILED, STATUS_SIMULATED,
@@ -189,137 +186,3 @@ def ensure_dock1_monitor_fleet():
     else:
         # Existing live fleet — refresh asset pairing only, do not overwrite
         existing.cctv_frame_path = mock_fleet_factory.ensure_dock_assets(1)
-
-
-def run_dock1_render_pipeline(
-    partno: str,
-    fig,
-    manifest: list,
-    packer,
-    truck_w: float, truck_h: float, truck_d: float,
-):
-    """
-    Full Render-trigger pipeline for Dock 1. Called from the worker's
-    render fragment. Never raises — all exceptions are swallowed so the
-    worker view can never crash mid-pitch.
-    """
-    import streamlit as st
-    try:
-        _run_dock1_render_pipeline(partno, fig, manifest, packer,
-                                   truck_w, truck_h, truck_d)
-    except Exception as e:
-        # Surface a toast but keep the app alive
-        try:
-            st.toast(f"⚠️ Dock 1 analysis error: {e}", icon="⚠️")
-        except Exception:
-            pass
-
-
-def _run_dock1_render_pipeline(partno, fig, manifest, packer,
-                                truck_w, truck_h, truck_d):
-    import streamlit as st
-    from state.fleet_state import initialize_session_state
-    initialize_session_state()
-
-    # --- 1. Upsert Dock 1 fleet (pin to dock_number=1) ---
-    # register_fleet_from_packing_result handles upsert: if a
-    # live Dock-1 fleet already exists (e.g. the monitor
-    # placeholder), it is updated in place with the new packing
-    # layout; otherwise a new fleet is created.
-    fleet = register_fleet_from_packing_result(
-        manifest=manifest, packer=packer,
-        truck_w=truck_w, truck_h=truck_h, truck_d=truck_d,
-        truck_name="Truck-Dock1",
-        dock_number=1,
-    )
-    if fleet is None:
-        st.toast("⚠️ No bins in packing result - Dock 1 not updated", icon="⚠️")
-        return
-
-    # Publish the freshly-rendered figure into the twin registry
-    st.session_state['last_3d_figure'] = fig
-    st.session_state.setdefault('fleet_3d_figures', {})[partno] = fig
-
-    # --- 2. Pair CCTV frame ---
-    fleet.cctv_frame_path = mock_fleet_factory.ensure_dock_assets(1)
-
-    # Task 4: if the operator already chose a replacement CCTV image for
-    # Dock 1, restore it — asset pairing above would otherwise overwrite
-    # the selection with the deterministic placeholder.
-    from services.cctv_manager import restore_dock_cctv_selection
-    operator_cctv = restore_dock_cctv_selection(1)
-    if operator_cctv and os.path.isfile(operator_cctv):
-        fleet.cctv_frame_path = operator_cctv
-
-    upsert_dock_fleet(1, fleet.id)
-    set_dock_stage(1, DockStage.ANALYZING)
-
-    # --- 3. Analyze with non-blocking fallback ---
-    # Task 4: pass the SECONDARY digital-twin context when available. After
-    # the worker renders, Dock 1 has a layout -> twin can be rendered.
-    twin_path = None
-    try:
-        from services.virtual_camera import render_virtual_cctv_for_fleet
-        twin_path = render_virtual_cctv_for_fleet(fleet)
-    except Exception:
-        twin_path = None
-
-    result, source = analyze_with_fallback(fleet, virtual_cctv_path=twin_path)
-    set_analysis_source(1, source)
-
-    # --- 3b. Failed Gemini request: surface the failure honestly ---
-    # No simulated substitute, no "verified clear" notification, no anomaly
-    # records derived from default values.
-    if getattr(result, "status", "") == STATUS_FAILED:
-        fleet.gemini_analysis = result.to_dict()
-        fleet.last_updated = datetime.now()
-        set_dock_stage(1, DockStage.MONITORED)
-        set_dock_alert(1, True)
-        push_notification(
-            dock_number=1, fleet_id=fleet.id, level="WARNING",
-            title="Dock 1 — Gemini analysis FAILED",
-            body=(result.error or "Unknown Gemini error")[:160],
-        )
-        st.toast("❌ Dock 1 Gemini analysis failed — see audit panel", icon="❌")
-        return
-
-    # --- 4. Decide + persist ---
-    engine = AnomalyEngine()
-    decision = engine.evaluate(fleet, result)
-    fleet.gemini_analysis = result.to_dict()
-    fleet.status = decision.fleet_status
-
-    if decision.severity in ("WARNING", "CRITICAL"):
-        add_anomaly_record(fleet, AnomalyRecord(
-            anomaly_type=decision.anomaly_type,
-            severity=decision.severity,
-            timestamp=datetime.now(),
-            analysis_paragraph=result.analysis_paragraph,
-            affected_items=result.affected_items,
-            recommended_actions=result.recommended_actions,
-        ))
-
-    fleet.last_updated = datetime.now()
-    set_dock_stage(1, DockStage.MONITORED)
-
-    # --- 5. Notify (cross-view) ---
-    if decision.severity in ("WARNING", "CRITICAL"):
-        level = "CRITICAL" if decision.severity == "CRITICAL" else "WARNING"
-        push_notification(
-            dock_number=1, fleet_id=fleet.id, level=level,
-            title=f"Dock 1 — {decision.anomaly_type.replace('_', ' ')}",
-            body=result.analysis_paragraph[:160],
-        )
-        set_dock_alert(1, True)
-        st.toast(
-            f"{'🚨' if level == 'CRITICAL' else '⚠️'} Dock 1 flagged — manager notified",
-            icon="🚨" if level == "CRITICAL" else "⚠️",
-        )
-    else:
-        push_notification(
-            dock_number=1, fleet_id=fleet.id, level="INFO",
-            title="Dock 1 — layout verified clear",
-            body="Gemini spatial analysis found no anomalies.",
-        )
-        st.toast("✅ Dock 1 layout verified — no anomalies", icon="✅")
-
