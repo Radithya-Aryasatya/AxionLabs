@@ -82,8 +82,15 @@ class AnomalyEngine:
         """
         Runs the full Gemini analysis pipeline on a fleet and returns
         the resulting anomaly decision.
+
+        The SECONDARY virtual rear-camera digital twin is rendered from
+        the fleet's packing layout (when packed items exists) and attached
+        to the Gemini request as comparison context - mirroring the
+        SCAN ALL DOCKS input contract. No twin (e.g. Dock 1 before the
+        worker render) degrades the request to CCTV-only.
         """
         cctv_frame_path = fleet.cctv_frame_path or self._get_default_cctv(fleet)
+        virtual_cctv_path = self._get_virtual_twin(fleet)
         packing_plan = fleet.packing_layout
         manifest = fleet.manifest
         fleet_state = self._fleet_to_state_dict(fleet)
@@ -94,6 +101,7 @@ class AnomalyEngine:
             packing_plan=packing_plan,
             manifest=manifest,
             fleet_state=fleet_state,
+            virtual_cctv_path=virtual_cctv_path,
         )
         self.last_result = gemini_result
 
@@ -255,6 +263,27 @@ class AnomalyEngine:
             banner_message=f"🚨 CRITICAL: DEPARTURE BLOCKED - UNRESOLVED ANOMALY DETECTED at {dock_str}",
             banner_type="critical",
         )
+
+    def _get_virtual_twin(self, fleet: Fleet) -> str:
+        """
+        Render the SECONDARY virtual rear-camera digital twin for a fleet.
+
+        Returns the content-addressed PNG path when the fleet's packing
+        layout has packed items (Dock 1 after the worker render, and the
+        predetermined Docks 2-4 layouts), or "" when no twin exists or
+        rendering fails - so the request degrades to CCTV-only exactly
+        like the scan orchestrator's context resolution.
+        """
+        import os
+
+        try:
+            from services.virtual_camera import render_virtual_cctv_for_fleet
+            path = render_virtual_cctv_for_fleet(fleet)
+        except Exception:
+            return ""
+        if not path or not os.path.isfile(path):
+            return ""
+        return path
 
     def _get_default_cctv(self, fleet: Fleet) -> str:
         """Return default CCTV frame path based on dock number."""

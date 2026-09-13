@@ -5,8 +5,7 @@ Gemini AI Interpretative Audit Log component.
 """
 
 import streamlit as st
-from datetime import datetime
-from state.fleet_state import Fleet, AnomalyRecord, add_anomaly_record
+from state.fleet_state import Fleet
 from utils.formatters import format_datetime
 
 
@@ -21,17 +20,9 @@ def render_gemini_audit(fleet: Fleet):
     else:
         st.info(
             "No Gemini analysis has been run for this fleet yet. "
-            "Click 'Run Analysis' below to trigger a spatial review."
+            "Use the 'Run Re-Analysis' control (Manager Action Controls above) "
+            "or 'SCAN ALL DOCKS' to trigger a spatial review."
         )
-
-    layout = fleet.packing_layout.get('layout', {}) if fleet.packing_layout else {}
-    packed_items = layout.get('packed_items', [])
-    if packed_items:
-        if st.button("🔍 Run Gemini Spatial Analysis", key=f"run_analysis_{fleet.id}", type="primary"):
-            _run_analysis(fleet)
-    else:
-        st.caption("Add cargo to this dock to enable spatial analysis.")
-
     st.markdown("---")
     _render_audit_history(fleet)
 
@@ -45,7 +36,8 @@ def _render_current_analysis(analysis: dict, fleet: Fleet):
     if analysis.get('status') == 'FAILED':
         st.warning(
             "No Gemini analysis to display — the request failed. "
-            "Press 'Run Gemini Spatial Analysis' to retry."
+            "Press 'Run Re-Analysis' (Manager Action Controls above) or "
+            "'SCAN ALL DOCKS' to retry."
         )
         return
 
@@ -179,33 +171,8 @@ def _render_audit_history(fleet: Fleet):
                     st.markdown(f"- {rec}")
 
 
-def _run_analysis(fleet: Fleet):
-    """Trigger Gemini analysis for a fleet (called from button)."""
-    from services.anomaly_engine import AnomalyEngine
-
-    engine = AnomalyEngine()
-    decision = engine.run_full_analysis(fleet)
-
-    # Capture the structured Gemini result stashed by the engine
-    result = getattr(engine, 'last_result', None)
-    if result is not None:
-        fleet.gemini_analysis = result.to_dict()
-
-    # Apply the engine decision to the fleet status
-    fleet.status = decision.fleet_status
-
-    # Add anomaly record if applicable
-    if decision.severity in ("WARNING", "CRITICAL"):
-        record = AnomalyRecord(
-            anomaly_type=decision.anomaly_type,
-            severity=decision.severity,
-            timestamp=datetime.now(),
-            analysis_paragraph=(
-                result.analysis_paragraph if result else decision.banner_message
-            ),
-            affected_items=result.affected_items if result else [],
-            recommended_actions=result.recommended_actions if result else [],
-        )
-        add_anomaly_record(fleet, record)
-
-    st.rerun()
+# NOTE: the former "Run Gemini Spatial Analysis" button and its
+# _run_analysis() helper were removed. Per-fleet Gemini re-analysis
+# now happens exclusively through the manager "Run Re-Analysis"
+# control (components/manager_controls.py), which sends BOTH the CCTV
+# image and the virtual digital-twin render to the Gemini API.

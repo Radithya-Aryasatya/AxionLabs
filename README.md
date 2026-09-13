@@ -65,7 +65,8 @@ python verify_gemini.py
 #    AppTest), and a LIVE real-API round-trip through the app pipeline
 python test_smoke.py
 
-# 3. Web-UI proof: renders the real app and drives "Run Gemini Spatial Analysis"
+# 3. Web-UI proof: renders the real app and drives "Run Re-Analysis"
+#    (CCTV + digital twin are both sent to Gemini)
 #    Pass 1: invalid key  -> UI must show GEMINI STATUS: FAILED (no fake content)
 #    Pass 2: real key     -> UI must show GEMINI STATUS: SUCCESS + raw output
 python verify_gemini_ui.py
@@ -149,7 +150,11 @@ The Executive Control Tower now supports a centralized scanning workflow:
 - Dock 1 before worker render: no twin → CCTV-only analysis.
 - Dock 1 after worker render: worker layout present → twin rendered as
   secondary context.
-- Docks 2-4: predetermined mock layout → twin available from the start.
+- Docks 2-4: predetermined mock layout -> twin available from the start.
+- Both Gemini scan paths attach the twin: SCAN ALL DOCKS and the
+  per-fleet "Run Re-Analysis" control (the former per-fleet audit-panel
+  button "Run Gemini Spatial Analysis" was removed; it never sent the
+  twin).
 - The prompt was rewritten so CCTV is the primary reasoning target and the
   digital twin is explicitly secondary comparison context.
 

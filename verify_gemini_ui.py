@@ -4,7 +4,7 @@ verify_gemini_ui.py
 Renders the REAL Streamlit app (app.py + all components) through Streamlit's
 official AppTest harness and drives the REAL Gemini path end-to-end:
 
-    Worker UI -> Executive view -> Dock 1 -> "Run Gemini Spatial Analysis"
+    Worker UI -> Executive view -> Dock 1 -> "Run Re-Analysis"
     -> GeminiService -> Gemini API -> audit panel render
 
 Two passes:
@@ -62,8 +62,11 @@ def drive(label: str) -> None:
     at.run()
     assert not at.exception, f"[{label}] tri-view: {at.exception}"
 
-    # Trigger the REAL Gemini analysis from the UI button
-    at.button(key=f"run_analysis_{fleet.id}").click()
+    # Trigger the REAL Gemini analysis from the manager "Run Re-Analysis"
+    # control (the audit-panel "Run Gemini Spatial Analysis" button was
+    # removed; Re-Analysis also attaches the digital twin as SECONDARY
+    # comparison context).
+    at.button(key=f"reanalyze_{fleet.id}").click()
     at.run()
     assert not at.exception, f"[{label}] analysis: {at.exception}"
 
