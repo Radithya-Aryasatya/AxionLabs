@@ -1916,10 +1916,6 @@ if 'last_packer' in st.session_state:
             names_preview = ", ".join(floating_names[:8])
             if len(floating_names) > 8:
                 names_preview += f" (+{len(floating_names) - 8} more)"
-            st.warning(
-                f"⚠️ **{floating_count} floating/cantilevered item(s) detected** "
-                f"resting on less than 75% of their footprint: {names_preview}"
-            )
         else:
             st.caption(
                 "✅ Floating-item check passed — every item rests on at least 75% "
@@ -1940,24 +1936,27 @@ if 'last_packer' in st.session_state:
                 _ovl = float(_zs.get("overlap_fraction", 0.0)) * 100.0
                 _sp = int(_zs.get("split_sequences", 0))
                 _ok = bool(_zs.get("ordered", False))
-                st.info(
-                    "Strict zones: overlap %.1f%% | split seqs %d | order %s | fwd-overflow %d."
-                    % (_ovl, _sp, ("OK" if _ok else "VIOLATED"), _ov)
-                )
-                if _bd:
-                    st.caption(
-                        "Zone map (m from back wall): "
-                        + ", ".join(
-                            "seq %s: %s-%s"
-                            % (s, round(z0 / 100.0, 2), round(z1 / 100.0, 2))
-                            for s, (z0, z1) in sorted(_bd.items())
-                        )
-                    )
+                st.markdown("#### ⚠️ Unloading Sequence Problems")
+                if _ovl > 0:
+                    st.warning(f"⚠️ Boxes from different stops are mixed together — {_ovl:.0f}% of the truck depth has overlapping sequences.")
+                if _sp > 0:
+                    st.warning(f"⚠️ {_sp} delivery stop(s) have boxes scattered in separate areas with gaps between them.")
+                if not _ok:
+                    st.markdown("#### ❌ Loading order is wrong — some early-stop boxes are trapped behind later-stop ones.")
+                if _ov > 0:
+                    st.warning(f"⚠️ {_ov} box(es) overflowed into the wrong zone because their assigned space was too small.")
+                st.caption("💡 Try reducing the number of unloading sequences, or turn off \"Prioritize unloading sequence\" to let the AI optimize for space instead.")
         unfitted = getattr(b, 'unfitted_items', [])
-        if unfitted:
+        _unfitted_overflow = (st.session_state.get("layouts", [{}])[0].get("zone_overflow", 0) if prioritize_sequence else 0)
+        has_problems = bool(unfitted) or bool(floating_count) or bool(_unfitted_overflow)
+        if has_problems:
             st.subheader("⚠️ Unpacked Items (Rejected By Constraints)")
             for item in unfitted:
                 st.error(f"**{item.name}** could not be packed securely. Adjust dimensions or stack settings.")
+            for name in floating_names:
+                st.error(f"**{name}** unstable: resting on less than 75% of its footprint.")
+            if _unfitted_overflow > 0:
+                st.error(f"**{_unfitted_overflow} box(es)** overflowed into wrong zone — sequence zone too small to fit all boxes.")
 
         # --------------------------------------------------
         # 3D Render + Depth-Reveal Slider (isolated fragment)
