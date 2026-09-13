@@ -181,11 +181,16 @@ class AnomalyEngine:
         if gemini_result.severity == "CRITICAL":
             return self._build_critical_decision(fleet, gemini_result)
 
+        # No anomalies found. IMPORTANT: "no anomalies" is NOT the same as
+        # "the dock is finished loading and cleared for departure." Gemini's
+        # only job is anomaly detection — a quiet scan must never move a dock
+        # out of LOADING. Only a human (via "📋 Mark Inspected") may grant
+        # INSPECTED_CLEAR. So a clean scan leaves the dock LOADING.
         if gemini_result.severity == "NONE":
             return AnomalyDecision(
                 anomaly_type="NONE",
                 severity="NONE",
-                fleet_status=FleetStatus.INSPECTED_CLEAR,
+                fleet_status=FleetStatus.LOADING,
                 ui_action="CLEAR_BANNER",
                 requires_override=False,
                 banner_message="",

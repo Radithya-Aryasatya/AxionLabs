@@ -372,7 +372,11 @@ def resolve_anomaly(fleet: 'Fleet'):
     elif has_unresolved_warning:
         fleet.status = FleetStatus.ANOMALY_DETECTED
     else:
-        fleet.status = FleetStatus.INSPECTED_CLEAR
+        # All anomalies resolved. The dock returns to its normal LOADING
+        # state — resolving an anomaly is NOT the same as clearing the dock
+        # for departure. Only a human (via "📋 Mark Inspected") may grant
+        # INSPECTED_CLEAR, so we never auto-promote to CLEAR here.
+        fleet.status = FleetStatus.LOADING
     fleet.last_updated = datetime.now()
 
     # Clear rendered banner markers for this fleet so banners can
