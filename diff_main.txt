@@ -1,0 +1,765 @@
+﻿diff --git a/py3dbp/main.py b/py3dbp/main.py
+index 131887c..3d043ed 100644
+--- a/py3dbp/main.py
++++ b/py3dbp/main.py
+@@ -223,6 +223,20 @@ class Bin:
+                     fit = False
+                     return fit
+ 
++                # STRICT ZONE fast path: when the caller supplies depth-zone
++                # clamps, prefer placing the box exactly at the already-
++                # validated pivot so same-sequence boxes stay adjacent (the
++                # old fast path). Only fall back to the fix-point settling
++                # below if the exact pivot is blocked (collision or stability
++                # failure).
++                if (z_min is not None or z_max is not None) and self.fix_point:
++                    if self._tryPlaceAtPivot(
++                        item, _px, _py, _pz, _dw, _dh, _dd,
++                        z_min=z_min, z_max=z_max,
++                    ):
++                        return True
++                    # fall through to settling
++
+                 # STRICT ZONE: clamped packing now flows through the normal
+                 # fix-point + stability logic below. checkDepth() is bounded
+                 # by z_min (the zone floor acts as the back wall), so gravity
+@@ -439,6 +453,91 @@ class Bin:
+         return fit
+ 
+ 
++    def _isStableAt(self, x, y, z, w, h, d):
++        '''Stability check at a candidate position, using fit_items (float math).
++
++        Mirrors the stability rules used in putItem but with float
++        comparisons (no int() truncation) so fractional coordinates from
++        3-decimal packing are handled correctly.
++        '''
++        if y <= 1e-9:
++            return True  # on the bin floor
++        footprint = float(w) * float(d)
++        if footprint <= 0:
++            return True
++        support_area = 0.0
++        center_ok = False
++        for i in self.fit_items:
++            if abs(y - float(i[3])) > 1e-6:
++                continue
++            ix0 = float(x); ix1 = float(x) + float(w)
++            jx0 = float(i[0]); jx1 = float(i[1])
++            iz0 = float(z); iz1 = float(z) + float(d)
++            jz0 = float(i[4]); jz1 = float(i[5])
++            ox = (min(ix1, jx1) - max(ix0, jx0)) if (max(ix0, jx0) < min(ix1, jx1)) else 0.0
++            oz = (min(iz1, jz1) - max(iz0, jz0)) if (max(iz0, jz0) < min(iz1, jz1)) else 0.0
++            support_area += ox * oz
++            cx = float(x) + float(w) / 2.0
++            cz = float(z) + float(d) / 2.0
++            if (float(i[0]) <= cx <= float(i[1])) and (float(i[4]) <= cz <= float(i[5])):
++                center_ok = True
++        ratio = support_area / footprint
++        if ratio >= self.support_surface_ratio:
++            return center_ok
++        if ratio < 0.25:
++            return False
++        four_vertices = [[x, z], [x + w, z], [x, z + d], [x + w, z + d]]
++        c = [False, False, False, False]
++        for i in self.fit_items:
++            if abs(y - float(i[3])) > 1e-6:
++                continue
++            for jdx, j in enumerate(four_vertices):
++                if (float(i[0]) <= j[0] <= float(i[1])) and (float(i[4]) <= j[1] <= float(i[5])):
++                    c[jdx] = True
++        if False in c:
++            return False
++        return center_ok
++
++
++    def _tryPlaceAtPivot(self, item, px, py, pz, dw, dh, dd, z_min=None, z_max=None):
++        '''Try to place item exactly at the validated pivot (strict-zone fast path).
++
++        Returns True if placed. On failure, restores item.position and returns
++        False so the caller can fall back to fix-point settling.
++        '''
++        valid_item_position = item.position
++        item.position = [set2Decimal(px, self.number_of_decimals),
++                         set2Decimal(py, self.number_of_decimals),
++                         set2Decimal(pz, self.number_of_decimals)]
++        # Zone re-validation (defence-in-depth; the pivot was already checked
++        # in the rotation loop, but settling must never move a box out of zone).
++        if z_min is not None and float(pz) < float(z_min) - 5e-4:
++            item.position = valid_item_position
++            return False
++        if z_max is not None and float(pz) + float(dd) > float(z_max) + 5e-4:
++            item.position = valid_item_position
++            return False
++        # Collision re-check at the exact pivot
++        for current_item_in_bin in self.items:
++            if intersect(current_item_in_bin, item):
++                item.position = valid_item_position
++                return False
++        # Stability check at the exact pivot (against fit_items)
++        if self.check_stable and not self._isStableAt(px, py, pz, dw, dh, dd):
++            item.position = valid_item_position
++            return False
++        self.fit_items = np.append(
++            self.fit_items,
++            np.array([[px, px + dw, py, py + dh, pz, pz + dd]]),
++            axis=0,
++        )
++        item.position = [set2Decimal(px, self.number_of_decimals),
++                         set2Decimal(py, self.number_of_decimals),
++                         set2Decimal(pz, self.number_of_decimals)]
++        self.items.append(copy.deepcopy(item))
++        return True
++
++
+     def checkDepth(self,unfix_point,z_min=None):
+         ''' fix item position z.
+ 
+@@ -455,11 +554,11 @@ class Bin:
+                 # Deeper-zone box (fully behind this zone's floor): not a
+                 # valid settle target for this item.
+                 continue
+-            x0 = int(j[0]); x1 = int(j[1])
+-            x2 = int(unfix_point[0]); x3 = int(unfix_point[1])
++            x0 = float(j[0]); x1 = float(j[1])
++            x2 = float(unfix_point[0]); x3 = float(unfix_point[1])
+             if x0 < x3 and x2 < x1:
+-                y0 = int(j[2]); y1 = int(j[3])
+-                y2 = int(unfix_point[2]); y3 = int(unfix_point[3])
++                y0 = float(j[2]); y1 = float(j[3])
++                y2 = float(unfix_point[2]); y3 = float(unfix_point[3])
+                 if y0 < y3 and y2 < y1:
+                     z_.append([float(j[4]), float(j[5])])
+         top_depth = unfix_point[5] - unfix_point[4]
+@@ -475,11 +574,11 @@ class Bin:
+         ''' fix item position x ''' 
+         x_ = [[0,0],[float(self.width),float(self.width)]]
+         for j in self.fit_items:
+-            z0 = int(j[4]); z1 = int(j[5])
+-            z2 = int(unfix_point[4]); z3 = int(unfix_point[5])
++            z0 = float(j[4]); z1 = float(j[5])
++            z2 = float(unfix_point[4]); z3 = float(unfix_point[5])
+             if z0 < z3 and z2 < z1:
+-                y0 = int(j[2]); y1 = int(j[3])
+-                y2 = int(unfix_point[2]); y3 = int(unfix_point[3])
++                y0 = float(j[2]); y1 = float(j[3])
++                y2 = float(unfix_point[2]); y3 = float(unfix_point[3])
+                 if y0 < y3 and y2 < y1:
+                     x_.append([float(j[0]), float(j[1])])
+         top_width = unfix_point[1] - unfix_point[0]
+@@ -495,11 +594,11 @@ class Bin:
+         '''fix item position y '''
+         y_ = [[0,0],[float(self.height),float(self.height)]]
+         for j in self.fit_items:
+-            x0 = int(j[0]); x1 = int(j[1])
+-            x2 = int(unfix_point[0]); x3 = int(unfix_point[1])
++            x0 = float(j[0]); x1 = float(j[1])
++            x2 = float(unfix_point[0]); x3 = float(unfix_point[1])
+             if x0 < x3 and x2 < x1:
+-                z0 = int(j[4]); z1 = int(j[5])
+-                z2 = int(unfix_point[4]); z3 = int(unfix_point[5])
++                z0 = float(j[4]); z1 = float(j[5])
++                z2 = float(unfix_point[4]); z3 = float(unfix_point[5])
+                 if z0 < z3 and z2 < z1:
+                     y_.append([float(j[2]), float(j[3])])
+         top_height = unfix_point[3] - unfix_point[2]
+@@ -681,34 +780,121 @@ class Packer:
+ 
+     def sortBinding(self,bin):
+         ''' sorted by binding '''
+-        b,front,back = [],[],[]
+-        for i in range(len(self.binding)):
+-            b.append([]) 
+-            for item in self.items:
+-                if item.name in self.binding[i]:
+-                    b[i].append(item)
+-                elif item.name not in self.binding:
+-                    if len(b[0]) == 0 and item not in front:
+-                        front.append(item)
+-                    elif item not in back and item not in front:
+-                        back.append(item)
+-
+-        min_c = min([len(i) for i in b])
+-        
+-        sort_bind =[]
+-        for i in range(min_c):
++        b = [[] for _ in range(len(self.binding))]
++        bound_names = set()
++        for group in self.binding:
++            bound_names.update(group)
++
++        # Preserve the original relative order of unbound items, split
++        # around the first bound item: items before it go to the front,
++        # the rest to the back.
++        first_bound_idx = None
++        for idx, item in enumerate(self.items):
++            if item.name in bound_names:
++                first_bound_idx = idx
++                break
++
++        front, back = [], []
++        for idx, item in enumerate(self.items):
++            if item.name in bound_names:
++                for i, group in enumerate(self.binding):
++                    if item.name in group:
++                        b[i].append(item)
++                        break
++            elif first_bound_idx is None or idx < first_bound_idx:
++                front.append(item)
++            else:
++                back.append(item)
++
++        # Round-robin interleave the binding groups so no single group
++        # monopolizes the packing order. Empty groups are handled by the
++        # bounds check (no more min_c == 0 crash, no items dropped).
++        sort_bind = []
++        max_len = max((len(g) for g in b), default=0)
++        for i in range(max_len):
+             for j in range(len(b)):
+-                sort_bind.append(b[j][i])
+-        
+-        for i in b:
+-            for j in i:
+-                if j not in sort_bind:
+-                    self.unfit_items.append(j)
++                if i < len(b[j]):
++                    sort_bind.append(b[j][i])
+ 
+         self.items = front + sort_bind + back
+         return
+ 
+ 
++    def checkStable(self, bin, item, fix_point, support_surface_ratio):
++        '''Check whether `item` is stable at its current position in `bin`.
++
++        Mirrors the stability rules in Bin.putItem but evaluates against the
++        live positions of bin.items (so it works during _compactBin moves,
++        where fit_items is stale). Rules:
++          1. Support ratio (overlap area / footprint area) >= support_surface_ratio.
++          2. If below, fall back to the 4-vertex rule (min 25% support).
++          3. Center of mass must be supported.
++        An item on the bin floor (y == 0) is always stable.
++        '''
++        try:
++            dim = item.getDimension()
++            w = float(dim[0]); h = float(dim[1]); d = float(dim[2])
++            x = float(item.position[0]); y = float(item.position[1]); z = float(item.position[2])
++        except (TypeError, ValueError, IndexError):
++            return True
++
++        if y <= 1e-9:
++            return True  # on the floor
++
++        footprint = w * d
++        if footprint <= 0:
++            return True
++
++        support_area = 0.0
++        center_ok = False
++        for other in bin.items:
++            if other is item:
++                continue
++            try:
++                odim = other.getDimension()
++                ow = float(odim[0]); oh = float(odim[1]); od = float(odim[2])
++                ox = float(other.position[0]); oy = float(other.position[1]); oz = float(other.position[2])
++            except (TypeError, ValueError, IndexError):
++                continue
++            # other's top face must touch item's bottom
++            if abs(y - (oy + oh)) > 1e-6:
++                continue
++            ox0 = max(x, ox); ox1 = min(x + w, ox + ow)
++            oz0 = max(z, oz); oz1 = min(z + d, oz + od)
++            if ox0 < ox1 and oz0 < oz1:
++                support_area += (ox1 - ox0) * (oz1 - oz0)
++                cx = x + w / 2.0
++                cz = z + d / 2.0
++                if ox <= cx <= ox + ow and oz <= cz <= oz + od:
++                    center_ok = True
++
++        ratio = support_area / footprint
++        if ratio >= support_surface_ratio:
++            return center_ok
++        if ratio < 0.25:
++            return False
++        # 4-vertex fallback
++        four_vertices = [[x, z], [x + w, z], [x, z + d], [x + w, z + d]]
++        c = [False, False, False, False]
++        for other in bin.items:
++            if other is item:
++                continue
++            try:
++                odim = other.getDimension()
++                ow = float(odim[0]); oh = float(odim[1]); od = float(odim[2])
++                ox = float(other.position[0]); oy = float(other.position[1]); oz = float(other.position[2])
++            except (TypeError, ValueError, IndexError):
++                continue
++            if abs(y - (oy + oh)) > 1e-6:
++                continue
++            for jdx, j in enumerate(four_vertices):
++                if (ox <= j[0] <= ox + ow) and (oz <= j[1] <= oz + od):
++                    c[jdx] = True
++        if False in c:
++            return False
++        return center_ok
++
++
+     def _compactBin(self, bin, fix_point, check_stable, support_surface_ratio):
+         '''Small fix: gentle push-together to close walkways between groups.
+ 
+@@ -753,93 +939,133 @@ class Packer:
+             except Exception:
+                 return True
+ 
+-        ordered = sorted(list(bin.items),
+-                         key=lambda it: (_f(it.position[1]), _f(it.position[2]), _f(it.position[0])))
+-        for item in ordered:
++        # Pass A: slide each support-connected stack back then left as a
++        # rigid unit. Sliding a whole stack together (instead of one box at
++        # a time) preserves stacking: a box on top of another can never be
++        # left floating when its support slides away. Support is re-checked
++        # for every move via checkStable().
++        def _rests_on(a, b):
++            '''True if a's bottom face rests on b's top face (touching + overlap).'''
+             try:
+-                dim = item.getDimension()
++                ad = a.getDimension(); bd = b.getDimension()
++                ax0 = _f(a.position[0]); ay0 = _f(a.position[1]); az0 = _f(a.position[2])
++                aw = _f(ad[0]); ah = _f(ad[1]); ad_ = _f(ad[2])
++                bx0 = _f(b.position[0]); by0 = _f(b.position[1]); bz0 = _f(b.position[2])
++                bw = _f(bd[0]); bh = _f(bd[1]); bd_ = _f(bd[2])
++            except Exception:
++                return False
++            if abs(ay0 - (by0 + bh)) > 1e-6:
++                return False
++            ox = min(ax0 + aw, bx0 + bw) - max(ax0, bx0)
++            oz = min(az0 + ad_, bz0 + bd_) - max(az0, bz0)
++            return ox > 1e-6 and oz > 1e-6
++
++        _by_id = {id(it): it for it in bin.items}
++
++        # Undirected connected components of the support graph.
++        components = []
++        unvisited = set(_by_id.keys())
++        while unvisited:
++            start = next(iter(unvisited))
++            comp = set()
++            frontier = [start]
++            while frontier:
++                sid = frontier.pop()
++                if sid not in unvisited:
++                    continue
++                unvisited.discard(sid)
++                comp.add(sid)
++                for other in bin.items:
++                    oid = id(other)
++                    if oid in comp or oid not in unvisited:
++                        continue
++                    if _rests_on(_by_id[sid], other) or _rests_on(other, _by_id[sid]):
++                        frontier.append(oid)
++            components.append([_by_id[sid] for sid in comp])
++
++        # Backmost components first so front components can slide further.
++        components.sort(key=lambda comp: min(_f(it.position[2]) for it in comp))
++
++        def _ok_at(it, moving_ids):
++            '''True if `it`'s current position is in-bounds, inside its zone
++            floor, and non-overlapping with any item outside `moving_ids`.'''
++            try:
++                dim = it.getDimension()
+                 dw, dh, dd = _f(dim[0]), _f(dim[1]), _f(dim[2])
+-                if dw <= 0 or dh <= 0 or dd <= 0:
++                nx = _f(it.position[0]); oy = _f(it.position[1]); nz = _f(it.position[2])
++            except Exception:
++                return False
++            if nx < -1e-9 or nz < -1e-9:
++                return False
++            if nx + dw > _f(bin.width) + 1e-9:
++                return False
++            if nz + dd > _f(bin.depth) + 1e-9:
++                return False
++            try:
++                floor = seq_floor.get(it.partno, None)
++                z_low = float(floor) if floor is not None else 0.0
++            except Exception:
++                z_low = 0.0
++            if float(nz) < float(z_low) - 1e-9:
++                return False
++            cand = (nx, nx + dw, oy, oy + dh, nz, nz + dd)
++            for other in bin.items:
++                if id(other) in moving_ids:
+                     continue
+-                ox = float(item.position[0])
+-                oy = float(item.position[1])
+-                oz = float(item.position[2])
++                if _overlaps(cand, _box_of(other)):
++                    return False
++            return True
++
++        def _try_slide(comp, dx, dz):
++            '''Try to move every item in comp by (dx, dz). Returns True if
++            committed; rolls back on any failure.'''
++            moving_ids = {id(it) for it in comp}
++            olds = {id(it): list(it.position) for it in comp}
++            for it in comp:
+                 try:
+-                    q = item.number_of_decimals
++                    q = it.number_of_decimals
+                 except Exception:
+                     q = 0
+-                try:
+-                    floor = seq_floor.get(item.partno, None)
+-                    z_low = float(floor) if floor is not None else 0.0
+-                except Exception:
+-                    z_low = 0.0
+-                # Try one candidate spot: inside truck, no overlap, supported.
+-                def _ok_at(nx, nz):
+-                    if nx < -1e-9 or nz < -1e-9:
+-                        return False
+-                    if nx + dw > _f(bin.width) + 1e-9:
+-                        return False
+-                    if nz + dd > _f(bin.depth) + 1e-9:
+-                        return False
+-                    if float(nz) < float(z_low) - 1e-9:
+-                        return False
+-                    cand = (nx, nx + dw, oy, oy + dh, nz, nz + dd)
+-                    for other in bin.items:
+-                        if other is item:
+-                            continue
+-                        if _overlaps(cand, _box_of(other)):
+-                            return False
+-                    old = list(item.position)
+-                    item.position = [set2Decimal(nx, q), set2Decimal(oy, q), set2Decimal(nz, q)]
+-                    ok = _supported(item)
+-                    item.position = old
+-                    return ok
+-
+-                step_z = max(float(dd) / 20.0, float(bin.depth) / 200.0, 0.05)
+-                step_x = max(float(dw) / 20.0, float(bin.width) / 200.0, 0.05)
+-                cx, cz = ox, oz
++                it.position = [set2Decimal(_f(it.position[0]) + dx, q),
++                               set2Decimal(_f(it.position[1]), q),
++                               set2Decimal(_f(it.position[2]) + dz, q)]
++            ok = all(_ok_at(it, moving_ids) for it in comp)
++            if ok:
++                ok = all(_supported(it) for it in comp)
++            if not ok:
++                for it in comp:
++                    it.position = olds[id(it)]
++                return False
++            return True
++
++        for comp in components:
++            try:
++                # Slide back (toward the rear wall, -z) first.
++                step_z = max(
++                    min(_f(it.getDimension()[2]) for it in comp) / 20.0,
++                    float(bin.depth) / 200.0, 0.05,
++                )
+                 guard = 0
+                 while guard < 60:
+-                    nz = round(cz - step_z, 9)
+-                    if nz < z_low:
+-                        nz = float(z_low)
+-                    if nz < 0:
+-                        nz = 0.0
+-                    if abs(nz - cz) < 1e-12:
+-                        break
+-                    if _ok_at(cx, nz):
+-                        cz = nz
+-                        if cz <= z_low + 1e-12:
+-                            break
+-                    else:
+-                        nz2 = round(cz - step_z / 4.0, 9)
+-                        if nz2 < z_low:
+-                            nz2 = float(z_low)
+-                        if abs(nz2 - cz) > 1e-12 and _ok_at(cx, nz2):
+-                            cz = nz2
+-                        break
+                     guard += 1
++                    if _try_slide(comp, 0.0, -step_z):
++                        continue
++                    if _try_slide(comp, 0.0, -step_z / 4.0):
++                        continue
++                    break
++                # Slide left (toward the left wall, -x) next.
++                step_x = max(
++                    min(_f(it.getDimension()[0]) for it in comp) / 20.0,
++                    float(bin.width) / 200.0, 0.05,
++                )
+                 guard = 0
+                 while guard < 60:
+-                    nx = round(cx - step_x, 9)
+-                    if nx < 0:
+-                        nx = 0.0
+-                    if abs(nx - cx) < 1e-12:
+-                        break
+-                    if _ok_at(nx, cz):
+-                        cx = nx
+-                        if cx <= 0:
+-                            break
+-                    else:
+-                        nx2 = round(cx - step_x / 4.0, 9)
+-                        if nx2 < 0:
+-                            nx2 = 0.0
+-                        if abs(nx2 - cx) > 1e-12 and _ok_at(nx2, cz):
+-                            cx = nx2
+-                        break
+                     guard += 1
+-                if abs(cx - ox) > 1e-9 or abs(cz - oz) > 1e-9:
+-                    item.position = [set2Decimal(cx, q), set2Decimal(oy, q), set2Decimal(cz, q)]
++                    if _try_slide(comp, -step_x, 0.0):
++                        continue
++                    if _try_slide(comp, -step_x / 4.0, 0.0):
++                        continue
++                    break
+             except Exception:
+                 continue
+ 
+@@ -849,75 +1075,112 @@ class Packer:
+         # boxes keep their neighbours and support; only empty air between
+         # colour groups disappears. Zones can never cross: each stops at
+         # the front face of the zone behind it.
++        #
++        # BUG FIX (vs the original): shifts are applied one group at a time
++        # and only the ACTUAL committed shift of the previous group feeds the
++        # next group's target. The old code precomputed every shift from the
++        # PLANNED shift of the previous group, so if a group's shift failed
++        # (e.g. support check), the next group still moved as if it had
++        # succeeded ΓÇö sliding into overlap with the un-moved group. Each
++        # candidate shift is also validated against the zone floor and
++        # against every item outside the moving group (overlap), and falls
++        # back to progressively smaller shifts before giving up.
+         try:
+             if seq_floor:
+                 groups = {}
+                 for it in bin.items:
+                     try:
+-                        groups.setdefault(float(seq_floor.get(it.partno, 0.0)), []).append(it)
++                        # Fall back to the item's current z when no floor was
++                        # recorded (e.g. non-zone packing), so it is grouped
++                        # by its actual position rather than lumped with the
++                        # backmost zone.
++                        groups.setdefault(float(seq_floor.get(it.partno, _f(it.position[2]))), []).append(it)
+                     except Exception:
+                         continue
+                 if len(groups) > 1:
+                     ordered_floors = sorted(groups.keys())
+-                    front_of = {}
+-                    for _fl in ordered_floors:
+-                        _max = 0.0
+-                        for _it in groups[_fl]:
+-                            try:
+-                                _dd = _box_of(_it)
+-                                _max = max(_max, _dd[5])
+-                            except Exception:
+-                                pass
+-                        front_of[_fl] = _max
+                     shift_of = {}
+                     for _idx, _fl in enumerate(ordered_floors):
+-                        _back = min(
+-                            _f(_it.position[2]) for _it in groups[_fl]
+-                        )
++                        _grp = groups[_fl]
++                        _back = min(_f(_it.position[2]) for _it in _grp)
+                         if _idx == 0:
+                             _target = 0.0
+                         else:
+                             _prev = ordered_floors[_idx - 1]
+-                            _target = front_of[_prev] + shift_of[_prev]
+-                        _shift = min(0.0, _target - _back)
+-                        shift_of[_fl] = _shift
+-                    for _fl in ordered_floors:
+-                        _shift = shift_of.get(_fl, 0.0)
+-                        if abs(_shift) < 1e-9:
+-                            continue
+-                        _ok_all = True
+-                        for _it in groups[_fl]:
+-                            try:
+-                                _q = _it.number_of_decimals
+-                            except Exception:
+-                                _q = 0
+-                            _old = list(_it.position)
+-                            try:
+-                                _nz = float(_it.position[2]) + _shift
+-                            except Exception:
+-                                _ok_all = False
+-                                break
+-                            if _nz < -1e-9:
+-                                _ok_all = False
+-                                break
+-                            _it.position = [set2Decimal(float(_old[0]), _q),
+-                                            set2Decimal(float(_old[1]), _q),
+-                                            set2Decimal(_nz, _q)]
+-                            if not _supported(_it):
+-                                _it.position = _old
+-                                _ok_all = False
+-                                break
+-                            _it.position = _old
+-                        if not _ok_all:
++                            # Front face of the previous group AFTER its
++                            # actual committed shift.
++                            _prev_front = max(
++                                _f(_it.position[2]) + _f(_it.getDimension()[2])
++                                for _it in groups[_prev]
++                            )
++                            _target = _prev_front
++                        _max_shift = min(0.0, _target - _back)
++                        if abs(_max_shift) < 1e-9:
++                            shift_of[_fl] = 0.0
+                             continue
+-                        for _it in groups[_fl]:
+-                            try:
+-                                _q = _it.number_of_decimals
+-                            except Exception:
+-                                _q = 0
+-                            _it.position = [set2Decimal(float(_it.position[0]), _q),
+-                                            set2Decimal(float(_it.position[1]), _q),
+-                                            set2Decimal(float(_it.position[2]) + _shift, _q)]
++                        # Try the full shift, then halves, then quarters.
++                        _committed = 0.0
++                        for _factor in (1.0, 0.5, 0.25, 0.125):
++                            _cand = _max_shift * _factor
++                            if abs(_cand - _committed) < 1e-9:
++                                continue
++                            _delta = _cand - _committed
++                            _moving_ids = {id(_it) for _it in _grp}
++                            _olds = {id(_it): list(_it.position) for _it in _grp}
++                            for _it in _grp:
++                                try:
++                                    _q = _it.number_of_decimals
++                                except Exception:
++                                    _q = 0
++                                _it.position = [set2Decimal(float(_it.position[0]), _q),
++                                                set2Decimal(float(_it.position[1]), _q),
++                                                set2Decimal(float(_it.position[2]) + _delta, _q)]
++                            _ok = True
++                            for _it in _grp:
++                                try:
++                                    _dim = _it.getDimension()
++                                    _dw = _f(_dim[0]); _dd = _f(_dim[2])
++                                    _nx = _f(_it.position[0]); _nz = _f(_it.position[2])
++                                except Exception:
++                                    _ok = False
++                                    break
++                                if _nx < -1e-9 or _nz < -1e-9:
++                                    _ok = False
++                                    break
++                                if _nx + _dw > _f(bin.width) + 1e-9:
++                                    _ok = False
++                                    break
++                                if _nz + _dd > _f(bin.depth) + 1e-9:
++                                    _ok = False
++                                    break
++                                try:
++                                    _floor = seq_floor.get(_it.partno, None)
++                                    _z_low = float(_floor) if _floor is not None else 0.0
++                                except Exception:
++                                    _z_low = 0.0
++                                if float(_nz) < float(_z_low) - 1e-9:
++                                    _ok = False
++                                    break
++                                _cand_box = (_nx, _nx + _dw,
++                                             _f(_it.position[1]), _f(_it.position[1]) + _f(_dim[1]),
++                                             _nz, _nz + _dd)
++                                for _other in bin.items:
++                                    if id(_other) in _moving_ids:
++                                        continue
++                                    if _overlaps(_cand_box, _box_of(_other)):
++                                        _ok = False
++                                        break
++                                if not _ok:
++                                    break
++                            if _ok:
++                                _ok = all(_supported(_it) for _it in _grp)
++                            if not _ok:
++                                for _it in _grp:
++                                    _it.position = _olds[id(_it)]
++                                continue
++                            _committed = _cand
++                            break
++                        shift_of[_fl] = _committed
+                     try:
+                         for _fl in ordered_floors:
+                             for _it in groups[_fl]:
+@@ -931,18 +1194,20 @@ class Packer:
+ 
+     def putOrder(self):
+         '''Arrange the order of items '''
+-        r = []
+         for i in self.bins:
+             # open top container
+             if i.put_type == 2:
+                 i.items.sort(key=lambda item: item.position[0], reverse=False)
+                 i.items.sort(key=lambda item: item.position[1], reverse=False)
+                 i.items.sort(key=lambda item: item.position[2], reverse=False)
+-            # general container
++            # general container: depth (z) primary, then height (y), then
++            # width (x) ΓÇö a natural loading-order view (deepest first,
++            # bottom-up, left-to-right). The old order had width primary,
++            # which scattered the sequence view.
+             elif i.put_type == 1:
++                i.items.sort(key=lambda item: item.position[0], reverse=False)
+                 i.items.sort(key=lambda item: item.position[1], reverse=False)
+                 i.items.sort(key=lambda item: item.position[2], reverse=False)
+-                i.items.sort(key=lambda item: item.position[0], reverse=False)
+             else :
+                 pass
+         return
+@@ -998,7 +1263,7 @@ class Packer:
+                     y = len(y_set & area[j][1]) / (y_ed - y_st) * int(i.weight)
+                     area[j][2] += y
+                     if j >= 2 :
+-                        area[j-2][2] += (int(i.weight) - x)
++                        area[j-2][2] += (int(i.weight) - y)
+                     else :
+                         area[j+2][2] += (int(i.weight) - y)
+                     break
+@@ -1043,11 +1308,17 @@ class Packer:
+         self.binding = binding
+         # Bin : sorted by volumn
+         self.bins.sort(key=lambda bin: bin.getVolume(), reverse=bigger_first)
+-        # Item : sorted by volumn -> sorted by loadbear -> sorted by level -> binding
+-        self.items.sort(key=lambda item: item.getVolume(), reverse=bigger_first)
+-        # self.items.sort(key=lambda item: item.getMaxArea(), reverse=bigger_first)
+-        self.items.sort(key=lambda item: item.loadbear, reverse=True)
+-        self.items.sort(key=lambda item: item.level, reverse=False)
++        # Item : single explicit sort. The old three chained stable sorts
++        # applied volume -> loadbear -> level, but because list.sort is
++        # stable the LAST sort wins, so the effective priority was actually
++        # level (asc) -> loadbear (desc) -> volume (asc/desc per
++        # bigger_first). One tuple-key sort makes the priority explicit and
++        # preserves that exact effective ordering.
++        def _item_sort_key(item):
++            _vol = float(item.getVolume())
++            return (item.level, -float(item.loadbear), -_vol if bigger_first else _vol)
++
++        self.items.sort(key=_item_sort_key)
+         # sorted by binding
+         if binding != []:
+             self.sortBinding(bin)
+@@ -1058,10 +1329,8 @@ class Packer:
+                 self.pack2Bin(bin, item, fix_point, check_stable, support_surface_ratio)
+ 
+             if binding != []:
+-                # resorted
+-                self.items.sort(key=lambda item: item.getVolume(), reverse=bigger_first)
+-                self.items.sort(key=lambda item: item.loadbear, reverse=True)
+-                self.items.sort(key=lambda item: item.level, reverse=False)
++                # resorted (same explicit priority as above)
++                self.items.sort(key=_item_sort_key)
+                 # clear bin
+                 bin.items = []
+                 bin.unfitted_items = self.unfit_items
+@@ -1083,7 +1352,10 @@ class Packer:
+                 pass
+ 
+             # Deviation Of Cargo Gravity Center 
+-            self.bins[idx].gravity = self.gravityCenter(bin)
++            try:
++                self.bins[idx].gravity = self.gravityCenter(bin)
++            except Exception:
++                self.bins[idx].gravity = []
+ 
+             if distribute_items :
+                 for bitem in bin.items:
