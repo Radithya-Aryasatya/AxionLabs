@@ -198,7 +198,7 @@ def _render_status_summary(fleets):
         elif status_val == "PAUSED / AUDIT REQUIRED":
             status_counts['ANOMALY DETECTED'] += 1
 
-    col1, col2, col3, col4 = st.columns(4)
+    col1, col2, col3 = st.columns(3)
     with col1:
         st.metric("Loading", status_counts['LOADING'])
     with col2:

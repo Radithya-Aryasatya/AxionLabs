@@ -72,7 +72,7 @@ def render_warning_banner(fleet_id: str, dock_number: int, analysis_text: str = 
                         ANOMALY DETECTED: at Dock {dock_number}
                     </div>
                     <div style="font-size: 12px; opacity: 0.9;">
-                        Fleet #{fleet_id}
+                        Direct inspection needed
                     </div>
                 </div>
             </div>

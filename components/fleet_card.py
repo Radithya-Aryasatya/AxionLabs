@@ -4,7 +4,7 @@ components/fleet_card.py
 Fleet Card component for the Executive Control Tower overview grid.
 
 Each card displays:
-  - Truck ID & Dock Number (e.g., "Fleet #TK-04 | Dock 02")
+  - Truck ID & Dock Number (e.g., "Fleet Monitoring | Dock 2")
   - Live Status Badge with color coding
   - Quick Progress Bar (volumetric fill percentage)
   - Click → opens Fleet Detail Inspection View (Tri-View Panel)
@@ -14,6 +14,11 @@ import streamlit as st
 from state.fleet_state import Fleet, FleetStatus
 from utils.formatters import status_emoji, get_fill_color, render_colored_progress
 from datetime import datetime
+
+
+def fleet_display_title(fleet: Fleet) -> str:
+    """Return the clean dock-card title for a fleet (e.g. 'Fleet Monitoring | Dock 2')."""
+    return f"Fleet Monitoring | Dock {fleet.dock_number}"
 
 
 def render_fleet_card(
@@ -56,11 +61,8 @@ def render_fleet_card(
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
             <div>
                 <h3 style="margin: 0; color: #ffffff; font-size: 16px;">
-                    Fleet #{fleet.id}
+                    {fleet_display_title(fleet)}
                 </h3>
-                <p style="margin: 4px 0; color: #94A3B8; font-size: 12px;">
-                    Dock {fleet.dock_number}
-                </p>
             </div>
             <div style="
                 background: {status_color};
@@ -133,7 +135,7 @@ def render_fleet_card_compact(fleet: Fleet) -> bool:
     with st.container(border=True):
         col1, col2 = st.columns([3, 1])
         with col1:
-            st.markdown(f"### Fleet #{fleet.id} | Dock {fleet.dock_number}")
+            st.markdown(f"### {fleet_display_title(fleet)}")
             st.caption(f"{emoji} {status.value}")
         with col2:
             st.markdown(f"**{fleet.fill_percentage:.0f}%**")

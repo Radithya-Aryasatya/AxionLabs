@@ -77,7 +77,7 @@ def _default_layout(dock_number: int) -> dict:
          'weight': 25, 'fragile': True},
     ]
     base = {
-        'id': f'TK-MOCK-0{dock_number}',
+        'id': f'Fleet Monitoring | Dock {dock_number}',
         'truck_name': f'Placeholder Truck Dock-{dock_number}',
         'truck_dimensions': [2.0, 2.0, 4.0],
         'fill_percentage': 72.5,
@@ -214,7 +214,7 @@ def _build_fleet_from_layout(data: dict):
         ))
 
     fleet = Fleet(
-        id=data.get('id', 'TK-MOCK'),
+        id=data.get('id', 'Fleet Monitoring | Dock 2'),
         dock_number=data.get('dock_number', 2),
         truck_dimensions=tuple(data.get('truck_dimensions', [2.0, 2.0, 4.0])),
         manifest=data.get('manifest', []),

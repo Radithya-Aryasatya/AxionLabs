@@ -112,7 +112,7 @@ def _render_panel_header(fleet: Fleet):
         <div style="display: flex; justify-content: space-between; align-items: center;">
             <div>
                 <h1 style="margin: 0; color: #ffffff; font-size: 22px;">
-                    {status_emoji} Fleet #{fleet.id} — Dock {fleet.dock_number}
+                    {status_emoji} {fleet.id} — Dock {fleet.dock_number}
                 </h1>
                 <p style="margin: 4px 0; color: #94A3B8; font-size: 13px;">
                     Truck: {fleet.truck_name or f"Truck-{fleet.id}"} |

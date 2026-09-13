@@ -152,9 +152,9 @@ def ensure_dock1_monitor_fleet():
 
     if existing is None:
         fleet = Fleet(
-            id="TK-MONITOR-D1",
+            id="Fleet Monitoring | Dock 1",
             dock_number=1,
-            truck_dimensions=(2.0, 2.0, 4.0),
+            truck_dimensions=(2.4, 2.4, 6.0),
             manifest=[],
             packing_layout={
                 'layout': {
