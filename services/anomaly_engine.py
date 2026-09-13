@@ -4,21 +4,19 @@ services/anomaly_engine.py
 Anomaly detection and classification engine.
 
 Evaluates Gemini API output against business rules to classify anomalies
-and trigger appropriate UI behaviors for the two scenarios:
+and trigger appropriate UI behaviors for the loading-quality scenario:
 
   Scenario 1: Messy/Unstable Stacking (WARNING)
-  Scenario 2: Unresolved Departure Risk (CRITICAL)
 """
 
 from dataclasses import dataclass
-from typing import Optional
 from state.fleet_state import Fleet, FleetStatus, AnomalyRecord
 from services.gemini_service import GeminiAnalysisResult
 
 
 @dataclass
 class FleetStateSnapshot:
-    """Snapshot of departure-cue and loading state for a fleet."""
+    """Snapshot of loading state for a fleet."""
     loading_in_progress: bool = True
     doors_closing: bool = False
     truck_moving: bool = False
@@ -70,11 +68,6 @@ class AnomalyEngine:
         """
         snapshot = self._build_fleet_snapshot(fleet)
 
-        # Check for departure risk first (Scenario 2)
-        departure_decision = self._check_departure_risk(fleet, gemini_result, snapshot)
-        if departure_decision is not None:
-            return departure_decision
-
         # Check for messy stacking (Scenario 1)
         return self._check_messy_stacking(fleet, gemini_result, snapshot)
 
@@ -122,16 +115,7 @@ class AnomalyEngine:
                 ),
             )
 
-        # Check for departure risk
-        departure_result = self.gemini.detect_departure_risk(
-            cctv_frame_path=cctv_frame_path,
-            previous_analysis=gemini_result,
-            fleet_state=fleet_state,
-        )
-
-        if departure_result.severity == "CRITICAL":
-            return self._build_critical_decision(fleet, departure_result)
-
+        # Evaluate the loading-quality analysis (Scenario 1)
         return self._check_messy_stacking(
             fleet, gemini_result, self._build_fleet_snapshot(fleet)
         )
@@ -164,38 +148,6 @@ class AnomalyEngine:
             'fill_percentage': fleet.fill_percentage,
             'dock_number': fleet.dock_number,
         }
-
-    def _check_departure_risk(
-        self,
-        fleet: Fleet,
-        gemini_result: GeminiAnalysisResult,
-        snapshot: FleetStateSnapshot,
-    ) -> Optional[AnomalyDecision]:
-        """
-        Scenario 2: Unresolved Departure Risk (CRITICAL)
-
-        Triggers when:
-        - An anomaly from Scenario 1 remains uncorrected/ignored
-        - System detects departure cues (doors closing OR truck moving)
-        """
-        departure_cues = snapshot.doors_closing or snapshot.truck_moving
-        has_unresolved_warning = any(
-            not a.resolved and a.severity == "WARNING"
-            for a in fleet.anomaly_history
-        )
-
-        if departure_cues and has_unresolved_warning:
-            dock_str = f"Dock {fleet.dock_number}"
-            return AnomalyDecision(
-                anomaly_type="UNRESOLVED_DEPARTURE_RISK",
-                severity="CRITICAL",
-                fleet_status=FleetStatus.BLOCKED,
-                ui_action="SHOW_CRITICAL_BANNER",
-                requires_override=True,
-                banner_message=f"🚨 CRITICAL: DEPARTURE BLOCKED - UNRESOLVED ANOMALY DETECTED at {dock_str}",
-                banner_type="critical",
-            )
-        return None
 
     def _check_messy_stacking(
         self,
