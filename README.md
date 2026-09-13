@@ -41,12 +41,11 @@ The **Gemini AI Interpretative Audit** panel always shows:
 
 - `GEMINI STATUS: SUCCESS | FAILED | SIMULATED`
 - `MODEL USED: <exact model ID>`
-- **RAW GEMINI RESPONSE** — the exact, verbatim model output (even when it is
-  not clean JSON)
 - the real exception/error when a request failed
 
-Structured fields are parsed from the model's reply, but the raw response is
-always preserved alongside them.
+Structured fields are parsed from the model's reply. The exact raw model
+response is still captured and stored alongside them in the underlying data,
+but it is no longer displayed in this panel.
 
 ## Running
 
@@ -68,7 +67,7 @@ python test_smoke.py
 # 3. Web-UI proof: renders the real app and drives "Run Re-Analysis"
 #    (CCTV + digital twin are both sent to Gemini)
 #    Pass 1: invalid key  -> UI must show GEMINI STATUS: FAILED (no fake content)
-#    Pass 2: real key     -> UI must show GEMINI STATUS: SUCCESS + raw output
+#    Pass 2: real key     -> UI must show GEMINI STATUS: SUCCESS
 python verify_gemini_ui.py
 
 # 4. Virtual rear-CCTV renderer: renders the 3D packing plan from a fixed
