@@ -543,10 +543,15 @@ class GeminiService:
             input_map = """
 INPUT IMAGES (in this order):
 - IMAGE 1 - ACTUAL CCTV: real footage from the dock camera. This is the
-  PRIMARY evidence and the main target of your analysis.
+  PRIMARY evidence and the main target of your analysis. NOTE: the real CCTV
+  frame NEVER carries any watermark badge.
 - IMAGE 2 - VIRTUAL DIGITAL TWIN: a deterministic rear-camera render of the
   INTENDED 3D packing layout (the plan). This is SECONDARY reference context
-  only - it is NOT the primary analysis target."""
+  only - it is NOT the primary analysis target. IMAGE 2 ALWAYS carries a
+  cyan/teal "DIGITAL TWIN / SIMULATED VIEW - NOT CCTV" watermark badge
+  centered over the RED REAR-DOOR STRIP at the BOTTOM of the frame. Use that
+  badge as the DEFINITIVE in-pixel marker to tell the twin apart from the
+  actual CCTV frame."""
             secondary_task = """
 SECONDARY TASK - DIGITAL TWIN COMPARISON (run ONLY after the primary
 physical CCTV analysis above):

@@ -46,8 +46,18 @@ Design contract
   interior ("WIDTH 204" / "HEIGHT" / "DEPTH n" scales).
 * Everything is deterministic: fixed constants, no RNG, stable painter's
   ordering, fixed fonts. Two renders of the same layout are byte-identical.
+* Identity watermark: a clearly-legible cyan "DIGITAL TWIN / SIMULATED VIEW —
+  NOT CCTV" badge is centered over the RED REAR-DOOR STRIP at the bottom of
+  the frame (drawn at supersample resolution before the LANCZOS downscale so
+  it stays crisp at 1000x900). Bottom placement keeps the badge out of the
+  cargo mass so it never occludes bins; the red door strip gives the cyan
+  badge maximum contrast. Cyan is chosen to contrast with the red door-strip/
+  axis markings, the warm cargo palette, and grey/white real-CCTV tones.
+  Determinism preserved. This badge is what lets Gemini (and operators) tell
+  the twin apart from the actual CCTV frame — it is drawn by the renderer
+  itself, so even raw PNGs shared out-of-band carry the marker.
 * The rendered PNG embeds provenance metadata (camera pose, FOV, layout
-  hash, renderer version) as a tEXt chunk.
+  hash, renderer version, watermark) as a tEXt chunk.
 
 Public API
 ----------
@@ -76,7 +86,7 @@ from PIL.PngImagePlugin import PngInfo
 
 # --- identity / output location -------------------------------------------
 
-RENDERER_VERSION = "virtual-rear-cctv-1.0"
+RENDERER_VERSION = "virtual-rear-cctv-1.2"  # badge enlarged + moved over red door strip
 _BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 _OUTPUT_DIR = os.path.join(_BASE_DIR, "assets", "virtual_cctv")
 
@@ -117,6 +127,24 @@ PALETTE = [
     "#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd",
     "#8c564b", "#e377c2", "#17becf", "#bcbd22", "#7f7f7f",
 ]
+# --- digital-twin identity watermark ----------------------------------------
+# A clearly-legible badge centered over the RED REAR-DOOR STRIP at the bottom of
+# the frame. Placing it there keeps it out of the cargo mass (top of frame) so it
+# never occludes bins, while sitting on the uniformly-red door strip gives the
+# cyan badge maximum contrast against a region it can't be confused with. Cyan/teal
+# is chosen because it contrasts with the red door-strip/axis markings, the warm
+# cargo palette, and grey/white real-CCTV tones. Determinism is preserved: fixed
+# text, fixed pose, fixed placement — no RNG.
+WATERMARK_TITLE = "DIGITAL TWIN"
+WATERMARK_SUBTITLE = "SIMULATED VIEW — NOT CCTV"
+WATERMARK_COLOR = (34, 211, 238)           # cyan/teal
+WATERMARK_PILL_BG = (12, 13, 16, 200)      # dark, mostly-opaque for legibility
+WATERMARK_PAD_X = 22
+WATERMARK_PAD_Y = 16
+WATERMARK_BORDER = 3
+WATERMARK_CORNER = 14
+WATERMARK_INSET_Y = 22                        # gap above the bottom edge at ss scale
+
 
 _HEX_RE = re.compile(r"^#[0-9a-fA-F]{6}$")
 
@@ -476,6 +504,7 @@ def render_virtual_cctv_image(layout: dict,
 
     iw, ih = int(image_size[0]), int(image_size[1])
     ss = max(1, int(supersample))
+
     W, H = iw * ss, ih * ss
 
     eye, fwd, right, up_c, fov_v, focal, cx, cy = _solve_camera(norm, W, H)
@@ -569,6 +598,13 @@ def render_virtual_cctv_image(layout: dict,
     img.alpha_composite(overlay)
     img = img.convert("RGB")
 
+    # -- 4. digital-twin identity watermark ----------------------------------
+    # Small but legible badge in the top-left corner so this render can NEVER
+    # be mistaken for an actual CCTV frame (used as the SECONDARY comparison
+    # target by the Gemini spatial-reasoning request). Drawn at the supersampled
+    # resolution before the LANCZOS downscale so it stays crisp.
+    img = _draw_watermark(img, W, H, ss)
+
     # -- 5. downscale + provenance metadata ---------------------------------
     out = img.resize((iw, ih), Image.Resampling.LANCZOS).convert("RGB")
     meta = {
@@ -591,6 +627,12 @@ def render_virtual_cctv_image(layout: dict,
         "layout_hash": layout_hash(layout),
         "strip_quad_px": [[round(x, 2), round(y, 2)]
                           for x, y in strip_quad_final],
+        "watermark": {
+            "text": WATERMARK_TITLE,
+            "subtitle": WATERMARK_SUBTITLE,
+            "placement": "bottom-center over red rear-door strip",
+            "purpose": "distinguish digital-twin render from actual CCTV footage",
+        },
     }
     return out, meta
 
@@ -615,6 +657,65 @@ def render_virtual_cctv_bytes(layout: dict,
     return buf.getvalue(), meta
 
 
+def _draw_watermark(img, W, H, ss):
+    """Stamp a clearly-legible 'DIGITAL TWIN' badge over the red rear-door strip.
+
+    Rendered at the supersampled resolution before the LANCZOS downscale so it
+    stays crisp at the final 1000x900 output. Pill: dark translucent bg +
+    cyan border + title line + muted subtitle line.
+
+    Placed BOTTOM-CENTER: this keeps the badge out of the cargo mass (which
+    fills the upper region) so it never occludes bins, and it sits on the
+    uniformly-red rear-door strip for maximum cyan/red contrast. Fully
+    deterministic (fixed text / pose / placement) — no RNG — so it does not
+    break the byte-identical re-render contract.
+    """
+    pad_x = max(1, int(WATERMARK_PAD_X * ss))
+    pad_y = max(1, int(WATERMARK_PAD_Y * ss))
+    border = max(1, int(WATERMARK_BORDER * ss))
+    radius = max(2, int(WATERMARK_CORNER * ss))
+    inset_y = max(2, int(WATERMARK_INSET_Y * ss))
+
+    font_title = _load_font(int(round(65 * ss)))
+    font_sub = _load_font(int(round(40 * ss)))
+    try:
+        tw_title = int(font_title.getlength(WATERMARK_TITLE))
+    except Exception:
+        tw_title = int(len(WATERMARK_TITLE) * getattr(font_title, "size", 24))
+    try:
+        tw_sub = int(font_sub.getlength(WATERMARK_SUBTITLE))
+    except Exception:
+        tw_sub = int(len(WATERMARK_SUBTITLE) * getattr(font_sub, "size", 18))
+    lh_title = int(getattr(font_title, "size", int(round(65 * ss))))
+    lh_sub = int(getattr(font_sub, "size", int(round(40 * ss))))
+    gap = max(2, int(8 * ss))
+
+    box_w = max(tw_title, tw_sub) + pad_x * 2
+    box_h = lh_title + gap + lh_sub + pad_y * 2
+
+    pill = Image.new("RGBA", (box_w, box_h), (0, 0, 0, 0))
+    pdraw = ImageDraw.Draw(pill)
+    pdraw.rounded_rectangle(
+        [0, 0, box_w - 1, box_h - 1],
+        radius=radius,
+        fill=WATERMARK_PILL_BG,
+        outline=WATERMARK_COLOR + (235,),
+        width=border,
+    )
+    pdraw.text((pad_x, pad_y), WATERMARK_TITLE,
+               font=font_title, fill=WATERMARK_COLOR + (255,))
+    pdraw.text((pad_x, pad_y + lh_title + gap), WATERMARK_SUBTITLE,
+               font=font_sub, fill=(220, 245, 252, 225))
+
+    # Center horizontally; anchor to the bottom edge over the red door strip.
+    inset_x = max(0, (W - box_w) // 2)
+    pos_y = max(0, H - box_h - inset_y)
+
+    img = img.convert("RGBA")
+    img.alpha_composite(pill, (inset_x, pos_y))
+    return img.convert("RGB")
+
+
 def render_virtual_cctv_file(layout: dict, out_path: str,
                              image_size=IMAGE_SIZE,
                              supersample: int = SUPERSAMPLE,
@@ -629,6 +730,29 @@ def render_virtual_cctv_file(layout: dict, out_path: str,
     with open(out_path, "wb") as fh:
         fh.write(data)
     return out_path, meta
+    return out_path, meta
+
+
+def _cached_render_is_current(path: str) -> bool:
+    """True when an existing twin PNG was produced by the CURRENT renderer.
+
+    Reads the embedded `virtual_cctv` tEXt provenance chunk; an unreadable or
+    renderer-version-mismatched artifact is treated as STALE so it is
+    regenerated (self-heals the watermark-less PNGs that predate the badge).
+    """
+    if not os.path.isfile(path):
+        return False
+    try:
+        with Image.open(path) as im:
+            chunk = (getattr(im, "text", None) or {}).get("virtual_cctv", "")
+        if not chunk:
+            return False
+        return json.loads(chunk).get("renderer") == RENDERER_VERSION
+    except Exception:
+        return False
+
+
+
 
 
 def render_virtual_cctv_for_fleet(fleet, refresh: bool = False) -> Optional[str]:
@@ -656,7 +780,8 @@ def render_virtual_cctv_for_fleet(fleet, refresh: bool = False) -> Optional[str]
     dock = getattr(fleet, "dock_number", 0)
     out_path = os.path.join(default_output_dir(),
                             f"virtual_cctv_dock{dock}_{digest}.png")
-    if refresh or not os.path.exists(out_path):
+    if refresh or not os.path.exists(out_path) \
+            or not _cached_render_is_current(out_path):
         written, _meta = render_virtual_cctv_file(layout, out_path)
         if written is None:
             return None

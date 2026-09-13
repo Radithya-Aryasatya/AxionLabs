@@ -79,7 +79,9 @@ def render_digital_twin(fleet: Fleet):
                 st.image(vpath, width='stretch')
                 st.caption(
                     "Deterministic render of this packing plan • red strip = "
-                    "rear-loading-door zone • reproducible PNG artifact"
+                    "rear-loading-door zone • cyan 'DIGITAL TWIN' watermark "
+                    "badge marks this as a simulated view, not real CCTV • "
+                    "reproducible PNG artifact"
                 )
             else:
                 st.caption("Virtual rear-CCTV view unavailable for this layout.")

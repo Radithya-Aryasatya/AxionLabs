@@ -316,6 +316,16 @@ def seed_mock_docks():
             # Nothing changed for this dock — leave its state intact.
             # But still make sure the dock registry linkage is present.
             upsert_dock_fleet(dock_number, existing_fleet.id)
+            # Proactively refresh the virtual rear-CCTV twin so any stale,
+            # watermark-less cached render (from before the badge feature or
+            # after a renderer upgrade) is regenerated in place. The renderer
+            # only redraws when the cached file is actually out of date, so
+            # this is cheap on subsequent loads.
+            try:
+                from services.virtual_camera import render_virtual_cctv_for_fleet
+                render_virtual_cctv_for_fleet(existing_fleet)
+            except Exception:
+                pass
             continue
 
         # Need to (re)build this mock dock.
@@ -323,6 +333,15 @@ def seed_mock_docks():
         data['dock_number'] = dock_number  # ensure correct dock linkage
         fleet, packed = _build_fleet_from_layout(data)
         fleet.cctv_frame_path = ensure_dock_assets(dock_number)
+
+        # Proactively refresh the virtual rear-CCTV twin so the freshly built
+        # mock dock gets a current, watermarked render (and any stale cached
+        # render from a previous renderer version is replaced in place).
+        try:
+            from services.virtual_camera import render_virtual_cctv_for_fleet
+            render_virtual_cctv_for_fleet(fleet)
+        except Exception:
+            pass
 
         # Replace the old fleet in the active list (preserve list ordering).
         st.session_state.active_fleets = [
