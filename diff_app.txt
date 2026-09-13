@@ -1,0 +1,18 @@
+﻿diff --git a/app.py b/app.py
+index eac1a5b..6a5dcd6 100644
+--- a/app.py
++++ b/app.py
+@@ -491,8 +491,12 @@ def pack_strict_sequence_zones(packer, manifest):
+         else:
+             _cursor_f += _sizes[_s]
+             _edge = int(round(_cursor_f))
++            # Guarantee the zone is at least as deep as its deepest single
++            # box (rounded up), so a box can never be forced to cascade
++            # forward purely because boundary rounding shrank its zone.
++            _min_zone = int(math.ceil(_maxd[_s]))
+             # every zone keeps at least 1 cm; never squeeze later zones out
+-            _edge = max(_edge, _cursor_i + 1)
++            _edge = max(_edge, _cursor_i + 1, _cursor_i + _min_zone)
+             _edge = min(_edge, _D_int - (len(_ordered) - 1 - _idx))
+         _bounds[_s] = (_cursor_i, _edge)
+         _cursor_i = _edge
