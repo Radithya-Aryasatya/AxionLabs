@@ -33,17 +33,10 @@ def render_executive_dashboard():
     seed_mock_docks()
     ensure_dock1_monitor_fleet()
 
-    # --- In-dashboard alert corner (top-right, control-room style) ---
-    from components.alert_corner import render_alert_corner
-
     # Task 4: restore operator's CCTV selections after seeding (seeding
     # would otherwise overwrite them with deterministic placeholders).
     from services.cctv_manager import apply_cctv_selections
     apply_cctv_selections()
-
-    # Render the fixed alert stack AFTER seeding + CCTV restore so it reads
-    # the up-to-date dock/registry state.
-    render_alert_corner()
 
     # Page header
     st.markdown("""
