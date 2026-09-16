@@ -202,30 +202,6 @@ class GeminiService:
         )
         return result
 
-    def detect_departure_risk(
-        self,
-        cctv_frame_path: str,
-        previous_analysis: GeminiAnalysisResult,
-        fleet_state: Dict[str, Any],
-    ) -> GeminiAnalysisResult:
-        """
-        Analyzes whether the truck is attempting to depart with
-        unresolved anomalies (Scenario 2: CRITICAL).
-        """
-        if self._initialized and self._client and not self.simulation_mode:
-            return self._call_gemini_departure_api(
-                cctv_frame_path, previous_analysis, fleet_state
-            )
-        result = self._simulate_departure_detection(
-            cctv_frame_path, previous_analysis, fleet_state
-        )
-        result.status = STATUS_SIMULATED
-        result.model = self.model
-        result.extra["provenance"] = (
-            "SIMULATION / FALLBACK — deterministic local rules, NOT live Gemini output"
-        )
-        return result
-
     def verify_raw(self, text: str) -> str:
         """
         Pure text -> Gemini -> raw text. Verification/debug path that proves
@@ -498,32 +474,6 @@ class GeminiService:
         )
         return self._finalize_success(raw)
 
-    def _call_gemini_departure_api(
-        self, cctv_frame_path, previous_analysis, fleet_state
-    ) -> GeminiAnalysisResult:
-        """REAL Gemini departure-risk analysis (Scenario 2)."""
-        prompt = self._build_departure_prompt(previous_analysis, fleet_state)
-        parts = [prompt]
-        cctv_part = self._load_image_part(cctv_frame_path)
-        if cctv_part:
-            parts.append(cctv_part)
-
-        log.info(
-            "GEMINI REQUEST\n  Model: %s\n  Text prompt length: %d chars\n"
-            "  CCTV image: %s\n  Request type: departure-risk",
-            self.model, len(prompt),
-            "PRESENT" if cctv_part else "ABSENT",
-        )
-        try:
-            raw = self._generate(parts)
-        except Exception as e:
-            return self._failed_result(e)
-        log.info(
-            "GEMINI RESPONSE\n  Model: %s\n  Status: SUCCESS\n  Response length: %d chars",
-            self.model, len(raw),
-        )
-        return self._finalize_success(raw)
-
     # --- PROMPT BUILDERS ---
 
     def _build_spatial_reasoning_prompt(
@@ -609,41 +559,7 @@ OUTPUT STRICT JSON:
   "recommended_actions": ["actionable steps"]
 }}
 """
-
-    def _build_departure_prompt(
-        self, previous: GeminiAnalysisResult, fleet_state: Dict
-    ) -> str:
-        return f"""
-You are a warehouse departure safety inspector AI.
-
-TASK: Determine if the truck is attempting to depart while carrying
-      unresolved loading anomalies.
-
-PREVIOUS ANALYSIS:
-- Anomaly type: {previous.anomaly_type}
-- Severity: {previous.severity}
-
-FLEET STATE:
-- Doors closing: {fleet_state.get('doors_closing', False)}
-- Truck moving: {fleet_state.get('truck_moving', False)}
-- Loading in progress: {fleet_state.get('loading_in_progress', False)}
-
-VISUAL CUES TO CHECK IN CCTV:
-1. Rear doors closing or fully closed
-2. Truck beginning to disengage from docking bay
-3. Loading dock leveler retracting
-4. Vehicle movement away from dock
-
-OUTPUT STRICT JSON:
-{{
-  "anomaly_type": "UNRESOLVED_DEPARTURE_RISK" | "NONE",
-  "severity": "CRITICAL" | "NONE",
-  "analysis_paragraph": "Detailed warning about uncorrected anomaly during departure...",
-  "affected_items": [],
-  "recommended_actions": []
-}}
-"""
-
+    
     # --- SIMULATION ENGINE (fallback when no API key) ---
 
     _SIM_LABEL = "[OFFLINE SIMULATION - NOT a live Gemini response] "
@@ -760,69 +676,6 @@ OUTPUT STRICT JSON:
             recommended_actions=[],
         )
 
-    def _simulate_departure_raw(
-        self,
-        cctv_frame_path: str,
-        previous: GeminiAnalysisResult,
-        fleet_state: Dict[str, Any],
-    ) -> GeminiAnalysisResult:
-        """
-        Simulates departure risk detection.
-        Scenario 2 triggers if there's an unresolved WARNING and departure cues
-        are detected.
-        """
-        doors_closing = fleet_state.get('doors_closing', False)
-        truck_moving = fleet_state.get('truck_moving', False)
-        has_unresolved_warning = (
-            previous.severity == "WARNING" and
-            fleet_state.get('anomaly_unresolved', False)
-        )
-
-        if (doors_closing or truck_moving) and has_unresolved_warning:
-            return GeminiAnalysisResult(
-                anomaly_type="UNRESOLVED_DEPARTURE_RISK",
-                severity="CRITICAL",
-                analysis_paragraph=self._generate_departure_paragraph(
-                    doors_closing, truck_moving, previous
-                ),
-                affected_items=previous.affected_items,
-                recommended_actions=[
-                    "BLOCK departure immediately",
-                    "Require manager manual override",
-                    "Re-inspect cargo before allowing departure",
-                    "Document the incident in fleet log",
-                ],
-            )
-
-        return GeminiAnalysisResult(
-            anomaly_type="NONE",
-            severity="NONE",
-            analysis_paragraph=(
-                "No departure risk detected. The truck is not exhibiting "
-                "departure cues, or all prior anomalies have been resolved."
-            ),
-            affected_items=[],
-            recommended_actions=[],
-        )
-
-    def _simulate_departure_detection(
-        self,
-        cctv_frame_path: str,
-        previous: GeminiAnalysisResult,
-        fleet_state: Dict[str, Any],
-    ) -> GeminiAnalysisResult:
-        """Offline departure-risk simulation, explicitly labelled (see above)."""
-        result = self._simulate_departure_raw(
-            cctv_frame_path, previous, fleet_state
-        )
-        result.analysis_paragraph = self._SIM_LABEL + result.analysis_paragraph
-        result.status = STATUS_SIMULATED
-        result.model = self.model
-        result.extra["provenance"] = (
-            "SIMULATION / FALLBACK — deterministic local rules, NOT live Gemini output"
-        )
-        return result
-
     # --- PARAGRAPH GENERATORS ---
 
     def _generate_messy_stacking_paragraph(
@@ -876,34 +729,13 @@ OUTPUT STRICT JSON:
             base += "Heavy-over-fragile stacking detected — adjust positioning. "
         return base.strip()
 
-    def _generate_departure_paragraph(
-        self, doors_closing, truck_moving, previous
-    ) -> str:
-        cues = []
-        if doors_closing:
-            cues.append("rear doors are detected closing")
-        if truck_moving:
-            cues.append("vehicle movement away from the docking bay")
-        cue_str = " and ".join(cues) if cues else "departure cues detected"
-
-        return (
-            f"CRITICAL: An unresolved loading anomaly (severity: {previous.severity}) "
-            f"remains uncorrected as the "
-            f"system detects that the {cue_str}. The truck is attempting to depart "
-            "with a messy, unstable, or severely underfilled cargo configuration.\n\n"
-            "OPERATIONAL RISKS:\n"
-            "1. Transit Collapse Hazard - unstable stacking may shift during transit.\n"
-            "2. Severe Space Waste - inefficient packing increases costs.\n"
-            "3. Safety Violation - heavy-over-fragile stacking creates liability.\n\n"
-            "RECOMMENDED ACTION: Block departure until a qualified inspector "
-            "re-evaluates the cargo configuration. Manager manual override required."
-        )
-
-    # NOTE: The former "REAL API CALLS" implementations of _call_gemini_api /
-    # _call_gemini_departure_api defined here were removed. They crashed on
-    # missing images, swallowed every exception with a bare `except Exception`
-    # and silently returned _simulate_analysis() output — i.e. simulated data
-    # presented as live Gemini results. The real implementations now live
-    # directly above (see "--- REAL GEMINI API PATH ---"): they log the exact
+    # NOTE: The former "REAL API CALLS" implementation of _call_gemini_api
+    # defined here was removed. It crashed on missing images, swallowed every
+    # exception with a bare `except Exception` and silently returned
+    # _simulate_analysis() output — i.e. simulated data presented as live
+    # Gemini results. The real implementation now lives directly above (see
+    # "--- REAL GEMINI API PATH ---"): it logs the exact request/response,
+    # preserves the raw model text, and returns status="FAILED" with the
+    # real error instead of ever faking success.
     # request/response, preserve the raw model text, and return
     # status="FAILED" with the real error instead of ever faking success.

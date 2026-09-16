@@ -10,7 +10,7 @@ EDITABLE placeholder files you can swap without touching code:
   2. 3D layout  ->  assets/mock_docks/mock_layout_dock{N}.json  (edit the JSON)
 
 On first run each missing file is written with a sensible default
-(Dock 2 = INSPECTED-CLEAR, Dock 3 = BLOCKED, Dock 4 = LOADING) so the demo works
+(All docks = LOADING) so the demo works
 out-of-the-box. Edit the JSON -> the page updates on next rerun.
 """
 

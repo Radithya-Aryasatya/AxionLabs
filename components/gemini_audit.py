@@ -93,13 +93,13 @@ def _render_current_analysis(analysis: dict, fleet: Fleet):
 
 def _render_provenance(analysis: dict):
     """
-    Render the provenance panel: Gemini status, model used and the EXACT raw
-    model response. This makes it impossible to mistake simulated, cached or
-    failed output for a live Gemini result.
+    Render the provenance panel: Gemini status and model used. This makes it
+    impossible to mistake simulated, cached or failed output for a live Gemini
+    result. (The raw model response is still captured in the underlying data but
+    is no longer displayed here.)
     """
     status = analysis.get('status', '') or 'UNVERIFIED'
     model = analysis.get('model', '') or 'unknown'
-    raw = analysis.get('raw_response', '') or ''
     error = analysis.get('error', '') or ''
     provenance = analysis.get('extra', {}).get('provenance', '')
 
@@ -127,22 +127,10 @@ def _render_provenance(analysis: dict):
     if error:
         st.error(f"**Gemini request error ({model}):** {error}")
         st.caption(
-            "The raw response is intentionally empty — no real Gemini "
+            "Gemini request error — no real Gemini "
             "content exists for this failed request, and no simulated "
             "substitute was generated."
         )
-
-    st.markdown("##### 📟 RAW GEMINI RESPONSE")
-    if raw:
-        st.caption(
-            f"Exact text returned by Gemini ({len(raw)} characters), "
-            "shown verbatim — may be prose or JSON."
-        )
-        st.code(raw, language=None, line_numbers=False)
-    elif status == 'FAILED':
-        st.caption("— empty — (no real Gemini response exists for a failed request)")
-    elif status == 'SIMULATED':
-        st.caption("— empty — (simulated results never carry a Gemini response)")
 
 
 def _render_audit_history(fleet: Fleet):

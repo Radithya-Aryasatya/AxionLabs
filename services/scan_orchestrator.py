@@ -123,8 +123,8 @@ def _persist_result(outcome, fleet, dock_number, result, source):
         else:
             push_notification(
                 dock_number=dock_number, fleet_id=fleet.id, level="INFO",
-                title=f"Dock {dock_number} - layout verified clear",
-                body="Gemini spatial analysis found no anomalies.",
+                title=f"Dock {dock_number} - no anomalies detected",
+                body="Gemini spatial analysis found no anomalies. Dock remains LOADING.",
             )
 
         outcome["severity"] = decision.severity or result.severity or "NONE"

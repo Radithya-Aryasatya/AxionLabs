@@ -53,11 +53,18 @@ def render_manager_controls(fleet: Fleet):
     # Gate controls on having actual packing data (not monitor placeholder)
     layout = fleet.packing_layout.get('layout', {}) if fleet.packing_layout else {}
     has_packed_items = bool(layout.get('packed_items'))
+    # A dock can carry unresolved anomaly records even while LOADING (e.g. a
+    # clean re-scan left it LOADING but earlier warnings are still open), so
+    # surface the Resolve control whenever any unresolved record exists — not
+    # only when the status flag is ANOMALY_DETECTED.
+    has_unresolved_anomaly = bool(
+        [a for a in fleet.anomaly_history if not a.resolved]
+    )
 
     col1, col2, col3, col4 = st.columns(4)
 
     with col1:
-        if fleet.status == FleetStatus.ANOMALY_DETECTED:
+        if has_unresolved_anomaly:
             if st.button("✅ Resolve Anomaly", key=f"resolve_{fleet.id}",
                          type="secondary", width="stretch"):
                 resolve_anomaly(fleet)

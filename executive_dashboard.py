@@ -33,28 +33,16 @@ def render_executive_dashboard():
     seed_mock_docks()
     ensure_dock1_monitor_fleet()
 
-    # --- In-dashboard alert corner (top-right, control-room style) ---
-    from components.alert_corner import render_alert_corner
-
     # Task 4: restore operator's CCTV selections after seeding (seeding
     # would otherwise overwrite them with deterministic placeholders).
     from services.cctv_manager import apply_cctv_selections
     apply_cctv_selections()
 
-    # Render the fixed alert stack AFTER seeding + CCTV restore so it reads
-    # the up-to-date dock/registry state.
-    render_alert_corner()
-
-    # Page header
+    # Page header — title only. The small subtitle line was removed so the
+    # title sits directly above the next section with no extra text/gap.
     st.markdown("""
-        <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 20px;">
-            <div style="font-size: 32px;">🛰️</div>
-            <div>
-                <h1 style="margin: 0; color: #ffffff;">Executive Control Tower</h1>
-                <p style="margin: 4px 0; color: #94A3B8; font-size: 13px;">
-                    Hybrid Fleet Monitoring & Diagnostic Dashboard
-                </p>
-            </div>
+        <div style="display: flex; align-items: center; gap: 12px; margin-bottom: -3px;">
+            <h1 style="margin: 0; color: #ffffff;">Executive Control Tower</h1>
         </div>
     """, unsafe_allow_html=True)
 
@@ -69,9 +57,6 @@ def render_executive_dashboard():
 
     # Task 4: Centralized SCAN ALL DOCKS control panel.
     _render_scan_all_control()
-
-    # --- Fleet Status Summary ---
-    render_anomaly_banners()
 
     # --- Fleet Status Summary ---
     _render_status_summary(fleets)
@@ -107,20 +92,20 @@ def _render_scan_all_control():
     """
     from services.scan_orchestrator import run_scan_all_docks, get_scan_summary
 
-    st.markdown("### 🔍 Centralized Scan Control")
+    st.markdown("### Centralized Scan Control")
     st.caption(
-        "Analyze the current CCTV state of all four docks. Each dock is scanned "
-        "independently — one failure never blocks the others. To change a dock's "
-        "CCTV image, investigate that dock individually first."
+        "Trigger system-wide dock inspections. Each feed processes independently—isolated errors will not block the full scan cycle."
     )
 
-    c1, c2 = st.columns([1, 3])
+    # vertical_alignment="center" keeps the button vertically centered
+    # (SEJAJAR) with the status/info box beside it, regardless of box height.
+    c1, c2 = st.columns([1, 3], vertical_alignment="center")
     with c1:
         if st.button(
-            "🛰️ SCAN ALL DOCKS",
+            "SCAN ALL DOCKS",
             key="scan_all_docks",
             type="primary",
-            use_container_width=True,
+            width='stretch',
             help="Analyze the current CCTV state of all four docks through Gemini. "
                  "The actual CCTV image is the PRIMARY input; the digital twin "
                  "(when available) is secondary comparison context.",
@@ -132,7 +117,7 @@ def _render_scan_all_control():
     with c2:
         summary = get_scan_summary()
         if summary is None:
-            st.info("No scan has been run yet. Change any dock's CCTV image, then press SCAN ALL DOCKS.")
+            st.info("No recent scans detected. Click SCAN ALL DOCKS to start.")
         else:
             when = summary.get("at", "?")
             outcomes = summary.get("outcomes", {})
@@ -158,11 +143,21 @@ def _render_scan_all_control():
             st.markdown(f"**Last scan:** `{when}`")
             st.markdown(" · ".join(parts))
 
-    st.markdown("---")
+    st.markdown(""""
+        <style>
+        /* Center text and icon inside st.info / alert boxes */
+        div[data-testid="stAlert"] {
+            text-align: center;
+            justify-content: center;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
 
 def _render_dock_grid():
     """Render the 4 fixed docks as a column grid."""
-    st.markdown("### 🏗️ Loading Dock Overview")
+    st.markdown("### Loading Dock Overview")
     docks = get_all_docks()
     cols = st.columns(4)
     for i, dn in enumerate(sorted(docks)):

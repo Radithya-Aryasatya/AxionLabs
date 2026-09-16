@@ -14,8 +14,9 @@ Two passes:
       NOT show any fabricated analysis. This proves no false-success path.
 
   Pass 2 (live proof): the real key from .env is used.
-      The UI MUST show "GEMINI STATUS: SUCCESS", "MODEL USED: <model>" and
-      the exact RAW GEMINI RESPONSE text rendered in the page.
+      The UI MUST show "GEMINI STATUS: SUCCESS" and "MODEL USED: <model>".
+      (The RAW GEMINI RESPONSE panel was removed from the UI; the raw response
+      is still captured and stored in the data.)
 
 Run:  python verify_gemini_ui.py
 """
@@ -71,34 +72,26 @@ def drive(label: str) -> None:
     assert not at.exception, f"[{label}] analysis: {at.exception}"
 
     md = "\n".join(m.value for m in at.markdown)
-    # st.code blocks (raw response is rendered through st.code)
-    code_texts = []
-    try:
-        code_texts = [c.value for c in at.code]
-    except Exception:
-        pass
+
+    # The RAW GEMINI RESPONSE panel is no longer rendered in the UI.
+    # Verify it is absent (regression guard).
+    assert "RAW GEMINI RESPONSE" not in md, \
+        f"[{label}] RAW GEMINI RESPONSE panel must not be rendered"
 
     stored = fleet.gemini_analysis or {}
     print(f"\n{'=' * 64}\n{label}\n{'=' * 64}")
     print(f"UI shows 'GEMINI STATUS: SUCCESS' : {'GEMINI STATUS: SUCCESS' in md}")
     print(f"UI shows 'GEMINI STATUS: FAILED'  : {'GEMINI STATUS: FAILED' in md}")
     print(f"UI shows 'MODEL USED:'            : {'MODEL USED:' in md}")
-    print(f"UI shows 'RAW GEMINI RESPONSE'    : {'RAW GEMINI RESPONSE' in md}")
     print(f"UI model line                     : "
           f"{[ln.strip() for ln in md.splitlines() if 'MODEL USED' in ln][:1]}")
     print(f"stored status                     : {stored.get('status')}")
     print(f"stored model                      : {stored.get('model')}")
     print(f"stored raw_response length        : {len(stored.get('raw_response') or '')}")
     print(f"stored error                      : {stored.get('error') or '-'}")
-    raw_in_code_blocks = any(
-        (stored.get('raw_response') or '')[:80] and
-        (stored.get('raw_response') or '')[:80] in (t or '') for t in code_texts
-    )
-    print(f"raw text rendered in a UI code block: {raw_in_code_blocks} "
-          f"(code blocks on page: {len(code_texts)})")
     if stored.get('raw_response'):
         excerpt = " ".join(stored['raw_response'].split())[:200]
-        print(f"RAW EXCERPT: {excerpt}...")
+        print(f"RAW EXCERPT (stored data): {excerpt}...")
     return stored
 
 
@@ -124,7 +117,7 @@ def main() -> int:
     assert s2.get("status") == "SUCCESS", \
         f"live pass failed: {s2.get('status')} {s2.get('error')}"
     assert (s2.get("raw_response") or "").strip(), "no raw model text received"
-    print("PASS 2 OK — real Gemini response received and stored for UI display.")
+    print("PASS 2 OK — real Gemini response received and stored.")
 
     print("\nALL UI VERIFICATIONS PASSED — "
           "REAL Gemini output is rendered in the web interface, and failures "
