@@ -1,0 +1,1369 @@
+==============================================================================
+FILE solver_sardine/memory.py  size=14460 mtime=1789500941
+==============================================================================
+   1| """
+   2| solver_sardine.memory
+   3| =====================
+   4| Disk-backed persistence for the Sardine-Can AI solver so the AI's learning /
+   5| history survives Streamlit restarts, refreshes, and new browser windows.
+   6| 
+   7| Layout (created lazily inside ``ai_progress/`` next to ``app.py``)::
+   8| 
+   9|     ai_progress/
+  10|       config.json          # {improve_enabled, budget_seconds, ...}
+  11|       history.jsonl        # one JSON line per packing run
+  12|       best_solutions/      # {manifest_hash}.json  best known layout
+  13|       learned_weights.json # {hash: {strategy: {weight, wins, losses}}}
+  14|       README.md
+  15|       .gitkeep
+  16| 
+  17| Every public function degrades gracefully on IO / permission errors - the
+  18| solver is always allowed to fall back to its in-memory baseline.
+  19| """
+  20| from __future__ import annotations
+  21| 
+  22| import hashlib
+  23| import json
+  24| import logging
+  25| import os
+  26| import threading
+  27| from dataclasses import asdict, dataclass, field
+  28| 
+  29| _APP_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+  30| PROGRESS_DIR = os.path.join(_APP_ROOT, "ai_progress")
+  31| BEST_DIR = os.path.join(PROGRESS_DIR, "best_solutions")
+  32| 
+  33| logger = logging.getLogger("solver.memory")
+  34| _lock = threading.Lock()
+  35| 
+  36| _README = (
+  37|     "# AI Progress Store\n\n"
+  38|     "This folder persists the Sardine-Can AI solver's learning history and\n"
+  39|     "best-known solutions *across* Streamlit restarts and refreshes.\n\n"
+  40|     "- `history.jsonl` - one line per packing run.\n"
+  41|     "- `best_solutions/` - best placement per manifest hash.\n"
+  42|     "- `learned_weights.json` - heuristic strategy win/loss statistics.\n"
+  43|     "- `config.json` - user-toggled solver options.\n\n"
+  44|     "Contents are git-ignored (only `.gitkeep` and this README are kept).\n"
+  45| )
+  46| 
+  47| 
+  48| def ensure_dirs():
+  49|     """Create ``ai_progress/`` + ``best_solutions/`` and seed docs."""
+  50|     try:
+  51|         os.makedirs(BEST_DIR, exist_ok=True)
+  52|     except OSError:
+  53|         return
+  54|     for name, content in (("README.md", _README), (".gitkeep", "")):
+  55|         path = os.path.join(PROGRESS_DIR, name)
+  56|         if not os.path.exists(path):
+  57|             try:
+  58|                 with open(path, "w", encoding="utf-8") as f:
+  59|                     f.write(content)
+  60|             except OSError:
+  61|                 pass
+  62| 
+  63| 
+  64| def _atomic_write(path, data):
+  65|     """Write text to ``path`` atomically (temp file + os.replace)."""
+  66|     tmp = path + ".tmp"
+  67|     os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+  68|     try:
+  69|         with open(tmp, "w", encoding="utf-8") as f:
+  70|             f.write(data)
+  71|             f.flush()
+  72|             os.fsync(f.fileno())
+  73|         os.replace(tmp, path)
+  74|     except OSError as e:
+  75|         logger.warning("atomic write failed for %s: %s", path, e)
+  76| 
+  77| 
+  78| def _atomic_write_json(path, obj):
+  79|     _atomic_write(path, json.dumps(obj, indent=2, default=str))
+  80| 
+  81| 
+  82| def _read_json(path, default):
+  83|     """Read a JSON file, returning ``default`` on any failure."""
+  84|     try:
+  85|         with open(path, encoding="utf-8") as f:
+  86|             return json.load(f)
+  87|     except (OSError, json.JSONDecodeError, ValueError):
+  88|         return default
+  89| # ──────────────────────────────────────────────────────────────────────
+  90| #  User config  (survives refresh: written on every toggle change)
+  91| # ──────────────────────────────────────────────────────────────────────
+  92| 
+  93| _DEFAULT_CONFIG = {
+  94|     "improve_enabled": True,
+  95|     "budget_seconds": 5.0,
+  96|     "max_candidates": 8,
+  97|     "version": 1,
+  98| }
+  99| 
+ 100| _CONFIG_PATH = os.path.join(PROGRESS_DIR, "config.json")
+ 101| 
+ 102| 
+ 103| def load_config() -> dict:
+ 104|     """Return persisted config merged over defaults. Never raises."""
+ 105|     cfg = _read_json(_CONFIG_PATH, {})
+ 106|     if not isinstance(cfg, dict):
+ 107|         cfg = {}
+ 108|     return {**_DEFAULT_CONFIG, **cfg}
+ 109| 
+ 110| 
+ 111| def save_config(cfg: dict):
+ 112|     """Persist user config atomically. No-raise on failure."""
+ 113|     ensure_dirs()
+ 114|     try:
+ 115|         with _lock:
+ 116|             _atomic_write_json(_CONFIG_PATH, {**_DEFAULT_CONFIG, **(cfg or {})})
+ 117|     except Exception as e:  # noqa: BLE001 - persistence must never break UI
+ 118|         logger.warning("save_config failed: %s", e)
+ 119| 
+ 120| 
+ 121| # ──────────────────────────────────────────────────────────────────────
+ 122| #  Learned heuristic weights
+ 123| # ──────────────────────────────────────────────────────────────────────
+ 124| 
+ 125| _WEIGHTS_PATH = os.path.join(PROGRESS_DIR, "learned_weights.json")
+ 126| 
+ 127| 
+ 128| def load_learned_weights() -> dict:
+ 129|     """Return ``{manifest_hash: {strategy: {weight, wins, losses}}}``."""
+ 130|     data = _read_json(_WEIGHTS_PATH, {})
+ 131|     return data if isinstance(data, dict) else {}
+ 132| 
+ 133| 
+ 134| def save_learned_weights(weights: dict):
+ 135|     ensure_dirs()
+ 136|     try:
+ 137|         with _lock:
+ 138|             _atomic_write_json(_WEIGHTS_PATH, weights or {})
+ 139|     except Exception as e:  # noqa: BLE001
+ 140|         logger.warning("save_learned_weights failed: %s", e)
+ 141| 
+ 142| 
+ 143| def record_strategy_result(sig: str, strategy: str, won: bool,
+ 144|                            score: float = 0.0):
+ 145|     """Update the win/loss record (and derived weight) for one strategy.
+ 146| 
+ 147|     ``weight`` starts at 0.5 and moves toward 1.0 on wins / 0.0 on losses
+ 148|     with an exponential moving average, so recent results dominate but a
+ 149|     single unlucky run cannot permanently blacklist a strategy.
+ 150|     """
+ 151|     ensure_dirs()
+ 152|     try:
+ 153|         with _lock:
+ 154|             weights = load_learned_weights()
+ 155|             bucket = weights.setdefault(sig, {})
+ 156|             entry = bucket.setdefault(
+ 157|                 strategy, {"weight": 0.5, "wins": 0, "losses": 0,
+ 158|                            "best_score": 0.0})
+ 159| # ──────────────────────────────────────────────────────────────────────
+ 160| #  Best-known solution per manifest hash
+ 161| # ──────────────────────────────────────────────────────────────────────
+ 162| 
+ 163| def _best_path(sig: str) -> str:
+ 164|     return os.path.join(BEST_DIR, f"{sig}.json")
+ 165| 
+ 166| 
+ 167| def load_best_solution(sig: str):
+ 168|     """Load the best stored layout for a manifest hash, or None."""
+ 169|     data = _read_json(_best_path(sig), None)
+ 170|     return data if isinstance(data, dict) else None
+ 171| 
+ 172| 
+ 173| def save_best_solution(sig: str, solution_dict: dict, score: float) -> bool:
+ 174|     """Store a layout only if it beats the score already on disk.
+ 175| 
+ 176|     Returns True when the new layout was written.
+ 177|     """
+ 178|     ensure_dirs()
+ 179|     try:
+ 180|         with _lock:
+ 181|             prev = _read_json(_best_path(sig), None)
+ 182|             if isinstance(prev, dict) and float(prev.get("score", 0)) >= float(score):
+ 183|                 return False
+ 184|             payload = dict(solution_dict)
+ 185|             payload["score"] = float(score)
+ 186|             _atomic_write_json(_best_path(sig), payload)
+ 187|             return True
+ 188|     except Exception as e:  # noqa: BLE001
+ 189|         logger.warning("save_best_solution failed: %s", e)
+ 190|         return False
+ 191| 
+ 192| 
+ 193| def solution_to_dict(solution) -> dict:
+ 194|     """Serialise a :class:`solver_common.schemas.Solution` for storage."""
+ 195|     return {
+ 196|         "engine": getattr(solution, "engine", "unknown"),
+ 197|         "strategy": getattr(solution, "strategy", "baseline"),
+ 198|         "score": float(getattr(solution, "score", 0.0)),
+ 199|         "truck": asdict(solution.truck) if solution.truck else {},
+ 200|         "packed": [asdict(p) for p in getattr(solution, "packed", [])],
+ 201|         "unfitted": [asdict(p) for p in getattr(solution, "unfitted", [])],
+ 202|         "extra": {k: v for k, v in getattr(solution, "extra", {}).items()
+ 203| # ─────────────────────────────────────────────────────────────────────
+ 204| #  Run history
+ 205| # ──────────────────────────────────────────────────────────────────────
+ 206| 
+ 207| @dataclass
+ 208| class RunRecord:
+ 209|     manifest_hash: str
+ 210|     engine: str
+ 211|     strategy: str
+ 212|     packed_count: int
+ 213|     unfitted_count: int
+ 214|     score: float
+ 215|     duration_s: float
+ 216|     timestamp: float
+ 217|     extra: dict = field(default_factory=dict)
+ 218| 
+ 219|     def to_dict(self) -> dict:
+ 220|         return asdict(self)
+ 221| 
+ 222| 
+ 223| def _history_path() -> str:
+ 224|     return os.path.join(PROGRESS_DIR, "history.jsonl")
+ 225| 
+ 226| 
+ 227| def append_history(record: RunRecord):
+ 228|     """Append one line to ``history.jsonl`` (crash-tolerant)."""
+ 229|     ensure_dirs()
+ 230|     line = json.dumps(record.to_dict(), default=str) + "\n"
+ 231|     try:
+ 232|         with _lock:
+ 233|             with open(_history_path(), "a", encoding="utf-8") as f:
+ 234|                 f.write(line)
+ 235|                 f.flush()
+ 236|     except OSError as e:
+ 237|         logger.warning("append_history failed: %s", e)
+ 238| 
+ 239| 
+ 240| def load_history(limit: int | None = None) -> list:
+ 241|     """Load history records (skipping corrupt lines). Newest first."""
+ 242|     records = []
+ 243|     try:
+ 244|         with open(_history_path(), encoding="utf-8") as f:
+ 245|             for line in f:
+ 246|                 line = line.strip()
+ 247|                 if not line:
+ 248|                     continue
+ 249|                 try:
+ 250|                     records.append(json.loads(line))
+ 251|                 except json.JSONDecodeError:
+ 252|                     continue
+ 253|     except OSError:
+ 254|         return []
+ 255|     records.reverse()
+ 256|     return records[:limit] if limit else records
+ 257| 
+ 258| 
+ 259| def clear_history():
+ 260|     """Wipe all persisted AI progress (used by the 'Reset' button)."""
+ 261|     try:
+ 262|         with _lock:
+ 263|             _atomic_write(_history_path(), "")
+ 264|             _atomic_write_json(_WEIGHTS_PATH, {})
+ 265|             if os.path.isdir(BEST_DIR):
+ 266|                 for name in os.listdir(BEST_DIR):
+ 267|                     if name.endswith(".json"):
+ 268|                         try:
+ 269|                             os.remove(os.path.join(BEST_DIR, name))
+ 270|                         except OSError:
+ 271|                             pass
+ 272|     except Exception as e:  # noqa: BLE001
+ 273|         logger.warning("clear_history failed: %s", e)
+ 274|                   if isinstance(v, (str, int, float, bool, type(None)))},
+ 275|     }
+ 276| 
+ 277| # ──────────────────────────────────────────────────────────────────────
+ 278| #  Manifest hashing
+ 279| # ──────────────────────────────────────────────────────────────────────
+ 280| 
+ 281| def manifest_hash(manifest: list[dict], truck_dims: tuple,
+ 282|                   truck_weight: float) -> str:
+ 283|     """Stable hash of the full input so history/best are keyed reliably."""
+ 284|     payload = {
+ 285|         "truck": {
+ 286|             "w": float(truck_dims[0]), "h": float(truck_dims[1]),
+ 287|             "d": float(truck_dims[2]), "max_weight": float(truck_weight),
+ 288|         },
+ 289|         "items": sorted(
+ 290|             (
+ 291|                 {
+ 292|                     "name": m["name"],
+ 293|                     "w": round(float(m["w"]), 6),
+ 294|                     "h": round(float(m["h"]), 6),
+ 295|                     "d": round(float(m["d"]), 6),
+ 296|                     "weight": round(float(m["weight"]), 6),
+ 297|                     "quantity": int(m.get("quantity", 1)),
+ 298|                     "sequence": int(m.get("sequence", 0)),
+ 299|                 }
+ 300|                 for m in manifest
+ 301|                 if m.get("name") != "_truck_meta"
+ 302|             ),
+ 303|             key=lambda d: (d["sequence"], d["name"]),
+ 304|         ),
+ 305|     }
+ 306|     raw = json.dumps(payload, sort_keys=True, default=str)
+ 307|     return hashlib.sha256(raw.encode("utf-8")).hexdigest()[:16]
+ 308| 
+ 309| 
+ 310| # ──────────────────────────────────────────────────────────────────────
+ 311| #  Streamlit session-state integration
+ 312| # ──────────────────────────────────────────────────────────────────────
+ 313| 
+ 314| def hydrate_session_state(st_session):
+ 315|     """Bulk-load persisted data into ``st.session_state`` on startup.
+ 316| 
+ 317|     Called at the top of ``app.py`` so a browser refresh or a brand-new
+ 318|     window immediately sees the AI's previous progress.
+ 319|     """
+ 320|     try:
+ 321|         if "ai_config" not in st_session:
+ 322|             st_session.ai_config = load_config()
+ 323|         if "ai_history" not in st_session:
+ 324|             st_session.ai_history = load_history()
+ 325|         if "ai_weights" not in st_session:
+ 326|             st_session.ai_weights = load_learned_weights()
+ 327|         st_session.ai_loaded = True
+ 328|     except Exception as e:  # noqa: BLE001
+ 329|         logger.warning("hydrate_session_state failed: %s", e)
+ 330| 
+ 331| 
+ 332| __all__ = [
+ 333|     "ensure_dirs", "load_config", "save_config",
+ 334|     "load_learned_weights", "save_learned_weights", "record_strategy_result",
+ 335|     "load_best_solution", "save_best_solution", "solution_to_dict",
+ 336|     "append_history", "load_history", "clear_history",
+ 337|     "manifest_hash", "hydrate_session_state",
+ 338|     "RunRecord", "PROGRESS_DIR", "BEST_DIR",
+ 339| ]
+ 340|             key = "wins" if won else "losses"
+ 341|             entry[key] = int(entry.get(key, 0)) + 1
+ 342|             prev = float(entry.get("weight", 0.5))
+ 343|             target = 1.0 if won else 0.0
+ 344|             entry["weight"] = round(prev + 0.3 * (target - prev), 4)
+ 345|             entry["best_score"] = max(float(entry.get("best_score", 0.0)),
+ 346|                                       float(score or 0.0))
+ 347|             _atomic_write_json(_WEIGHTS_PATH, weights)
+ 348|     except Exception as e:  # noqa: BLE001
+ 349|         logger.warning("record_strategy_result failed: %s", e)
+==============================================================================
+FILE solver_sardine/improver.py  size=3835 mtime=1789500980
+==============================================================================
+   1| """
+   2| solver_sardine.improver
+   3| =======================
+   4| Optional self-improvement layer for the Sardine-Can AI solver.
+   5| 
+   6| The **baseline** (:func:`solver_sardine.baseline.solve_sardine`) always runs
+   7| first and establishes a floor.  The improver then tries alternative
+   8| strategies inside a user-controlled time / candidate budget and only
+   9| accepts a replacement when it is *strictly better* on the same composite
+  10| score ``app.py`` uses **and** still satisfies every hard guardrail.  If
+  11| nothing beats the baseline (or the budget runs out) the baseline result is
+  12| returned — the AI can never make the output worse.
+  13| 
+  14| Strategies explored (all are EPI parameterisations):
+  15|   * ``epi-baseline``      – the parity ordering from the classic engine.
+  16|   * ``volume-desc``       – largest boxes first (better bottom layers).
+  17|   * ``weight-desc``       – heaviest first (better centre of gravity).
+  18|   * ``footprint-desc``    – largest floor area first.
+  19|   * ``sequence-desc``     – strict LIFO unloading order.
+  20|   * ``spin-all``          – allow all six rotations for non-tip items.
+  21| 
+  22| Every win/loss is written to ``ai_progress/history.jsonl`` and
+  23| ``ai_progress/learned_weights.json`` so the AI's preference ordering
+  24| improves across sessions and survives Streamlit refreshes.
+  25| """
+  26| from __future__ import annotations
+  27| 
+  28| import time
+  29| 
+  30| from .baseline import (
+  31|     ALL_ROTATIONS,
+  32|     SPIN_ONLY,
+  33|     _EPSet,
+  34|     _best_fit_place,
+  35|     _build_items_from_manifest,
+  36|     solve_sardine,
+  37| )
+  38| from .memory import (
+  39|     RunRecord,
+  40|     append_history,
+  41|     load_learned_weights,
+  42|     manifest_hash,
+  43|     record_strategy_result,
+  44|     save_best_solution,
+  45|     solution_to_dict,
+  46| )
+  47| 
+  48| from solver_common.schemas import Placement, Solution, Truck
+  49| 
+  50| #: Hard cap so a pathological manifest can never hang the UI.
+  51| MAX_STRATEGY_SECONDS = 30.0
+  52| # ─────────────────────────────────────────────────────────────────────
+  53| #  Guardrails
+  54| # ──────────────────────────────────────────────────────────────────────
+  55| 
+  56| def _validate_layout(packed, bin_w, bin_h, bin_d, max_weight,
+  57|                      support_ratio) -> bool:
+  58|     """Return True iff a placement list satisfies every hard guardrail.
+  59| 
+  60|     Checked: bounds, total weight, pairwise overlap, support/stability.
+  61|     A layout that fails here is *never* accepted by the improver.
+  62|     """
+  63|     from .baseline import _is_supported
+  64| 
+  65|     aabbs = []
+  66|     total_w = 0.0
+  67|     for p in packed:
+  68|         x, y, z = p.x * 100.0, p.y * 100.0, p.z * 100.0
+  69|         w, h, d = p.w * 100.0, p.h * 100.0, p.d * 100.0
+  70|         if (x < -1e-6 or y < -1e-6 or z < -1e-6 or
+  71|                 x + w > bin_w + 1e-6 or
+  72|                 y + h > bin_h + 1e-6 or
+  73|                 z + d > bin_d + 1e-6):
+  74|             return False
+  75|         total_w += p.weight
+  76|         aabbs.append((x, y, z, w, h, d))
+  77| 
+  78|     if total_w > max_weight + 1e-3:
+  79|         return False
+  80| 
+  81|     for i in range(len(aabbs)):
+  82|         a = aabbs[i]
+  83|         for j in range(i + 1, len(aabbs)):
+  84|             b = aabbs[j]
+  85|             if (a[0] < b[0] + b[3] - 1e-6 and b[0] < a[0] + a[3] - 1e-6 and
+  86|                     a[1] < b[1] + b[4] - 1e-6 and b[1] < a[1] + a[4] - 1e-6 and
+  87|                     a[2] < b[2] + b[5] - 1e-6 and b[2] < a[2] + a[5] - 1e-6):
+  88|                 return False
+  89| 
+  90|     for idx, (x, y, z, w, h, d) in enumerate(aabbs):
+  91|         if y <= 1e-6:
+  92|             continue
+  93|         others = [aabbs[k] for k in range(len(aabbs)) if k != idx]
+  94|         if not _is_supported(x, y, z, w, h, d, others, support_ratio):
+  95|             return False
+  96|     return True
+==============================================================================
+FILE solver_sardine/baseline.py  size=17409 mtime=1789499026
+==============================================================================
+   1| """
+   2| solver_sardine.baseline
+   3| =======================
+   4| Pure-Python port of the SardineCan **Extreme Point Insertion** heuristic.
+   5| 
+   6| The engine consumes the *same* manifest shape that ``app.py`` builds and
+   7| returns a :class:`~solver_common.schemas.Solution` whose ``packed`` list
+   8| is converted by ``app.py`` into ``PackedItem`` objects — so the existing
+   9| 3-D viewer, metrics, and fleet registration work unchanged.
+  10| 
+  11| Algorithm (mirrors
+  12| ``SC.Core/Heuristics/PrimalHeuristic/ExtremePointInsertion.cs``):
+  13| 
+  14| 1. **Extreme Points (EPs).** The container starts with the origin corner
+  15|    as a candidate placement point. After every successful placement the
+  16|    8 corners of the newly-placed box are added as EPs.
+  17| 
+  18| 2. **Best-fit merit.** For each (piece, EP, rotation) combination the
+  19|    *minimum residual slack* across all three axes is computed. The
+  20|    placement with the smallest residual (tightest fit) wins.
+  21| 
+  22| 3. **Guard rails.** Before acceptance a candidate must pass:
+  23|    bounds, collision, stability (>= 0.75 support ratio), weight,
+  24|    and the orientation rule: ``updown=False`` items may only assume
+  25|    ``RT_WHD`` (0) or ``RT_DHW`` (3) — spin on floor, never tip.
+  26| 
+  27| 4. **Soft-LIFO (optional).** When ``prioritize_sequence`` is True items
+  28|    with a higher unloading sequence are placed first (deepest). An item
+  29|    may never be placed where an already-fitted higher-sequence box sits
+  30|    between it and the door in the same lane and shelf.
+  31| 
+  32| 5. **EP pruning.** After each placement, EPs interior to a placed box or
+  33|    dominated by another EP are removed.
+  34| """
+  35| from __future__ import annotations
+  36| 
+  37| import math
+  38| import os
+  39| import sys
+  40| from dataclasses import dataclass, field
+  41| 
+  42| sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+  43| 
+  44| from py3dbp.constants import RotationType
+  45| 
+  46| from solver_common.schemas import Truck, Placement, Solution
+  47| 
+  48| 
+  49| # ──────────────────────────────────────────────────────────────────────
+  50| #  Constants
+  51| # ──────────────────────────────────────────────────────────────────────
+  52| 
+  53| #: Tolerance for face-to-face contact / duplicate detection (cm).
+  54| EPS = 1e-6
+  55| 
+  56| #: Rotations allowed for a ``updown=False`` item — spin on the floor only
+  57| #: (mirrors ``RotationType.Notupdown`` in ``py3dbp/constants.py``).
+  58| SPIN_ONLY = list(RotationType.Notupdown)
+  59| 
+  60| #: All six rotations (available if a caller ever unlocks tipping).
+  61| ALL_ROTATIONS = list(RotationType.ALL)
+  62| 
+  63| #: C# engine default support-surface ratio (``-ssr`` in SC.CLI).
+  64| DEFAULT_SUPPORT_RATIO = 0.75
+  65| 
+  66| 
+  67| # ──────────────────────────────────────────────────────────────────────
+  68| #  Geometric helpers (cm coordinates)
+  69| # ──────────────────────────────────────────────────────────────────────
+  70| 
+  71| def _rot_dim(w, h, d, rt):
+  72|     """Return (width, height, depth) for a given rotation type."""
+  73|     if rt == RotationType.RT_WHD:   # 0
+  74|         return w, h, d
+  75|     if rt == RotationType.RT_HWD:   # 1
+  76|         return h, w, d
+  77|     if rt == RotationType.RT_HDW:   # 2
+  78|         return h, d, w
+  79|     if rt == RotationType.RT_DHW:   # 3
+  80|         return d, h, w
+  81|     if rt == RotationType.RT_DWH:   # 4
+  82|         return d, w, h
+  83|     if rt == RotationType.RT_WDH:   # 5
+  84|         return w, d, h
+  85|     return w, h, d
+  86| 
+  87| 
+  88| def _aabb_overlap(a, b):
+  89|     """3-D AABB overlap. a/b = (x,y,z,w,h,d)."""
+  90|     ax0, ay0, az0 = a[0], a[1], a[2]
+  91|     ax1, ay1, az1 = ax0 + a[3], ay0 + a[4], az0 + a[5]
+  92|     bx0, by0, bz0 = b[0], b[1], b[2]
+  93|     bx1, by1, bz1 = bx0 + b[3], by0 + b[4], bz0 + b[5]
+  94|     return (ax0 < bx1 - EPS and bx0 < ax1 - EPS and
+  95|             ay0 < by1 - EPS and by0 < ay1 - EPS and
+  96|             az0 < bz1 - EPS and bz0 < az1 - EPS)
+  97| 
+  98| 
+  99| def _xz_overlap(a, b):
+ 100|     """2-D X-Z overlap area (footprint projection)."""
+ 101|     ax0, az0 = a[0], a[2]
+ 102|     ax1, az1 = ax0 + a[3], az0 + a[5]
+ 103|     bx0, bz0 = b[0], b[2]
+ 104|     bx1, bz1 = bx0 + b[3], bz0 + b[5]
+ 105|     ox = min(ax1, bx1) - max(ax0, bx0)
+ 106|     oz = min(az1, bz1) - max(az0, bz0)
+ 107|     return ox * oz if ox > 0 and oz > 0 else 0.0
+ 108| 
+ 109| 
+ 110| # ──────────────────────────────────────────────────────────────────────
+ 111| #  Stability + LIFO accessibility (ported from py3dbp Bin methods)
+ 112| # ──────────────────────────────────────────────────────────────────────
+ 113| 
+ 114| def _is_supported(x, y, z, w, h, d, placed, support_ratio):
+ 115|     """Stability check — same rule as ``Bin._isStableAt``.
+ 116| 
+ 117|     * y ≤ 0 → on floor, always stable.
+ 118|     * Otherwise ≥ ``support_ratio`` of the footprint must be covered by the
+ 119|       top faces of already-placed items directly beneath, *and* the centre
+ 120|       of mass must lie on a supporter.  Below 0.25 we allow a 4-vertex fallback.
+ 121|     """
+ 122|     if y <= EPS:
+ 123|         return True
+ 124|     footprint = w * d
+ 125|     if footprint <= 0:
+ 126|         return True
+ 127|     support_area = 0.0
+ 128|     centre_ok = False
+ 129|     cx = x + w / 2.0
+ 130|     cz = z + d / 2.0
+ 131|     for (px, py, pz, pw, ph, pd) in placed:
+ 132|         if abs(y - (py + ph)) > 1e-3:
+ 133|             continue
+ 134|         ox = min(x + w, px + pw) - max(x, px)
+ 135|         oz = min(z + d, pz + pd) - max(z, pz)
+ 136|         if ox > EPS and oz > EPS:
+ 137|             support_area += ox * oz
+ 138|             if px <= cx <= px + pw and pz <= cz <= pz + pd:
+ 139|                 centre_ok = True
+ 140|     ratio = support_area / footprint
+ 141|     if ratio >= support_ratio:
+ 142|         return centre_ok
+ 143|     if ratio < 0.25:
+ 144|         return False
+ 145|     # 4-vertex fallback
+ 146|     four = [(x, z), (x + w, z), (x, z + d), (x + w, z + d)]
+ 147|     covered = [False] * 4
+ 148|     for (px, py, pz, pw, ph, pd) in placed:
+ 149|         if abs(y - (py + ph)) > 1e-3:
+ 150|             continue
+ 151|         for j, (vx, vz) in enumerate(four):
+ 152|             if px <= vx <= px + pw and pz <= vz <= pz + pd:
+ 153|                 covered[j] = True
+ 154|     if not all(covered):
+ 155|         return False
+ 156|     return centre_ok
+ 157| 
+ 158| 
+ 159| def _is_accessible(x, y, z, w, h, d, seq, placed_full):
+ 160|     """Soft-LIFO accessibility — copy of ``Bin._isAccessibleAt`` logic.
+ 161| 
+ 162|     Returns True unless a higher-sequence box is *in front* (closer to the
+ 163|     door / higher z) in the same width lane and height shelf.
+ 164|     """
+ 165|     if seq is None:
+ 166|         return True
+ 167|     ix0 = x; ix1 = x + w
+ 168|     iy0 = y; iy1 = y + h
+ 169|     iz1 = z + d  # candidate's front face
+ 170|     for pb in placed_full:
+ 171|         oseq = pb["seq"]
+ 172|         if oseq is None or float(oseq) <= float(seq):
+ 173|             continue
+ 174|         jx0 = pb["x"]; jx1 = jx0 + pb["w"]
+ 175|         jy0 = pb["y"]; jy1 = jy0 + pb["h"]
+ 176|         jz0 = pb["z"]
+ 177|         if not (ix0 < jx1 - EPS and jx0 < ix1 - EPS):
+ 178|             continue
+ 179|         if not (iy0 < jy1 - EPS and jy0 < iy1 - EPS):
+ 180|             continue
+ 181|         if jz0 >= iz1 - 5e-4:
+ 182|             return False
+ 183|     return True
+ 184| 
+ 185| 
+ 186| # ──────────────────────────────────────────────────────────────────────
+ 187| #  Extreme-points container
+ 188| # ──────────────────────────────────────────────────────────────────────
+ 189| 
+ 190| @dataclass
+ 191| class _EPSet:
+ 192|     """Manages the set of extreme points (candidate placement corners)."""
+ 193|     width: float
+ 194|     height: float
+ 195|     depth: float
+ 196|     points: list = field(default_factory=list)  # (x, y, z) in cm
+ 197| 
+ 198|     def init(self):
+ 199|         """Seed with the container origin — the first placement corner."""
+ 200|         self.points = [(0.0, 0.0, 0.0)]
+ 201| 
+ 202|     def add_corners(self, x, y, z, w, h, d):
+ 203|         """Add the 8 corners of a placed box as candidate EPs."""
+ 204|         for cx in (x, x + w):
+ 205|             for cy in (y, y + h):
+ 206|                 for cz in (z, z + d):
+ 207|                     self.points.append((cx, cy, cz))
+ 208| 
+ 209|     def prune(self, placed_boxes):
+ 210|         """Remove EPs interior to a placed box or near-duplicated."""
+ 211|         filtered = []
+ 212|         for (px, py, pz) in self.points:
+ 213|             interior = False
+ 214|             for (bx, by, bz, bw, bh, bd) in placed_boxes:
+ 215|                 if (bx - EPS < px < bx + bw - EPS and
+ 216|                     by - EPS < py < by + bh - EPS and
+ 217|                     bz - EPS < pz < bz + bd - EPS):
+ 218|                     interior = True
+ 219|                     break
+ 220|             if not interior:
+ 221|                 filtered.append((px, py, pz))
+ 222|         unique = []
+ 223|         for p in filtered:
+ 224|             dup = False
+ 225|             for u in unique:
+ 226|                 if (abs(p[0] - u[0]) < EPS and
+ 227|                     abs(p[1] - u[1]) < EPS and
+ 228|                     abs(p[2] - u[2]) < EPS):
+ 229|                     dup = True
+ 230|                     break
+ 231|             if not dup:
+ 232|                 unique.append(p)
+ 233|         self.points = unique
+ 234| 
+ 235| 
+ 236| # ──────────────────────────────────────────────────────────────────────
+ 237| #  Core solver
+ 238| # ──────────────────────────────────────────────────────────────────────
+ 239| 
+ 240| @dataclass
+ 241| class _PlacedItem:
+ 242|     """Internal record of a placed item (cm coordinates)."""
+ 243|     name: str
+ 244|     partno: str
+ 245|     x: float
+ 246|     y: float
+ 247|     z: float
+ 248|     w: float  # width  (cm)
+ 249|     h: float  # height (cm) — vertical
+ 250|     d: float  # depth  (cm)
+ 251|     weight: float
+ 252|     rotation_type: int
+ 253|     max_load: float
+ 254|     seq: float | None = None
+ 255|     color: str = "#1f77b4"
+ 256| 
+ 257|     def aabb(self):
+ 258|         return (self.x, self.y, self.z, self.w, self.h, self.d)
+ 259| 
+ 260| 
+ 261| def _build_items_from_manifest(manifest):
+ 262|     """Expand the app.py manifest into a flat list of ``_PlacedItem``
+ 263|     templates (pre-placement; each copy is a distinct object)."""
+ 264|     templates = []
+ 265|     for m in manifest:
+ 266|         w = float(m["w"]) * 100   # m -> cm
+ 267|         h = float(m["h"]) * 100
+ 268|         d = float(m["d"]) * 100
+ 269|         qty = int(m.get("quantity", 1))
+ 270|         qty = qty if qty > 0 else 1
+ 271|         for i in range(qty):
+ 272|             templates.append(_PlacedItem(
+ 273|                 name=f'{m["name"]} #{i+1}',
+ 274|                 partno=f'ITEM-{m["name"]}#{i+1}',
+ 275|                 x=0.0, y=0.0, z=0.0,
+ 276|                 w=w, h=h, d=d,
+ 277|                 weight=float(m["weight"]),
+ 278|                 rotation_type=RotationType.RT_WHD,
+ 279|                 max_load=float(m["max_load"]) if math.isfinite(m["max_load"]) else float("inf"),
+ 280|                 seq=float(m["sequence"]),
+ 281|                 color=m.get("color", "#1f77b4"),
+ 282|             ))
+ 283|     return templates
+ 284| 
+ 285| 
+ 286| def _best_fit_place(item, ep_set, bin_w, bin_h, bin_d, support_ratio,
+ 287|                     max_weight, current_weight, placed_boxes, rotations,
+ 288|                     allow_lifo):
+ 289|     """Try every (EP, rotation); commit the best-fit (min residual).
+ 290| 
+ 291|     Returns True if placed, False otherwise.  Mutates ``placed_boxes``
+ 292|     and ``ep_set``.
+ 293|     """
+ 294|     best_residual = None
+ 295|     best_candidate = None
+ 296|     for (px, py, pz) in ep_set.points:
+ 297|         for rt in rotations:
+ 298|             w, h, d = _rot_dim(item.w, item.h, item.d, rt)
+ 299|             # Bounds check
+ 300|             if (px < -EPS or py < -EPS or pz < -EPS or
+ 301|                 px + w > bin_w + EPS or py + h > bin_h + EPS or
+ 302|                 pz + d > bin_d + EPS):
+ 303|                 continue
+ 304|             cand_aabb = (px, py, pz, w, h, d)
+ 305|             # Collision check
+ 306|             overlap = False
+ 307|             for pb in placed_boxes:
+ 308|                 if _aabb_overlap(cand_aabb, pb.aabb()):
+ 309|                     overlap = True
+ 310|                     break
+ 311|             if overlap:
+ 312|                 continue
+ 313|             # Stability check
+ 314|             floor_placed = [pb.aabb() for pb in placed_boxes]
+ 315|             if not _is_supported(px, py, pz, w, h, d, floor_placed, support_ratio):
+ 316|                 continue
+ 317|             # Weight check
+ 318|             if current_weight + item.weight > max_weight:
+ 319|                 continue
+ 320|             # Soft-LIFO accessibility
+ 321|             if allow_lifo:
+ 322|                 placed_full = [
+ 323|                     {"x": pb.x, "y": pb.y, "z": pb.z,
+ 324|                      "w": pb.w, "h": pb.h, "d": pb.d, "seq": pb.seq}
+ 325|                     for pb in placed_boxes
+ 326|                 ]
+ 327|                 if not _is_accessible(px, py, pz, w, h, d, item.seq,
+ 328|                                       placed_full):
+ 329|                     continue
+ 330|             # Best-fit merit: minimum residual across all three axes
+ 331|             rx = bin_w - (px + w)
+ 332|             ry = bin_h - (py + h)
+ 333|             rz = bin_d - (pz + d)
+ 334|             residual = min(rx, ry, rz)
+ 335|             if best_residual is None or residual < best_residual:
+ 336|                 best_residual = residual
+ 337|                 best_candidate = (px, py, pz, w, h, d, rt)
+ 338| 
+ 339|     if best_candidate is None:
+ 340|         return False
+ 341| 
+ 342|     px, py, pz, w, h, d, rt = best_candidate
+ 343|     item.x, item.y, item.z = px, py, pz
+ 344|     item.w, item.h, item.d = w, h, d
+ 345|     item.rotation_type = rt
+ 346|     placed_boxes.append(item)
+ 347|     ep_set.add_corners(px, py, pz, w, h, d)
+ 348|     return True
+ 349| 
+ 350| 
+ 351| def solve_sardine(manifest, truck_w, truck_h, truck_d, truck_weight,
+ 352|                   prioritize_sequence=False,
+ 353|                   support_surface_ratio=DEFAULT_SUPPORT_RATIO):
+ 354|     """Run the Extreme Point Insertion heuristic.
+ 355| 
+ 356|     Parameters mirror ``solver_classic.adapter.solve``.
+ 357|     """
+ 358|     truck = Truck(name="Truck", width=truck_w, height=truck_h,
+ 359|                   depth=truck_d, max_weight=truck_weight)
+ 360| 
+ 361|     # Work in cm internally.
+ 362|     bin_w = truck_w * 100
+ 363|     bin_h = truck_h * 100
+ 364|     bin_d = truck_d * 100
+ 365|     max_weight = truck_weight
+ 366| 
+ 367|     items = _build_items_from_manifest(manifest)
+ 368| 
+ 369|     # ── Ordering ──
+ 370|     if prioritize_sequence:
+ 371|         items.sort(key=lambda it: (-it.seq, -it.weight,
+ 372|                                     -(it.w * it.h * it.d)))
+ 373|     else:
+ 374|         items.sort(key=lambda it: (
+ 375|             -it.seq,
+ 376|             it.max_load if math.isfinite(it.max_load) else 0,
+ 377|             -(it.w * it.h * it.d),
+ 378|             -it.weight,
+ 379|         ))
+ 380| 
+ 381|     rotations = SPIN_ONLY  # updown=False for all items, matching app.py
+ 382| 
+ 383|     ep_set = _EPSet(width=bin_w, height=bin_h, depth=bin_d)
+ 384|     ep_set.init()
+ 385| 
+ 386|     placed = []
+ 387|     unfitted = []
+ 388|     weight_accum = 0.0
+ 389| 
+ 390|     for item in items:
+ 391|         placed_now = _best_fit_place(
+ 392|             item, ep_set,
+ 393|             bin_w, bin_h, bin_d,
+ 394|             support_surface_ratio,
+ 395|             max_weight, weight_accum,
+ 396|             placed, rotations,
+ 397|             allow_lifo=prioritize_sequence,
+ 398|         )
+ 399|         if placed_now:
+ 400|             weight_accum += item.weight
+ 401|             ep_set.prune([pb.aabb() for pb in placed])
+ 402|         else:
+ 403|             unfitted.append(item)
+ 404| 
+ 405|     # ── Build Placement list (cm -> m) ──
+ 406|     packed = [
+ 407|         Placement(
+ 408|             name=pb.name,
+ 409|             partno=pb.partno,
+ 410|             x=pb.x / 100.0,
+ 411|             y=pb.y / 100.0,
+ 412|             z=pb.z / 100.0,
+ 413|             w=pb.w / 100.0,
+ 414|             h=pb.h / 100.0,
+ 415|             d=pb.d / 100.0,
+ 416|             weight=pb.weight,
+ 417|             rotation_type=pb.rotation_type,
+ 418|             max_load=pb.max_load,
+ 419|             color=pb.color,
+ 420|         )
+ 421|         for pb in placed
+ 422|     ]
+ 423|     unfitted_placements = [
+ 424|         Placement(
+ 425|             name=u.name,
+ 426|             partno=u.partno,
+ 427|             x=0.0, y=0.0, z=0.0,
+ 428|             w=u.w / 100.0, h=u.h / 100.0, d=u.d / 100.0,
+ 429|             weight=u.weight,
+ 430|             rotation_type=u.rotation_type,
+ 431|             max_load=u.max_load,
+ 432|             color=u.color,
+ 433|         )
+ 434|         for u in unfitted
+ 435|     ]
+ 436| 
+ 437|     sol = Solution(
+ 438|         truck=truck,
+ 439|         packed=packed,
+ 440|         unfitted=unfitted_placements,
+ 441|         engine="sardine",
+ 442|         strategy="epi-baseline",
+ 443|         extra={
+ 444|             "method": "ExtremePointInsertion",
+ 445|             "prioritize_sequence": prioritize_sequence,
+ 446|             "ep_count": len(ep_set.points),
+ 447|         },
+ 448|     )
+ 449|     return sol
+ 450| 
+ 451| 
+ 452| def solve(manifest, truck_w, truck_h, truck_d, truck_weight,
+ 453|           prioritize_sequence=False,
+ 454|           support_surface_ratio=DEFAULT_SUPPORT_RATIO,
+ 455|           **kwargs):
+ 456|     """Thin wrapper matching the package __init__ export convention."""
+ 457|     return solve_sardine(
+ 458|         manifest, truck_w, truck_h, truck_d, truck_weight,
+ 459|         prioritize_sequence=prioritize_sequence,
+ 460|         support_surface_ratio=support_surface_ratio,
+ 461|     )
+ 462| 
+ 463| 
+ 464| 
+ 465| 
+ 466| 
+==============================================================================
+FILE solver_common/schemas.py  size=3475 mtime=1789497290
+==============================================================================
+   1| """
+   2| Shared data schemas for the pluggable bin-packing engines.
+   3| 
+   4| Everything here is unit-agnostic at the schema level (the solver always
+   5| receives and returns **meters** for lengths — see ``app.py``'s manifest
+   6| which already stores w/h/d in meters).  Conversion to/from centimetres
+   7| happens only at the py3dbp boundary inside the classic adapter.
+   8| """
+   9| from dataclasses import dataclass, field
+  10| from typing import List, Tuple, Optional
+  11| 
+  12| 
+  13| @dataclass
+  14| class CargoItem:
+  15|     """One *type* of cargo (before quantity expansion).
+  16| 
+  17|     ``width / height / depth`` are in **meters** — they already reflect
+  18|     the user's chosen orientation from ``orientation_editor`` (which writes
+  19|     the user's pose into the manifest as ``w/h/d`` in metres).
+  20| 
+  21|     ``max_load``:
+  22|         * Fragile items → the item's own weight (cannot be stacked on).
+  23|         * Non-fragile   → ``float('inf')`` (py3dbp sentinel meaning
+  24|           "no restriction"), matching ``app.py``'s import branch.
+  25| 
+  26|     ``sequence`` is the unloading sequence (1 = off-loaded first).
+  27|     """
+  28|     name: str
+  29|     width: float   # meters
+  30|     height: float
+  31|     depth: float
+  32|     weight: float  # kg
+  33|     max_load: float
+  34|     sequence: int
+  35|     quantity: int = 1
+  36|     # Instance id used to disambiguate individual units (e.g. "Box #3").
+  37|     base_id: Optional[str] = None
+  38| 
+  39|     def volume(self) -> float:
+  40|         return self.width * self.height * self.depth
+  41| 
+  42| 
+  43| @dataclass
+  44| class Truck:
+  45|     """Container / vehicle dimensions in **meters**."""
+  46|     name: str
+  47|     width: float
+  48|     height: float
+  49|     depth: float
+  50|     max_weight: float  # kg
+  51| 
+  52|     def volume(self) -> float:
+  53|         return self.width * self.height * self.depth
+  54| 
+  55| 
+  56| @dataclass
+  57| class Placement:
+  58|     """A single placed cargo unit inside the truck (meters)."""
+  59|     name: str
+  60|     partno: str
+  61|     x: float
+  62|     y: float
+  63|     z: float
+  64|     w: float  # width  (m)
+  65|     h: float  # height (m)  — vertical axis
+  66|     d: float  # depth  (m)
+  67|     weight: float
+  68|     rotation_type: int       # 0-5, same enum as py3dbp RotationType
+  69|     max_load: float
+  70|     color: str = "#1f77b4"
+  71| 
+  72|     def footprint_area(self) -> float:
+  73|         return self.w * self.d
+  74| 
+  75|     def corners_xz(self) -> List[Tuple[float, float]]:
+  76|         """Bottom-face corners in the X-Z plane (truck width × truck depth)."""
+  77|         return [(self.x, self.z),
+  78|                 (self.x + self.w, self.z),
+  79|                 (self.x, self.z + self.d),
+  80|                 (self.x + self.w, self.z + self.d)]
+  81| 
+  82| 
+  83| @dataclass
+  84| class Solution:
+  85|     """Result of a packing run — consumed by ``app.py``'s metric + viewer layer.
+  86| 
+  87|     ``packed`` / ``unfitted`` are lists of :class:`Placement`.  The caller
+  88|     (``app.py``) converts each ``Placement`` into a ``PackedItem`` for the
+  89|     existing 3-D viewer, utilisation, load-distribution, floating-item and
+  90|     blocking-score calculations — those helpers operate on ``PackedItem``
+  91|     and are therefore shared between every engine without any change.
+  92|     """
+  93|     truck: Truck
+  94|     packed: List[Placement] = field(default_factory=list)
+  95|     unfitted: List[Placement] = field(default_factory=list)
+  96|     engine: str = "unknown"
+  97|     score: float = 0.0
+  98|     # Human-readable explanation of how the score was achieved
+  99|     # (e.g. "baseline" / "swap-improvement w=0.3").
+ 100|     strategy: str = "baseline"
+ 101|     # Free-form metadata (timings, extra diagnostics, AI win/loss info …)
+ 102|     extra: dict = field(default_factory=dict)
+==============================================================================
+FILE solver_common/interface.py  size=4332 mtime=1789497292
+==============================================================================
+   1| """
+   2| Common solver interface.
+   3| 
+   4| Every engine (Classic py3dbp, Sardine-Can AI) implements ``solve``.
+   5| The function accepts the *exact* manifest shape that ``app.py`` already
+   6| builds (``st.session_state.manifest``), the truck dimensions (in metres)
+   7| plus max weight, and the same run-options the classic code path honoured
+   8| (``prioritize_sequence`` toggles soft-LIFO).
+   9| 
+  10| It returns a :class:`~solver_common.schemas.Solution` whose ``packed``
+  11| list the caller converts into ``PackedItem`` objects via the shared
+  12| helpers already in ``app.py``.
+  13| """
+  14| from dataclasses import replace
+  15| import time
+  16| 
+  17| from .schemas import CargoItem, Truck, Placement, Solution
+  18| 
+  19| 
+  20| def _manifest_to_items(manifest) -> list[CargoItem]:
+  21|     """Convert ``app.py``'s manifest dicts into :class:`CargoItem`.
+  22| 
+  23|     ``manifest`` entries look like::
+  24| 
+  25|         {"name": str, "w": float(m), "h": float(m), "d": float(m),
+  26|          "weight": float(kg), "quantity": int, "max_load": float|inf,
+  27|          "sequence": int}
+  28| 
+  29|     ``w``/``h``/``d`` are already in **metres** (set by the import branch
+  30|     in ``app.py`` which divides cm by 100, or by the orientation editor).
+  31|     """
+  32|     items = []
+  33|     for idx, m in enumerate(manifest):
+  34|         items.append(CargoItem(
+  35|             name=m["name"],
+  36|             width=float(m["w"]),
+  37|             height=float(m["h"]),
+  38|             depth=float(m["d"]),
+  39|             weight=float(m["weight"]),
+  40|             max_load=m["max_load"],
+  41|             sequence=int(m["sequence"]),
+  42|             quantity=int(m.get("quantity", 1)),
+  43|             base_id=str(idx),
+  44|         ))
+  45|     return items
+  46| 
+  47| 
+  48| def solve(manifest, truck_w, truck_h, truck_d, truck_weight,
+  49|           prioritize_sequence=False,
+  50|           support_surface_ratio=0.75):
+  51|     """Default no-op engine entry — must be overridden by each adapter.
+  52| 
+  53|     This base implementation delegates to the classic py3dbp path so the
+  54|     package is importable even before a specific engine is plugged in.
+  55|     Concrete engines replace it by shadowing ``solver_common.interface.solve``
+  56|     with their own module, or by calling the engine modules directly.
+  57|     """
+  58|     # Imported lazily so that importing solver_common never pulls py3dbp
+  59|     # (keeps the Sardine-Can engine usable standalone).
+  60|     from solver_classic.adapter import solve as _classic
+  61|     return _classic(manifest, truck_w, truck_h, truck_d, truck_weight,
+  62|                     prioritize_sequence=prioritize_sequence,
+  63|                     support_surface_ratio=support_surface_ratio)
+  64| 
+  65| 
+  66| def expand_items(items: list[CargoItem]) -> list[CargoItem]:
+  67|     """Expand *quantities* into one CargoItem per physical unit.
+  68| 
+  69|     The resulting list is what the engines actually place one-by-one.
+  70|     Each copy gets a unique ``partno``-style suffix baked into a clone.
+  71|     """
+  72|     expanded = []
+  73|     for item in items:
+  74|         for i in range(item.quantity):
+  75|             expanded.append(replace(item, base_id=f"{item.base_id}#{i+1}"))
+  76|     return expanded
+  77| 
+  78| 
+  79| def score_solution(solution: Solution, truck_vol: float,
+  80|                    packed_items, manifest_lookup):
+  81|     """Compute the **same** composite score ``app.py`` uses:
+  82| 
+  83|     ``overall = 0.4*util + 0.4*safety + 0.2*offload``
+  84| 
+  85|     Delegation only — ``app.py``'s existing functions are reused so every
+  86|     engine is graded on exactly the same rubric.
+  87|     """
+  88|     from app import (calculate_utilization, calculate_load_distribution,
+  89|                      detect_floating_items, calculate_offloading_score)
+  90| 
+  91|     packed_m = [p for p in packed_items]
+  92|     util = calculate_utilization(packed_m, truck_vol)
+  93|     load_dist, _ = calculate_load_distribution(packed_m)
+  94|     floating_count, _ = detect_floating_items(packed_m, 0.75)
+  95|     safe_count = sum(1 for p in packed_m if load_dist[p.name] <= p.max_load)
+  96|     safety = (safe_count / len(packed_m) * 100) if packed_m else 0.0
+  97|     offload = calculate_offloading_score(packed_m, manifest_lookup)
+  98|     overall = util * 0.4 + safety * 0.4 + offload * 0.2
+  99| 
+ 100|     solution.score = overall
+ 101|     solution.extra["utilization"] = util
+ 102|     solution.extra["safety_rate"] = safety
+ 103|     solution.extra["offloading_score"] = offload
+ 104|     solution.extra["floating_count"] = floating_count
+ 105|     return overall
+ 106| 
+ 107| 
+ 108| __all__ = [
+ 109|     "solve", "_manifest_to_items", "expand_items", "score_solution",
+ 110| ]
+==============================================================================
+FILE solver_classic/adapter.py  size=5735 mtime=1789497356
+==============================================================================
+   1| """
+   2| solver_classic.adapter
+   3| ======================
+   4| Faithful port of the **existing** py3dbp code path in ``app.py``.
+   5| 
+   6| This module wraps the exact ``Packer / Bin / Item`` + ``pack()`` call that
+   7| ``app.py`` used *before* the solver abstraction was introduced.  It produces
+   8| byte-for-byte identical results so the classic engine is a safe default.
+   9| """
+  10| import math
+  11| import os
+  12| import random
+  13| import sys
+  14| 
+  15| sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+  16| 
+  17| from py3dbp import Packer, Bin, Item
+  18| from py3dbp.constants import RotationType
+  19| 
+  20| from solver_common.schemas import CargoItem, Truck, Placement, Solution
+  21| from solver_common.interface import _manifest_to_items, expand_items
+  22| 
+  23| 
+  24| def _rand_color(s):
+  25|     random.seed(s)
+  26|     return "#" + "".join(random.choice("0123456789ABCDEF") for _ in range(6))
+  27| 
+  28| 
+  29| _API_COLOR_MAP = {
+  30|     1: "red", 2: "yellow", 3: "blue", 4: "green",
+  31|     5: "purple", 6: "brown", 7: "orange",
+  32| }
+  33| 
+  34| 
+  35| def _color_from_manifest(item):
+  36|     cidx = item.get("color")
+  37|     if cidx is not None and cidx in _API_COLOR_MAP:
+  38|         return _API_COLOR_MAP[cidx]
+  39|     palette = [
+  40|         "#1f77b4", "#ff7f0e", "#2ca02c", "#d62728",
+  41|         "#9467bd", "#8c564b", "#e377c2", "#17becf",
+  42|         "#bcbd22", "#7f7f7f",
+  43|     ]
+  44|     cm = {}
+  45|     base = item["name"].split("#")[0].strip()
+  46|     if base not in cm:
+  47|         cm[base] = palette[len(cm) % len(palette)]
+  48|     return cm[base]
+  49| 
+  50| 
+  51| def solve(manifest, truck_w, truck_h, truck_d, truck_weight,
+  52|           prioritize_sequence=False,
+  53|           support_surface_ratio=0.75,
+  54|           number_of_decimals=3):
+  55|     """Run the **classic** py3dbp packing path.
+  56| 
+  57|     Parameters
+  58|     ----------
+  59|     manifest : list[dict]
+  60|         Exactly ``st.session_state.manifest`` — each dict has
+  61|         ``name, w, h, d`` (meters), ``weight``, ``quantity``,
+  62|         ``max_load`` (float|inf) and ``sequence``.
+  63|     truck_w, truck_h, truck_d : float
+  64|         Truck dimensions in **metres**.
+  65|     truck_weight : float
+  66|         Max weight in kg.
+  67|     prioritize_sequence : bool
+  68|         If True, delegate to ``pack_soft_lifo`` (LIFO enforcement)
+  69|         — mirrors the checkbox in ``app.py``.
+  70|     """
+  71|     truck = Truck(name="Truck", width=truck_w, height=truck_h,
+  72|                   depth=truck_d, max_weight=truck_weight)
+  73| 
+  74|     # ── Build loading priority (exact copy of app.py) ──
+  75|     loading_order = sorted(
+  76|         manifest,
+  77|         key=lambda item: (
+  78|             -item["sequence"],
+  79|             item["max_load"],
+  80|             -(item["w"] * item["h"] * item["d"]),
+  81|             -item["weight"],
+  82|         ),
+  83|     )
+  84| 
+  85|     # ── Construct Packer / Bin / Item (exact copy of app.py) ──
+  86|     packer = Packer()
+  87|     packer.addBin(Bin(
+  88|         "Truck",
+  89|         (truck_w * 100, truck_h * 100, truck_d * 100),
+  90|         truck_weight,
+  91|     ))
+  92| 
+  93|     counter = 0
+  94|     for obj in loading_order:
+  95|         for i in range(obj["quantity"]):
+  96|             packer.addItem(Item(
+  97|                 partno=f"ITEM-{counter}",
+  98|                 name=f'{obj["name"]} #{i+1}',
+  99|                 typeof="cube",
+ 100|                 WHD=(
+ 101|                     float(obj["w"]) * 100,
+ 102|                     float(obj["h"]) * 100,
+ 103|                     float(obj["d"]) * 100,
+ 104|                 ),
+ 105|                 weight=obj["weight"],
+ 106|                 level=1,
+ 107|                 loadbear=obj["max_load"],
+ 108|                 updown=False,
+ 109|                 color=_color_from_manifest(obj),
+ 110|             ))
+ 111|             counter += 1
+ 112| 
+ 113|     # ── Pack ──
+ 114|     if prioritize_sequence:
+ 115|         from app import pack_soft_lifo
+ 116|         pack_soft_lifo(packer, manifest)
+ 117|     else:
+ 118|         packer.pack(
+ 119|             bigger_first=False,
+ 120|             fix_point=True,
+ 121|             check_stable=True,
+ 122|             support_surface_ratio=support_surface_ratio,
+ 123|             number_of_decimals=number_of_decimals,
+ 124|         )
+ 125|         packer.putOrder()
+ 126| 
+ 127|     # ── Extract placements ──
+ 128|     packed = []
+ 129|     unfitted = []
+ 130|     base_bin = packer.bins[0]
+ 131| 
+ 132|     for item in base_bin.items:
+ 133|         pos = item.position
+ 134|         dim = item.getDimension()
+ 135|         packed.append(Placement(
+ 136|             name=item.name,
+ 137|             partno=item.partno,
+ 138|             x=float(pos[0]) / 100,
+ 139|             y=float(pos[1]) / 100,
+ 140|             z=float(pos[2]) / 100,
+ 141|             w=float(dim[0]) / 100,
+ 142|             h=float(dim[1]) / 100,
+ 143|             d=float(dim[2]) / 100,
+ 144|             weight=float(item.weight),
+ 145|             rotation_type=item.rotation_type,
+ 146|             max_load=float(item.loadbear) if math.isfinite(item.loadbear) else float("inf"),
+ 147|             color=item.color,
+ 148|         ))
+ 149| 
+ 150|     for item in getattr(base_bin, "unfitted_items", []):
+ 151|         # Unfitted items may lack a real placed orientation.
+ 152|         try:
+ 153|             dim = item.getDimension()
+ 154|         except Exception:
+ 155|             dim = [item.width, item.height, item.depth]
+ 156|         unfitted.append(Placement(
+ 157|             name=item.name,
+ 158|             partno=item.partno,
+ 159|             x=0.0, y=0.0, z=0.0,
+ 160|             w=float(dim[0]) / 100,
+ 161|             h=float(dim[1]) / 100,
+ 162|             d=float(dim[2]) / 100,
+ 163|             weight=float(item.weight),
+ 164|             rotation_type=item.rotation_type,
+ 165|             max_load=float(item.loadbear) if math.isfinite(item.loadbear) else float("inf"),
+ 166|             color=item.color,
+ 167|         ))
+ 168| 
+ 169|     sol = Solution(
+ 170|         truck=truck,
+ 171|         packed=packed,
+ 172|         unfitted=unfitted,
+ 173|         engine="classic",
+ 174|         strategy="baseline",
+ 175|         extra={
+ 176|             "gravity": getattr(base_bin, "gravity", []),
+ 177|             "prioritize_sequence": prioritize_sequence,
+ 178|         },
+ 179|     )
+ 180|     return sol
+ 181| 
+ 182| 
+ 183| __all__ = ["solve"]
+==============================================================================
+FILE solver_sardine/__init__.py  size=2161 mtime=1789497974
+==============================================================================
+   1| """
+   2| solver_sardine
+   3| ==============
+   4| Python-native re-implementation of the SardineCan *Extreme Point Insertion*
+   5| heuristic (see ``sardine-can/SC.Core/Heuristics/PrimalHeuristic/
+   6| ExtremePointInsertion.cs``), adapted so it consumes the **same Excel /
+   7| sidebar manifest** and produces the **same output shape** as the classic
+   8| py3dbp engine in ``app.py``.
+   9| 
+  10| Key behaviours ported from the C# engine:
+  11| 
+  12| * **Extreme Points** — the container maintains a set of empty-space
+  13|   *extreme points* (corner vertices of already-placed items + container
+  14|   walls).  Every feasible item is tried at each extreme point instead of
+  15|   the py3dbp brute-force pivot sweep.
+  16| * **Best-fit merit** — for each (item, EP, rotation) the candidate whose
+  17|   *minimum residual slack* across all three axes is largest is chosen
+  18|   (the "best-fit" / MEDXYZ spirit).
+  19| * **Support / stability** — identical 0.75 surface-ratio rule used
+  20|   elsewhere in the codebase; the item's bottom footprint must be ≥ 75 %
+  21|   supported (or on the floor with no floating).
+  22| * **Orientation policy** — honours the *already-chosen* pose from
+  23|   ``orientation_editor`` (stored as ``w/h/d`` in meters).  ``updown``
+  24|   semantics map to rotation-type filtering: a non-tip-able item may only
+  25|   spin on the floor (``RT_WHD`` / ``RT_DHW``), never tip onto another
+  26|   face — exactly like ``RotationType.Notupdown`` in the classic engine.
+  27| * **Sequence / LIFO** — when ``prioritize_sequence`` is on, items are
+  28|   sorted highest-sequence-first (deepest first) and the same
+  29|   soft-LIFO accessibility guard used by ``pack_soft_lifo`` in
+  30|   ``app.py`` is enforced at placement.
+  31| 
+  32| The solver is structured so the **baseline** (``solver_sardine.baseline``
+  33| ``solve_sardine``) always produces a valid layout equivalent to the
+  34| classic engine's, while the optional **improver**
+  35| (``solver_sardine.improver``) is free to try alternative strategies and
+  36| only replaces the baseline result when it is *strictly better* on the
+  37| same composite score.
+  38| """
+  39| from .baseline import solve_sardine
+  40| from .improver import solve_with_improvement, solve
+  41| 
+  42| __all__ = ["solve", "solve_sardine", "solve_with_improvement"]

@@ -1,0 +1,77 @@
+﻿
+Name                         Length
+----                         ------
+.gitignore                      472
+allData.json                   4100
+api.md                        10764
+api.py                         6736
+app.py                        76019
+diff_app.txt                    877
+diff_main.txt                 36500
+e2e_live_check.py              3636
+example-boxes-in-a-truck.png  97429
+example0.py                    4355
+example1.py                    3544
+example2.py                    4843
+example3.py                    3389
+example4.py                    4368
+example5.py                    3248
+example6.py                    3996
+example7.py                    6129
+executive-dashboard.py          691
+executive_dashboard.py         9060
+git                               0
+Hypothetical CCTV view.jpeg   44093
+orientation_editor.py         10122
+README.md                      8153
+requirements.txt                163
+smoke_out.txt                 25110
+verify_gemini.py               3944
+verify_gemini_ui.py            5629
+verify_virtual_cctv.py        15274
+verify_virtual_ctv.py          1363
+widadvance.json               10312
+_app_anchors.txt               3415
+_app_parse.txt                   29
+_chk.txt                         64
+_compile_check.txt              980
+_compile_log.txt                323
+_debug_compact.py              3458
+_dump.txt                     12844
+_inspect.txt                    385
+_ls.txt                           0
+_mem_api.txt                   1214
+_patch_log.txt                   83
+_patch_memory.py               2052
+_test_sequence_fix.py          7245
+_validate_report.txt            594
+_validate_solvers.py           1518
+_verify_out.txt                1004
+_verify_solvers.py             4773
+
+
+
+FullName                                                                                                       Length
+--------                                                                                                       ------
+E:\Arkan\OpenAI_Competition\AI_modelsIntegration\AxionLabs\solver_sardine\baseline.py                           17409
+E:\Arkan\OpenAI_Competition\AI_modelsIntegration\AxionLabs\solver_sardine\improver.py                            3835
+E:\Arkan\OpenAI_Competition\AI_modelsIntegration\AxionLabs\solver_sardine\memory.py                             14460
+E:\Arkan\OpenAI_Competition\AI_modelsIntegration\AxionLabs\solver_sardine\__init__.py                            2161
+E:\Arkan\OpenAI_Competition\AI_modelsIntegration\AxionLabs\solver_sardine\__pycache__\baseline.cpython-314.pyc  19726
+E:\Arkan\OpenAI_Competition\AI_modelsIntegration\AxionLabs\solver_sardine\__pycache__\improver.cpython-314.pyc   4788
+E:\Arkan\OpenAI_Competition\AI_modelsIntegration\AxionLabs\solver_sardine\__pycache__\memory.cpython-314.pyc    31301
+E:\Arkan\OpenAI_Competition\AI_modelsIntegration\AxionLabs\solver_sardine\__pycache__\__init__.cpython-314.pyc   2266
+E:\Arkan\OpenAI_Competition\AI_modelsIntegration\AxionLabs\solver_common\interface.py                            4332
+E:\Arkan\OpenAI_Competition\AI_modelsIntegration\AxionLabs\solver_common\schemas.py                              3475
+E:\Arkan\OpenAI_Competition\AI_modelsIntegration\AxionLabs\solver_common\__init__.py                              623
+E:\Arkan\OpenAI_Competition\AI_modelsIntegration\AxionLabs\solver_common\__pycache__\interface.cpython-314.pyc   5686
+E:\Arkan\OpenAI_Competition\AI_modelsIntegration\AxionLabs\solver_common\__pycache__\schemas.cpython-314.pyc     6725
+E:\Arkan\OpenAI_Competition\AI_modelsIntegration\AxionLabs\solver_common\__pycache__\__init__.cpython-314.pyc     759
+E:\Arkan\OpenAI_Competition\AI_modelsIntegration\AxionLabs\solver_classic\adapter.py                             5735
+E:\Arkan\OpenAI_Competition\AI_modelsIntegration\AxionLabs\solver_classic\__init__.py                             410
+E:\Arkan\OpenAI_Competition\AI_modelsIntegration\AxionLabs\solver_classic\__pycache__\adapter.cpython-314.pyc    7481
+E:\Arkan\OpenAI_Competition\AI_modelsIntegration\AxionLabs\solver_classic\__pycache__\__init__.cpython-314.pyc    540
+E:\Arkan\OpenAI_Competition\AI_modelsIntegration\AxionLabs\ai_progress\.gitkeep                                     0
+E:\Arkan\OpenAI_Competition\AI_modelsIntegration\AxionLabs\ai_progress\README.md                                 1280
+
+

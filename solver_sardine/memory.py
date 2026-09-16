@@ -1,0 +1,551 @@
+"""
+solver_sardine.memory
+=====================
+Disk-backed persistence layer for the Sardine-Can AI solver.
+
+Why this exists
+---------------
+Streamlit re-runs the whole script on every widget interaction, browser
+refresh, or new window, and ``st.session_state`` is lost when the server
+process restarts.  The AI's learning therefore lives **on disk** in
+``AxionLabs/ai_progress/`` so that:
+
+* every run is recorded (``history.jsonl``),
+* the best layout ever found for a given manifest is kept
+  (``best_solutions/<hash>.json``),
+* which strategy wins for which manifest shape is remembered
+  (``learned_weights.json``),
+* user toggles survive a restart (``config.json``).
+
+Design rules
+------------
+* **Never break packing.**  Every public function swallows I/O errors and
+  returns a safe default.  A broken/locked/read-only disk must not stop the
+  solver from returning a layout.
+* **Atomic writes.**  All files are written to a temp file in the same
+  directory and then replaced, so a crash mid-write can never leave a
+  half-written JSON that poisons the next start.
+* **Corruption tolerant.**  Unparseable JSON lines are skipped rather than
+  raising.
+* **Thread safe enough.**  A module-level RLock serialises writes inside
+  one process; ``os.replace`` gives atomicity across processes.
+"""
+from __future__ import annotations
+
+import hashlib
+import json
+import os
+import tempfile
+import threading
+import time
+from typing import Any
+
+# ── Locations ────────────────────────────────────────────────────────
+_HERE = os.path.dirname(os.path.abspath(__file__))
+_PROJECT_ROOT = os.path.dirname(_HERE)               # AxionLabs/
+AI_PROGRESS_DIR = os.path.join(_PROJECT_ROOT, "ai_progress")
+
+HISTORY_FILE = os.path.join(AI_PROGRESS_DIR, "history.jsonl")
+BEST_DIR = os.path.join(AI_PROGRESS_DIR, "best_solutions")
+WEIGHTS_FILE = os.path.join(AI_PROGRESS_DIR, "learned_weights.json")
+CONFIG_FILE = os.path.join(AI_PROGRESS_DIR, "config.json")
+README_FILE = os.path.join(AI_PROGRESS_DIR, "README.md")
+GITKEEP_FILE = os.path.join(AI_PROGRESS_DIR, ".gitkeep")
+
+_LOCK = threading.RLock()
+
+DEFAULT_CONFIG: dict[str, Any] = {
+    "schema_version": 1,
+    "engine": "classic",          # "classic" (py3dbp) | "sardine"
+    "improve_enabled": True,
+    "budget_seconds": 5.0,
+    "max_candidates": 8,
+    "keep_history_runs": 500,
+    "ai_weights": {},             # manifest_hash -> strategy stats
+}
+
+
+# ── Low-level atomic I/O ─────────────────────────────────────────────
+
+def _atomic_write_text(path: str, text: str) -> bool:
+    """Write ``text`` to ``path`` atomically.  Returns success flag.
+
+    Uses a temp file in the *same* directory so ``os.replace`` is a true
+    atomic rename on POSIX and Windows alike.
+    """
+    try:
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+    except OSError:
+        return False
+    tmp_fd = None
+    tmp_path = None
+    try:
+        tmp_fd, tmp_path = tempfile.mkstemp(
+            prefix=".tmp-", suffix=".json", dir=os.path.dirname(path)
+        )
+        with os.fdopen(tmp_fd, "w", encoding="utf-8") as fh:
+            tmp_fd = None  # ownership handed to the file object
+            fh.write(text)
+            fh.flush()
+            os.fsync(fh.fileno())
+        os.replace(tmp_path, path)
+        return True
+    except (OSError, ValueError):
+        return False
+    finally:
+        if tmp_fd is not None:
+            try:
+                os.close(tmp_fd)
+            except OSError:
+                pass
+        if tmp_path and os.path.exists(tmp_path):
+            try:
+                os.remove(tmp_path)
+            except OSError:
+                pass
+
+
+def _atomic_write_json(path: str, payload: Any) -> bool:
+    try:
+        text = json.dumps(payload, indent=2, ensure_ascii=False)
+    except (TypeError, ValueError):
+        return False
+    return _atomic_write_text(path, text)
+
+
+def _read_json(path: str, default: Any = None) -> Any:
+    """Read a JSON file, returning ``default`` on any failure."""
+    try:
+        with open(path, "r", encoding="utf-8") as fh:
+            return json.load(fh)
+    except (OSError, json.JSONDecodeError, ValueError, UnicodeDecodeError):
+        return default
+
+
+def ensure_store() -> bool:
+    """Create ``ai_progress/`` and its README/.gitkeep stubs if missing."""
+    ok = True
+    try:
+        os.makedirs(AI_PROGRESS_DIR, exist_ok=True)
+        os.makedirs(BEST_DIR, exist_ok=True)
+    except OSError:
+        return False
+    if not os.path.exists(README_FILE):
+        ok = _atomic_write_text(README_FILE, _README_TEXT) and ok
+    if not os.path.exists(GITKEEP_FILE):
+        ok = _atomic_write_text(GITKEEP_FILE, "") and ok
+    return ok
+
+
+def ensure_dirs() -> bool:
+    """Create the ``ai_progress/`` store. Idempotent; safe on every run.
+
+    ``app.py`` calls this at import time so the folders and the tracked
+    README/.gitkeep stubs exist before the first packing run, regardless of
+    whether the classic or the Sardine-Can engine is selected.
+    """
+    return ensure_store()
+
+
+_README_TEXT = """# AI Progress Store
+
+This folder persists the Sardine-Can AI solver's learning history and
+best-known solutions **across** Streamlit refreshes, new browser windows,
+and server restarts.
+
+| File / folder            | Contents                                        |
+| ------------------------ | ----------------------------------------------- |
+| `history.jsonl`          | One JSON object per packing run (append-only).   |
+| `best_solutions/*.json`  | Best layout ever found, keyed by manifest hash.  |
+| `learned_weights.json`   | Per-manifest strategy win/loss statistics.       |
+| `config.json`            | Persisted solver options (engine, budget, …).    |
+
+The contents are git-ignored; only `.gitkeep` and this README are tracked.
+Delete the generated files (or use "Reset AI memory" in the app) to start
+the learning over.
+"""
+
+
+# ── Manifest fingerprinting ──────────────────────────────────────────
+
+def _is_inf(value) -> bool:
+    """True when ``value`` means "no load restriction"."""
+    try:
+        import math
+        return math.isinf(float(value))
+    except (TypeError, ValueError):
+        return True
+
+
+def manifest_hash(manifest, truck_dims=(0, 0, 0), truck_weight=0,
+                  extra: str = "") -> str:
+    """Stable short fingerprint of a manifest + truck configuration.
+
+    Two runs over the same cargo, orientations and truck produce the same
+    hash, so learned weights and best solutions can be keyed by it.  The
+    fingerprint is order-independent (entries are sorted) so re-importing
+    the same Excel rows in a different order maps to the same bucket.
+    """
+    parts = []
+    for m in manifest:
+        try:
+            if m.get("name") == "_truck_meta":
+                continue
+            ml = m.get("max_load")
+            ml_txt = "inf" if _is_inf(ml) else f"{float(ml):.3f}"
+            parts.append("|".join([
+                str(m.get("name", "")),
+                f"{float(m.get('w', 0)):.4f}",
+                f"{float(m.get('h', 0)):.4f}",
+                f"{float(m.get('d', 0)):.4f}",
+                f"{float(m.get('weight', 0)):.3f}",
+                str(int(m.get("quantity", 1))),
+                f"{float(m.get('sequence', 0))}",
+                ml_txt,
+            ]))
+        except (TypeError, ValueError):
+            continue
+    parts.sort()
+    try:
+        tw, th, td = (f"{float(v):.4f}" for v in truck_dims)
+    except (TypeError, ValueError):
+        tw = th = td = "0"
+    blob = "||".join(parts) + f"#T:{tw}x{th}x{td}@"
+    blob += "inf" if _is_inf(truck_weight) else f"{float(truck_weight):.3f}"
+    blob += "#" + str(extra)
+    return hashlib.sha1(blob.encode("utf-8")).hexdigest()[:16]
+
+
+# ── Run history ──────────────────────────────────────────────────────
+
+def append_history(record: dict) -> bool:
+    """Append one run record to ``history.jsonl``.  Never raises."""
+    payload = dict(record)
+    payload.setdefault("ts", time.time())
+    try:
+        line = json.dumps(payload, ensure_ascii=False)
+    except (TypeError, ValueError):
+        return False
+    with _LOCK:
+        ensure_store()
+        try:
+            with open(HISTORY_FILE, "a", encoding="utf-8") as fh:
+                fh.write(line + "\n")
+            return True
+        except OSError:
+            return False
+
+
+def load_history(limit: int | None = None) -> list[dict]:
+    """Load run records oldest-first; ``limit`` keeps the newest N."""
+    if not os.path.exists(HISTORY_FILE):
+        return []
+    records: list[dict] = []
+    try:
+        with open(HISTORY_FILE, "r", encoding="utf-8") as fh:
+            for line in fh:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    obj = json.loads(line)
+                except (json.JSONDecodeError, ValueError):
+                    continue
+                if isinstance(obj, dict):
+                    records.append(obj)
+    except (OSError, UnicodeDecodeError):
+        return records
+    if limit is not None and limit > 0:
+        records = records[-limit:]
+    return records
+
+
+def trim_history(keep: int | None = None) -> bool:
+    """Cap ``history.jsonl`` at the newest ``keep`` records."""
+    if keep is None:
+        keep = int(DEFAULT_CONFIG["keep_history_runs"])
+    records = load_history()
+    if len(records) <= keep:
+        return True
+    text = "".join(json.dumps(r, ensure_ascii=False) + "\n"
+                   for r in records[-keep:])
+    with _LOCK:
+        return _atomic_write_text(HISTORY_FILE, text)
+
+
+# ── Best-known solutions ─────────────────────────────────────────────
+
+def _best_path(key: str) -> str:
+    return os.path.join(BEST_DIR, f"{key}.json")
+
+
+def _placement_to_dict(p) -> dict:
+    return {
+        "name": getattr(p, "name", ""),
+        "partno": getattr(p, "partno", ""),
+        "x": float(getattr(p, "x", 0.0)),
+        "y": float(getattr(p, "y", 0.0)),
+        "z": float(getattr(p, "z", 0.0)),
+        "w": float(getattr(p, "w", 0.0)),
+        "h": float(getattr(p, "h", 0.0)),
+        "d": float(getattr(p, "d", 0.0)),
+        "weight": float(getattr(p, "weight", 0.0)),
+        "rotation_type": int(getattr(p, "rotation_type", 0)),
+        "max_load": (getattr(p, "max_load", float("inf"))
+                     if _is_inf(getattr(p, "max_load", float("inf")))
+                     else float(getattr(p, "max_load", 0.0))),
+        "color": getattr(p, "color", "#1f77b4"),
+    }
+
+
+def save_best_solution(key: str, solution, score: float,
+                       strategy: str = "baseline", label: str = "") -> bool:
+    """Persist the best layout found so far for manifest fingerprint ``key``."""
+    ensure_store()
+    truck = getattr(solution, "truck", None)
+    payload = {
+        "key": key,
+        "score": float(score),
+        "strategy": strategy,
+        "label": label,
+        "engine": getattr(solution, "engine", "sardine"),
+        "ts": time.time(),
+        "truck": {
+            "name": getattr(truck, "name", "Truck"),
+            "width": float(getattr(truck, "width", 0.0)),
+            "height": float(getattr(truck, "height", 0.0)),
+            "depth": float(getattr(truck, "depth", 0.0)),
+            "max_weight": (float("inf")
+                           if _is_inf(getattr(truck, "max_weight", 0.0))
+                           else float(getattr(truck, "max_weight", 0.0))),
+        },
+        "packed": [_placement_to_dict(p)
+                   for p in getattr(solution, "packed", [])],
+        "unfitted": [_placement_to_dict(p)
+                     for p in getattr(solution, "unfitted", [])],
+        "extra": {k: v for k, v in getattr(solution, "extra", {}).items()
+                  if isinstance(v, (str, int, float, bool, type(None)))},
+    }
+    with _LOCK:
+        return _atomic_write_json(_best_path(key), payload)
+
+
+def load_best_solution(key: str) -> dict | None:
+    """Return the stored best-solution payload for ``key``, or None."""
+    data = _read_json(_best_path(key), None)
+    return data if isinstance(data, dict) else None
+
+
+def load_best_score(key: str) -> float | None:
+    data = load_best_solution(key)
+    if not data:
+        return None
+    try:
+        return float(data.get("score"))
+    except (TypeError, ValueError):
+        return None
+
+
+# ─ Learned strategy weights ─────────────────────────────────────────
+
+def load_learned_weights() -> dict:
+    """Load ``{manifest_hash: {strategy: {weight, wins, runs}}}``.
+
+    Tolerates both the wrapped form (``{"ai_weights": {...}}``) and a bare
+    mapping, and always returns a dict so callers can index it safely.
+    """
+    data = _read_json(WEIGHTS_FILE, None)
+    if isinstance(data, dict):
+        inner = data.get("ai_weights")
+        if isinstance(inner, dict):
+            return inner
+        return data
+    return {}
+
+
+def save_learned_weights(weights: dict) -> bool:
+    if not isinstance(weights, dict):
+        return False
+    with _LOCK:
+        return _atomic_write_json(
+            WEIGHTS_FILE,
+            {"schema_version": 1, "updated": time.time(),
+             "ai_weights": weights},
+        )
+
+
+def record_strategy_result(key: str, strategy: str, won: bool,
+                           score_delta: float = 0.0) -> bool:
+    """Update per-manifest win/loss statistics for one strategy.
+
+    ``weight`` is a Laplace-smoothed win rate: it starts at 0.5 (no prior
+    knowledge) and moves toward the observed success rate as runs
+    accumulate, so a strategy that never helps is progressively demoted.
+    """
+    if not key or not strategy:
+        return False
+    with _LOCK:
+        weights = load_learned_weights()
+        bucket = weights.get(key)
+        if not isinstance(bucket, dict):
+            bucket = {}
+            weights[key] = bucket
+        stats = bucket.get(strategy)
+        if not isinstance(stats, dict):
+            stats = {"wins": 0, "runs": 0, "weight": 0.5,
+                     "score_delta_sum": 0.0}
+        stats["runs"] = int(stats.get("runs", 0)) + 1
+        if won:
+            stats["wins"] = int(stats.get("wins", 0)) + 1
+        try:
+            stats["score_delta_sum"] = (
+                float(stats.get("score_delta_sum", 0.0)) + float(score_delta)
+            )
+        except (TypeError, ValueError):
+            stats["score_delta_sum"] = 0.0
+        runs = max(1, int(stats["runs"]))
+        stats["weight"] = round((int(stats.get("wins", 0)) + 1.0)
+                                / (runs + 2.0), 4)
+        stats["last_updated"] = time.time()
+        bucket[strategy] = stats
+        return save_learned_weights(weights)
+
+
+# ─ Persisted configuration ──────────────────────────────────────────
+
+def load_config() -> dict:
+    """Load ``config.json`` merged over :data:`DEFAULT_CONFIG`.
+
+    Unknown keys written by a newer version are preserved; malformed
+    values fall back to the default for that key.
+    """
+    data = _read_json(CONFIG_FILE, {})
+    cfg = dict(DEFAULT_CONFIG)
+    if isinstance(data, dict):
+        for k, v in data.items():
+            cfg[k] = v
+    if not isinstance(cfg.get("ai_weights"), dict):
+        cfg["ai_weights"] = {}
+    try:
+        cfg["budget_seconds"] = max(0.0, float(cfg.get("budget_seconds", 5.0)))
+    except (TypeError, ValueError):
+        cfg["budget_seconds"] = DEFAULT_CONFIG["budget_seconds"]
+    try:
+        cfg["max_candidates"] = max(1, int(cfg.get("max_candidates", 8)))
+    except (TypeError, ValueError):
+        cfg["max_candidates"] = DEFAULT_CONFIG["max_candidates"]
+    try:
+        cfg["keep_history_runs"] = max(10, int(cfg.get("keep_history_runs", 500)))
+    except (TypeError, ValueError):
+        cfg["keep_history_runs"] = DEFAULT_CONFIG["keep_history_runs"]
+    cfg["improve_enabled"] = bool(cfg.get("improve_enabled", True))
+    if cfg.get("engine") not in ("classic", "sardine"):
+        cfg["engine"] = DEFAULT_CONFIG["engine"]
+    return cfg
+
+
+def save_config(cfg: dict) -> bool:
+    """Persist solver options so they survive a Streamlit restart."""
+    if not isinstance(cfg, dict):
+        return False
+    ensure_store()
+    merged = load_config()
+    merged.update(cfg)
+    with _LOCK:
+        return _atomic_write_json(CONFIG_FILE, merged)
+
+
+# ── Maintenance helpers ──────────────────────────────────────────────
+
+def reset_memory(keep_config: bool = True) -> bool:
+    """Wipe learning state (history, best solutions, weights).
+
+    ``keep_config=True`` preserves the user's toggles; ``False`` drops
+    the config file too so the next start uses defaults.
+    """
+    ok = True
+    with _LOCK:
+        if os.path.exists(HISTORY_FILE):
+            try:
+                os.remove(HISTORY_FILE)
+            except OSError:
+                ok = False
+        if os.path.exists(WEIGHTS_FILE):
+            try:
+                os.remove(WEIGHTS_FILE)
+            except OSError:
+                ok = False
+        try:
+            if os.path.isdir(BEST_DIR):
+                for name in os.listdir(BEST_DIR):
+                    if name.endswith(".json"):
+                        try:
+                            os.remove(os.path.join(BEST_DIR, name))
+                        except OSError:
+                            ok = False
+        except OSError:
+            ok = False
+        if not keep_config and os.path.exists(CONFIG_FILE):
+            try:
+                os.remove(CONFIG_FILE)
+            except OSError:
+                ok = False
+    return ok
+
+
+def store_summary() -> dict:
+    """Small dict describing the on-disk store (for the UI expander)."""
+    history = load_history()
+    try:
+        best_files = [n for n in os.listdir(BEST_DIR) if n.endswith(".json")]
+    except OSError:
+        best_files = []
+    return {
+        "dir": AI_PROGRESS_DIR,
+        "history_runs": len(history),
+        "best_solutions": len(best_files),
+        "weights_buckets": len(load_learned_weights()),
+    }
+
+
+def hydrate_session_state(session_state, key: str = "ai_progress") -> dict:
+    """Load persisted progress into a mutable mapping (``st.session_state``).
+
+    Called once per Streamlit script run so that a browser refresh or a
+    brand-new window immediately sees the accumulated history, the
+    learned weights, and the known-best scores — without waiting for a new
+    packing run.
+    """
+    cfg = load_config()
+    history = load_history(limit=200)
+    progress = {
+        "config": cfg,
+        "history": history,
+        "learned_weights": load_learned_weights(),
+        "summary": store_summary(),
+    }
+    try:
+        session_state[key] = progress
+        if "engine" not in session_state:
+            session_state["engine"] = cfg.get("engine", "classic")
+        if "improve_enabled" not in session_state:
+            session_state["improve_enabled"] = cfg.get("improve_enabled", True)
+        if "ai_budget_seconds" not in session_state:
+            session_state["ai_budget_seconds"] = cfg.get("budget_seconds", 5.0)
+    except Exception:
+        pass
+    return progress
+
+
+__all__ = [
+    "AI_PROGRESS_DIR", "HISTORY_FILE", "BEST_DIR", "WEIGHTS_FILE",
+    "CONFIG_FILE", "README_FILE", "GITKEEP_FILE", "DEFAULT_CONFIG",
+    "ensure_store", "manifest_hash",
+    "append_history", "load_history", "trim_history",
+    "save_best_solution", "load_best_solution", "load_best_score",
+    "load_learned_weights", "save_learned_weights", "record_strategy_result",
+    "load_config", "save_config", "reset_memory", "store_summary",
+    "hydrate_session_state",
+]
+
+

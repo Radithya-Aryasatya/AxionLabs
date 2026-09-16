@@ -1,0 +1,66 @@
+FILE app.py  lines=1967
+1596| 20|                     def __init__(self, sol):
+1597| 24|                         self.partno = sol.truck.name
+1598| 24|                         self.width = sol.truck.width * 100
+1599| 24|                         self.height = sol.truck.height * 100
+1600| 24|                         self.depth = sol.truck.depth * 100
+1601| 24|                         self.max_weight = sol.truck.max_weight
+1602| 24|                         self.put_type = 2
+1603| 24|                         self.gravity = sol.extra.get("gravity", [])
+1604| 24|                         self.items = _PlacementItems(sol.packed)
+1605| 24|                         self.unfitted_items = _PlacementItems(sol.unfitted)
+1606|  0| 
+1607| 16|                 class _FakePacker:
+1608| 20|                     """Minimal Packer-compatible wrapper."""
+1609| 20|                     def __init__(self, sol):
+1610| 24|                         self.bins = [_SardineBin(sol)]
+1611| 24|                         self.items = []
+1612| 24|                         self.unfit_items = []
+1613|  0| 
+1614| 16|                 packer = _FakePacker(_sol)
+1615|  0| 
+1616| 12|             else:
+1617| 16|                 packer = Packer()
+1618|  0| 
+1619| 16|                 packer.addBin(
+1620| 20|                     Bin(
+1621| 24|                         "Truck",
+1622| 24|                         (
+1623| 28|                             truck_w * 100,
+1624| 28|                             truck_h * 100,
+1625| 28|                             truck_d * 100
+1626| 26|                           ),
+1627| 24|                         truck_weight
+1628| 20|                     )
+1629| 16|                 )
+1630|  0| 
+1631| 12|             # The classic loader below feeds py3dbp only — the
+1632| 12|             # Sardine-Can engine already packed the manifest inside
+1633| 12|             # solve_sardine()/solve_with_improvement(). Iterating an
+1634| 12|             # empty list therefore skips it without re-indenting the
+1635| 12|             # whole block.
+1636| 12|             _classic_order = [] if use_sardine else loading_order
+1637|  0| 
+1638| 12|             counter = 0
+1639|  0| 
+1640| 12|             for obj in _classic_order:
+1641|  0| 
+1642| 20|                     for i in range(obj["quantity"]):
+1643|  0| 
+1644| 24|                         packer.addItem(
+1645|  0| 
+1646| 28|                             Item(
+1647|  0| 
+1648| 32|                                 partno=f"ITEM-{counter}",
+1649|  0| 
+1650| 32|                                 name=f'{obj["name"]} #{i+1}',
+1651|  0| 
+1652| 32|                                 typeof="cube",
+1653|  0| 
+1654| 32|                                 WHD=(
+1655| 36|                                     float(obj["w"]) * 100,
+1656| 36|                                     float(obj["h"]) * 100,
+1657| 36|                                     float(obj["d"]) * 100
+1658| 32|                                 ),
+1659|  0| 
+1660| 32|                                 weight=obj["weight"],

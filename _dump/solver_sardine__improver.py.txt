@@ -1,0 +1,96 @@
+"""
+solver_sardine.improver
+=======================
+Optional self-improvement layer for the Sardine-Can AI solver.
+
+The **baseline** (:func:`solver_sardine.baseline.solve_sardine`) always runs
+first and establishes a floor.  The improver then tries alternative
+strategies inside a user-controlled time / candidate budget and only
+accepts a replacement when it is *strictly better* on the same composite
+score ``app.py`` uses **and** still satisfies every hard guardrail.  If
+nothing beats the baseline (or the budget runs out) the baseline result is
+returned — the AI can never make the output worse.
+
+Strategies explored (all are EPI parameterisations):
+  * ``epi-baseline``      – the parity ordering from the classic engine.
+  * ``volume-desc``       – largest boxes first (better bottom layers).
+  * ``weight-desc``       – heaviest first (better centre of gravity).
+  * ``footprint-desc``    – largest floor area first.
+  * ``sequence-desc``     – strict LIFO unloading order.
+  * ``spin-all``          – allow all six rotations for non-tip items.
+
+Every win/loss is written to ``ai_progress/history.jsonl`` and
+``ai_progress/learned_weights.json`` so the AI's preference ordering
+improves across sessions and survives Streamlit refreshes.
+"""
+from __future__ import annotations
+
+import time
+
+from .baseline import (
+    ALL_ROTATIONS,
+    SPIN_ONLY,
+    _EPSet,
+    _best_fit_place,
+    _build_items_from_manifest,
+    solve_sardine,
+)
+from .memory import (
+    RunRecord,
+    append_history,
+    load_learned_weights,
+    manifest_hash,
+    record_strategy_result,
+    save_best_solution,
+    solution_to_dict,
+)
+
+from solver_common.schemas import Placement, Solution, Truck
+
+#: Hard cap so a pathological manifest can never hang the UI.
+MAX_STRATEGY_SECONDS = 30.0
+# ─────────────────────────────────────────────────────────────────────
+#  Guardrails
+# ──────────────────────────────────────────────────────────────────────
+
+def _validate_layout(packed, bin_w, bin_h, bin_d, max_weight,
+                     support_ratio) -> bool:
+    """Return True iff a placement list satisfies every hard guardrail.
+
+    Checked: bounds, total weight, pairwise overlap, support/stability.
+    A layout that fails here is *never* accepted by the improver.
+    """
+    from .baseline import _is_supported
+
+    aabbs = []
+    total_w = 0.0
+    for p in packed:
+        x, y, z = p.x * 100.0, p.y * 100.0, p.z * 100.0
+        w, h, d = p.w * 100.0, p.h * 100.0, p.d * 100.0
+        if (x < -1e-6 or y < -1e-6 or z < -1e-6 or
+                x + w > bin_w + 1e-6 or
+                y + h > bin_h + 1e-6 or
+                z + d > bin_d + 1e-6):
+            return False
+        total_w += p.weight
+        aabbs.append((x, y, z, w, h, d))
+
+    if total_w > max_weight + 1e-3:
+        return False
+
+    for i in range(len(aabbs)):
+        a = aabbs[i]
+        for j in range(i + 1, len(aabbs)):
+            b = aabbs[j]
+            if (a[0] < b[0] + b[3] - 1e-6 and b[0] < a[0] + a[3] - 1e-6 and
+                    a[1] < b[1] + b[4] - 1e-6 and b[1] < a[1] + a[4] - 1e-6 and
+                    a[2] < b[2] + b[5] - 1e-6 and b[2] < a[2] + a[5] - 1e-6):
+                return False
+
+    for idx, (x, y, z, w, h, d) in enumerate(aabbs):
+        if y <= 1e-6:
+            continue
+        others = [aabbs[k] for k in range(len(aabbs)) if k != idx]
+        if not _is_supported(x, y, z, w, h, d, others, support_ratio):
+            return False
+    return True

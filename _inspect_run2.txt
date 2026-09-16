@@ -1,0 +1,9 @@
+﻿solver_common/__init__.py	size=623	mtime=01:41:36
+solver_common/schemas.py	size=3475	mtime=01:34:49
+solver_common/interface.py	size=4332	mtime=01:34:52
+solver_classic/__init__.py	size=410	mtime=01:34:03
+solver_classic/adapter.py	size=5735	mtime=01:35:56
+solver_sardine/__init__.py	size=2161	mtime=01:46:14
+solver_sardine/baseline.py	size=17409	mtime=02:03:45
+solver_sardine/memory.py	size=14460	mtime=02:35:41
+solver_sardine/improver.py	size=3835	mtime=02:36:20

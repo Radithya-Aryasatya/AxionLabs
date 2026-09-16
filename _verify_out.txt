@@ -1,0 +1,29 @@
+=== 1. SYNTAX CHECK ===
+OK       solver_common/__init__.py  (16 lines)
+OK       solver_common/schemas.py  (102 lines)
+OK       solver_common/interface.py  (110 lines)
+OK       solver_classic/__init__.py  (13 lines)
+OK       solver_classic/adapter.py  (183 lines)
+OK       solver_sardine/__init__.py  (42 lines)
+OK       solver_sardine/baseline.py  (466 lines)
+OK       solver_sardine/improver.py  (297 lines)
+OK       solver_sardine/memory.py  (551 lines)
+
+=== 2. IMPORT CHECK ===
+OK       import solver_common
+OK       import solver_classic
+OK       import solver_sardine
+OK       import solver_sardine.baseline
+OK       import solver_sardine.improver
+OK       import solver_sardine.memory
+
+=== 3. PACK SMOKE TEST (synthetic manifest) ===
+classic : packed=18 unfitted=0
+sardine : packed=18 unfitted=0
+          engine=sardine strategy=epi-baseline
+          sardine utilisation=3.77%
+          overlap pairs = 0
+          out-of-bounds = 0
+
+=== RESULT ===
+ALL CHECKS PASSED

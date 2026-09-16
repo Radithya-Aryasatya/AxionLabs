@@ -1,0 +1,23 @@
+### DIFF solver_sardine/memory.py (15 diff lines)
+--- snapshot:memory_snapshot.txt
++++ live:solver_sardine/memory.py
+@@ -137,2 +137,12 @@
+     return ok
++
++
++def ensure_dirs() -> bool:
++    """Create the ``ai_progress/`` store. Idempotent; safe on every run.
++
++    ``app.py`` calls this at import time so the folders and the tracked
++    README/.gitkeep stubs exist before the first packing run, regardless of
++    whether the classic or the Sardine-Can engine is selected.
++    """
++    return ensure_store()
+ 
+
+IDENTICAL solver_sardine/improver.py
+
+IDENTICAL solver_sardine/baseline.py
+
+IDENTICAL solver_sardine/__init__.py
+

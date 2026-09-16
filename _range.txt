@@ -1,0 +1,125 @@
+FILE app.py  lines=1967
+1517|  8|         with st.spinner("Running 3D bin packing optimization..."):
+1518| 12|             if use_sardine:
+1519|  0| 
+1520| 16|                 # ?? Sardine-Can AI engine ??????????????????????????????
+1521| 16|                 # Routes the same manifest/truck params through the solver
+1522| 16|                 # package.  The result is a Solution dataclass; we wrap it
+1523| 16|                 # in a lightweight object that mimics Bin so the existing
+1524| 16|                 # visualization + metrics code below works unchanged.
+1525| 16|                 from solver_sardine.baseline import solve_sardine
+1526| 16|                 from solver_sardine.improver import solve_with_improvement
+1527|  0| 
+1528| 16|                 _mhash = manifest_hash(st.session_state.manifest,
+1529| 39|                                        (truck_w, truck_h, truck_d),
+1530| 39|                                        truck_weight)
+1531| 16|                 _cfg = st.session_state.get("ai_config", {})
+1532| 16|                 _improve = ai_improve and _cfg.get("improve_enabled", True)
+1533|  0| 
+1534| 16|                 if _improve:
+1535| 20|                     _sol = solve_with_improvement(
+1536| 24|                         st.session_state.manifest,
+1537| 24|                         truck_w, truck_h, truck_d, truck_weight,
+1538| 24|                         prioritize_sequence=prioritize_sequence,
+1539| 24|                         budget_seconds=ai_budget,
+1540| 24|                         config=_cfg,
+1541| 20|                     )
+1542| 16|                 else:
+1543| 20|                     _sol = solve_sardine(
+1544| 24|                         st.session_state.manifest,
+1545| 24|                         truck_w, truck_h, truck_d, truck_weight,
+1546| 24|                         prioritize_sequence=prioritize_sequence,
+1547| 20|                     )
+1548| 16|                 st.session_state.sardine_solution = _sol
+1549| 16|                 st.session_state.sardine_hash = _mhash
+1550| 16|                 st.session_state.sardine_improved = _sol.extra.get(
+1551| 20|                     "improved", False)
+1552|  0| 
+1553| 16|                 class _PlacementItems:
+1554| 20|                     """List-like yielding fake Item-like objects."""
+1555| 20|                     def __init__(self, placements):
+1556| 24|                         self._list = placements
+1557| 20|                     def __iter__(self):
+1558| 24|                         for p in self._list:
+1559| 28|                             yield _FakeItem(p)
+1560| 20|                     def __len__(self):
+1561| 24|                         return len(self._list)
+1562| 20|                     def __getitem__(self, i):
+1563| 24|                         return _FakeItem(self._list[i])
+1564|  0| 
+1565| 16|                 class _FakeItem:
+1566| 20|                     """Mimics py3dbp Item enough for app.py's output loop."""
+1567| 20|                     def __init__(self, p):
+1568| 24|                         self.partno = p.partno
+1569| 24|                         self.name = p.name
+1570| 24|                         self.position = [p.x * 100, p.y * 100, p.z * 100]
+1571| 24|                         self.width = p.w * 100
+1572| 24|                         self.height = p.h * 100
+1573| 24|                         self.depth = p.d * 100
+1574| 24|                         self.weight = p.weight
+1575| 24|                         self.rotation_type = p.rotation_type
+1576| 24|                         self.loadbear = p.max_load
+1577| 24|                         self.updown = False
+1578| 24|                         self.color = p.color
+1579|  0| 
+1580| 20|                     def getDimension(self):
+1581| 24|                         from py3dbp.constants import RotationType as RT
+1582| 24|                         rt = self.rotation_type
+1583| 24|                         w, h, d = self.width, self.height, self.depth
+1584| 24|                         mapping = {
+1585| 28|                             RT.RT_WHD: [w, h, d],
+1586| 28|                             RT.RT_HWD: [h, w, d],
+1587| 28|                             RT.RT_HDW: [h, d, w],
+1588| 28|                             RT.RT_DHW: [d, h, w],
+1589| 28|                             RT.RT_DWH: [d, w, h],
+1590| 28|                             RT.RT_WDH: [w, d, h],
+1591| 24|                         }
+1592| 24|                         return mapping.get(rt, [w, h, d])
+1593|  0| 
+1594| 16|                 class _SardineBin:
+1595| 20|                     """Minimal Bin-compatible wrapper around Solution."""
+1596| 20|                     def __init__(self, sol):
+1597| 24|                         self.partno = sol.truck.name
+1598| 24|                         self.width = sol.truck.width * 100
+1599| 24|                         self.height = sol.truck.height * 100
+1600| 24|                         self.depth = sol.truck.depth * 100
+1601| 24|                         self.max_weight = sol.truck.max_weight
+1602| 24|                         self.put_type = 2
+1603| 24|                         self.gravity = sol.extra.get("gravity", [])
+1604| 24|                         self.items = _PlacementItems(sol.packed)
+1605| 24|                         self.unfitted_items = _PlacementItems(sol.unfitted)
+1606|  0| 
+1607| 16|                 class _FakePacker:
+1608| 20|                     """Minimal Packer-compatible wrapper."""
+1609| 20|                     def __init__(self, sol):
+1610| 24|                         self.bins = [_SardineBin(sol)]
+1611| 24|                         self.items = []
+1612| 24|                         self.unfit_items = []
+1613|  0| 
+1614| 16|                 packer = _FakePacker(_sol)
+1615|  0| 
+1616| 12|             else:
+1617| 16|                 packer = Packer()
+1618|  0| 
+1619| 16|                 packer.addBin(
+1620| 20|                     Bin(
+1621| 24|                         "Truck",
+1622| 24|                         (
+1623| 28|                             truck_w * 100,
+1624| 28|                             truck_h * 100,
+1625| 28|                             truck_d * 100
+1626| 26|                           ),
+1627| 24|                         truck_weight
+1628| 20|                     )
+1629| 16|                 )
+1630|  0| 
+1631| 12|             # The classic loader below feeds py3dbp only — the
+1632| 12|             # Sardine-Can engine already packed the manifest inside
+1633| 12|             # solve_sardine()/solve_with_improvement(). Iterating an
+1634| 12|             # empty list therefore skips it without re-indenting the
+1635| 12|             # whole block.
+1636| 12|             _classic_order = [] if use_sardine else loading_order
+1637|  0| 
+1638| 12|             counter = 0
+1639|  0| 
+1640| 12|             for obj in _classic_order:

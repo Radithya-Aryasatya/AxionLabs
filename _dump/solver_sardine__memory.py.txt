@@ -1,0 +1,349 @@
+"""
+solver_sardine.memory
+=====================
+Disk-backed persistence for the Sardine-Can AI solver so the AI's learning /
+history survives Streamlit restarts, refreshes, and new browser windows.
+
+Layout (created lazily inside ``ai_progress/`` next to ``app.py``)::
+
+    ai_progress/
+      config.json          # {improve_enabled, budget_seconds, ...}
+      history.jsonl        # one JSON line per packing run
+      best_solutions/      # {manifest_hash}.json  best known layout
+      learned_weights.json # {hash: {strategy: {weight, wins, losses}}}
+      README.md
+      .gitkeep
+
+Every public function degrades gracefully on IO / permission errors - the
+solver is always allowed to fall back to its in-memory baseline.
+"""
+from __future__ import annotations
+
+import hashlib
+import json
+import logging
+import os
+import threading
+from dataclasses import asdict, dataclass, field
+
+_APP_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+PROGRESS_DIR = os.path.join(_APP_ROOT, "ai_progress")
+BEST_DIR = os.path.join(PROGRESS_DIR, "best_solutions")
+
+logger = logging.getLogger("solver.memory")
+_lock = threading.Lock()
+
+_README = (
+    "# AI Progress Store\n\n"
+    "This folder persists the Sardine-Can AI solver's learning history and\n"
+    "best-known solutions *across* Streamlit restarts and refreshes.\n\n"
+    "- `history.jsonl` - one line per packing run.\n"
+    "- `best_solutions/` - best placement per manifest hash.\n"
+    "- `learned_weights.json` - heuristic strategy win/loss statistics.\n"
+    "- `config.json` - user-toggled solver options.\n\n"
+    "Contents are git-ignored (only `.gitkeep` and this README are kept).\n"
+)
+
+
+def ensure_dirs():
+    """Create ``ai_progress/`` + ``best_solutions/`` and seed docs."""
+    try:
+        os.makedirs(BEST_DIR, exist_ok=True)
+    except OSError:
+        return
+    for name, content in (("README.md", _README), (".gitkeep", "")):
+        path = os.path.join(PROGRESS_DIR, name)
+        if not os.path.exists(path):
+            try:
+                with open(path, "w", encoding="utf-8") as f:
+                    f.write(content)
+            except OSError:
+                pass
+
+
+def _atomic_write(path, data):
+    """Write text to ``path`` atomically (temp file + os.replace)."""
+    tmp = path + ".tmp"
+    os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+    try:
+        with open(tmp, "w", encoding="utf-8") as f:
+            f.write(data)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp, path)
+    except OSError as e:
+        logger.warning("atomic write failed for %s: %s", path, e)
+
+
+def _atomic_write_json(path, obj):
+    _atomic_write(path, json.dumps(obj, indent=2, default=str))
+
+
+def _read_json(path, default):
+    """Read a JSON file, returning ``default`` on any failure."""
+    try:
+        with open(path, encoding="utf-8") as f:
+            return json.load(f)
+    except (OSError, json.JSONDecodeError, ValueError):
+        return default
+# ──────────────────────────────────────────────────────────────────────
+#  User config  (survives refresh: written on every toggle change)
+# ──────────────────────────────────────────────────────────────────────
+
+_DEFAULT_CONFIG = {
+    "improve_enabled": True,
+    "budget_seconds": 5.0,
+    "max_candidates": 8,
+    "version": 1,
+}
+
+_CONFIG_PATH = os.path.join(PROGRESS_DIR, "config.json")
+
+
+def load_config() -> dict:
+    """Return persisted config merged over defaults. Never raises."""
+    cfg = _read_json(_CONFIG_PATH, {})
+    if not isinstance(cfg, dict):
+        cfg = {}
+    return {**_DEFAULT_CONFIG, **cfg}
+
+
+def save_config(cfg: dict):
+    """Persist user config atomically. No-raise on failure."""
+    ensure_dirs()
+    try:
+        with _lock:
+            _atomic_write_json(_CONFIG_PATH, {**_DEFAULT_CONFIG, **(cfg or {})})
+    except Exception as e:  # noqa: BLE001 - persistence must never break UI
+        logger.warning("save_config failed: %s", e)
+
+
+# ──────────────────────────────────────────────────────────────────────
+#  Learned heuristic weights
+# ──────────────────────────────────────────────────────────────────────
+
+_WEIGHTS_PATH = os.path.join(PROGRESS_DIR, "learned_weights.json")
+
+
+def load_learned_weights() -> dict:
+    """Return ``{manifest_hash: {strategy: {weight, wins, losses}}}``."""
+    data = _read_json(_WEIGHTS_PATH, {})
+    return data if isinstance(data, dict) else {}
+
+
+def save_learned_weights(weights: dict):
+    ensure_dirs()
+    try:
+        with _lock:
+            _atomic_write_json(_WEIGHTS_PATH, weights or {})
+    except Exception as e:  # noqa: BLE001
+        logger.warning("save_learned_weights failed: %s", e)
+
+
+def record_strategy_result(sig: str, strategy: str, won: bool,
+                           score: float = 0.0):
+    """Update the win/loss record (and derived weight) for one strategy.
+
+    ``weight`` starts at 0.5 and moves toward 1.0 on wins / 0.0 on losses
+    with an exponential moving average, so recent results dominate but a
+    single unlucky run cannot permanently blacklist a strategy.
+    """
+    ensure_dirs()
+    try:
+        with _lock:
+            weights = load_learned_weights()
+            bucket = weights.setdefault(sig, {})
+            entry = bucket.setdefault(
+                strategy, {"weight": 0.5, "wins": 0, "losses": 0,
+                           "best_score": 0.0})
+# ──────────────────────────────────────────────────────────────────────
+#  Best-known solution per manifest hash
+# ──────────────────────────────────────────────────────────────────────
+
+def _best_path(sig: str) -> str:
+    return os.path.join(BEST_DIR, f"{sig}.json")
+
+
+def load_best_solution(sig: str):
+    """Load the best stored layout for a manifest hash, or None."""
+    data = _read_json(_best_path(sig), None)
+    return data if isinstance(data, dict) else None
+
+
+def save_best_solution(sig: str, solution_dict: dict, score: float) -> bool:
+    """Store a layout only if it beats the score already on disk.
+
+    Returns True when the new layout was written.
+    """
+    ensure_dirs()
+    try:
+        with _lock:
+            prev = _read_json(_best_path(sig), None)
+            if isinstance(prev, dict) and float(prev.get("score", 0)) >= float(score):
+                return False
+            payload = dict(solution_dict)
+            payload["score"] = float(score)
+            _atomic_write_json(_best_path(sig), payload)
+            return True
+    except Exception as e:  # noqa: BLE001
+        logger.warning("save_best_solution failed: %s", e)
+        return False
+
+
+def solution_to_dict(solution) -> dict:
+    """Serialise a :class:`solver_common.schemas.Solution` for storage."""
+    return {
+        "engine": getattr(solution, "engine", "unknown"),
+        "strategy": getattr(solution, "strategy", "baseline"),
+        "score": float(getattr(solution, "score", 0.0)),
+        "truck": asdict(solution.truck) if solution.truck else {},
+        "packed": [asdict(p) for p in getattr(solution, "packed", [])],
+        "unfitted": [asdict(p) for p in getattr(solution, "unfitted", [])],
+        "extra": {k: v for k, v in getattr(solution, "extra", {}).items()
+# ─────────────────────────────────────────────────────────────────────
+#  Run history
+# ──────────────────────────────────────────────────────────────────────
+
+@dataclass
+class RunRecord:
+    manifest_hash: str
+    engine: str
+    strategy: str
+    packed_count: int
+    unfitted_count: int
+    score: float
+    duration_s: float
+    timestamp: float
+    extra: dict = field(default_factory=dict)
+
+    def to_dict(self) -> dict:
+        return asdict(self)
+
+
+def _history_path() -> str:
+    return os.path.join(PROGRESS_DIR, "history.jsonl")
+
+
+def append_history(record: RunRecord):
+    """Append one line to ``history.jsonl`` (crash-tolerant)."""
+    ensure_dirs()
+    line = json.dumps(record.to_dict(), default=str) + "\n"
+    try:
+        with _lock:
+            with open(_history_path(), "a", encoding="utf-8") as f:
+                f.write(line)
+                f.flush()
+    except OSError as e:
+        logger.warning("append_history failed: %s", e)
+
+
+def load_history(limit: int | None = None) -> list:
+    """Load history records (skipping corrupt lines). Newest first."""
+    records = []
+    try:
+        with open(_history_path(), encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    records.append(json.loads(line))
+                except json.JSONDecodeError:
+                    continue
+    except OSError:
+        return []
+    records.reverse()
+    return records[:limit] if limit else records
+
+
+def clear_history():
+    """Wipe all persisted AI progress (used by the 'Reset' button)."""
+    try:
+        with _lock:
+            _atomic_write(_history_path(), "")
+            _atomic_write_json(_WEIGHTS_PATH, {})
+            if os.path.isdir(BEST_DIR):
+                for name in os.listdir(BEST_DIR):
+                    if name.endswith(".json"):
+                        try:
+                            os.remove(os.path.join(BEST_DIR, name))
+                        except OSError:
+                            pass
+    except Exception as e:  # noqa: BLE001
+        logger.warning("clear_history failed: %s", e)
+                  if isinstance(v, (str, int, float, bool, type(None)))},
+    }
+
+# ──────────────────────────────────────────────────────────────────────
+#  Manifest hashing
+# ──────────────────────────────────────────────────────────────────────
+
+def manifest_hash(manifest: list[dict], truck_dims: tuple,
+                  truck_weight: float) -> str:
+    """Stable hash of the full input so history/best are keyed reliably."""
+    payload = {
+        "truck": {
+            "w": float(truck_dims[0]), "h": float(truck_dims[1]),
+            "d": float(truck_dims[2]), "max_weight": float(truck_weight),
+        },
+        "items": sorted(
+            (
+                {
+                    "name": m["name"],
+                    "w": round(float(m["w"]), 6),
+                    "h": round(float(m["h"]), 6),
+                    "d": round(float(m["d"]), 6),
+                    "weight": round(float(m["weight"]), 6),
+                    "quantity": int(m.get("quantity", 1)),
+                    "sequence": int(m.get("sequence", 0)),
+                }
+                for m in manifest
+                if m.get("name") != "_truck_meta"
+            ),
+            key=lambda d: (d["sequence"], d["name"]),
+        ),
+    }
+    raw = json.dumps(payload, sort_keys=True, default=str)
+    return hashlib.sha256(raw.encode("utf-8")).hexdigest()[:16]
+
+
+# ──────────────────────────────────────────────────────────────────────
+#  Streamlit session-state integration
+# ──────────────────────────────────────────────────────────────────────
+
+def hydrate_session_state(st_session):
+    """Bulk-load persisted data into ``st.session_state`` on startup.
+
+    Called at the top of ``app.py`` so a browser refresh or a brand-new
+    window immediately sees the AI's previous progress.
+    """
+    try:
+        if "ai_config" not in st_session:
+            st_session.ai_config = load_config()
+        if "ai_history" not in st_session:
+            st_session.ai_history = load_history()
+        if "ai_weights" not in st_session:
+            st_session.ai_weights = load_learned_weights()
+        st_session.ai_loaded = True
+    except Exception as e:  # noqa: BLE001
+        logger.warning("hydrate_session_state failed: %s", e)
+
+
+__all__ = [
+    "ensure_dirs", "load_config", "save_config",
+    "load_learned_weights", "save_learned_weights", "record_strategy_result",
+    "load_best_solution", "save_best_solution", "solution_to_dict",
+    "append_history", "load_history", "clear_history",
+    "manifest_hash", "hydrate_session_state",
+    "RunRecord", "PROGRESS_DIR", "BEST_DIR",
+]
+            key = "wins" if won else "losses"
+            entry[key] = int(entry.get(key, 0)) + 1
+            prev = float(entry.get("weight", 0.5))
+            target = 1.0 if won else 0.0
+            entry["weight"] = round(prev + 0.3 * (target - prev), 4)
+            entry["best_score"] = max(float(entry.get("best_score", 0.0)),
+                                      float(score or 0.0))
+            _atomic_write_json(_WEIGHTS_PATH, weights)
+    except Exception as e:  # noqa: BLE001
+        logger.warning("record_strategy_result failed: %s", e)

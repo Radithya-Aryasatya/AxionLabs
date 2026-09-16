@@ -1,0 +1,23 @@
+1283 '    if any(item["name"] == item_name for item in st.session_state.manifest):\r\n'
+1284 '        st.sidebar.error("Package name already exists!")\r\n'
+1285 '\r\n'
+1286 '    else:\r\n'
+1287 '        st.session_state.editing_orientation = {\r\n'
+1288 '\r\n'
+1289 '                "name": item_name,\r\n'
+1290 '                "width": item_w / 100,  # Convert cm to m\r\n'
+1291 '                "height": item_h / 100,  # Convert cm to m\r\n'
+1292 '                "depth": item_d / 100,  # Convert cm to m\r\n'
+1293 '                "weight": item_weight,\r\n'
+1294 '                \r\n'
+1295 '                "quantity": quantity,\r\n'
+1296 '                "max_load": max_supported_load,\r\n'
+1297 '                "sequence": unloading_sequence\r\n'
+1298 '            }\r\n'
+1299 '        st.rerun()\r\n'
+1300 '\r\n'
+--- newline census ---
+CRLF lines: 1966
+LF-only  : 0
+no-EOL   : 1
+tab lines: 0

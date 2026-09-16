@@ -1,0 +1,96 @@
+   1| """
+   2| solver_sardine.improver
+   3| =======================
+   4| Optional self-improvement layer for the Sardine-Can AI solver.
+   5| 
+   6| The **baseline** (:func:`solver_sardine.baseline.solve_sardine`) always runs
+   7| first and establishes a floor.  The improver then tries alternative
+   8| strategies inside a user-controlled time / candidate budget and only
+   9| accepts a replacement when it is *strictly better* on the same composite
+  10| score ``app.py`` uses **and** still satisfies every hard guardrail.  If
+  11| nothing beats the baseline (or the budget runs out) the baseline result is
+  12| returned — the AI can never make the output worse.
+  13| 
+  14| Strategies explored (all are EPI parameterisations):
+  15|   * ``epi-baseline``      – the parity ordering from the classic engine.
+  16|   * ``volume-desc``       – largest boxes first (better bottom layers).
+  17|   * ``weight-desc``       – heaviest first (better centre of gravity).
+  18|   * ``footprint-desc``    – largest floor area first.
+  19|   * ``sequence-desc``     – strict LIFO unloading order.
+  20|   * ``spin-all``          – allow all six rotations for non-tip items.
+  21| 
+  22| Every win/loss is written to ``ai_progress/history.jsonl`` and
+  23| ``ai_progress/learned_weights.json`` so the AI's preference ordering
+  24| improves across sessions and survives Streamlit refreshes.
+  25| """
+  26| from __future__ import annotations
+  27| 
+  28| import time
+  29| 
+  30| from .baseline import (
+  31|     ALL_ROTATIONS,
+  32|     SPIN_ONLY,
+  33|     _EPSet,
+  34|     _best_fit_place,
+  35|     _build_items_from_manifest,
+  36|     solve_sardine,
+  37| )
+  38| from .memory import (
+  39|     RunRecord,
+  40|     append_history,
+  41|     load_learned_weights,
+  42|     manifest_hash,
+  43|     record_strategy_result,
+  44|     save_best_solution,
+  45|     solution_to_dict,
+  46| )
+  47| 
+  48| from solver_common.schemas import Placement, Solution, Truck
+  49| 
+  50| #: Hard cap so a pathological manifest can never hang the UI.
+  51| MAX_STRATEGY_SECONDS = 30.0
+  52| # ─────────────────────────────────────────────────────────────────────
+  53| #  Guardrails
+  54| # ──────────────────────────────────────────────────────────────────────
+  55| 
+  56| def _validate_layout(packed, bin_w, bin_h, bin_d, max_weight,
+  57|                      support_ratio) -> bool:
+  58|     """Return True iff a placement list satisfies every hard guardrail.
+  59| 
+  60|     Checked: bounds, total weight, pairwise overlap, support/stability.
+  61|     A layout that fails here is *never* accepted by the improver.
+  62|     """
+  63|     from .baseline import _is_supported
+  64| 
+  65|     aabbs = []
+  66|     total_w = 0.0
+  67|     for p in packed:
+  68|         x, y, z = p.x * 100.0, p.y * 100.0, p.z * 100.0
+  69|         w, h, d = p.w * 100.0, p.h * 100.0, p.d * 100.0
+  70|         if (x < -1e-6 or y < -1e-6 or z < -1e-6 or
+  71|                 x + w > bin_w + 1e-6 or
+  72|                 y + h > bin_h + 1e-6 or
+  73|                 z + d > bin_d + 1e-6):
+  74|             return False
+  75|         total_w += p.weight
+  76|         aabbs.append((x, y, z, w, h, d))
+  77| 
+  78|     if total_w > max_weight + 1e-3:
+  79|         return False
+  80| 
+  81|     for i in range(len(aabbs)):
+  82|         a = aabbs[i]
+  83|         for j in range(i + 1, len(aabbs)):
+  84|             b = aabbs[j]
+  85|             if (a[0] < b[0] + b[3] - 1e-6 and b[0] < a[0] + a[3] - 1e-6 and
+  86|                     a[1] < b[1] + b[4] - 1e-6 and b[1] < a[1] + a[4] - 1e-6 and
+  87|                     a[2] < b[2] + b[5] - 1e-6 and b[2] < a[2] + a[5] - 1e-6):
+  88|                 return False
+  89| 
+  90|     for idx, (x, y, z, w, h, d) in enumerate(aabbs):
+  91|         if y <= 1e-6:
+  92|             continue
+  93|         others = [aabbs[k] for k in range(len(aabbs)) if k != idx]
+  94|         if not _is_supported(x, y, z, w, h, d, others, support_ratio):
+  95|             return False
+  96|     return True

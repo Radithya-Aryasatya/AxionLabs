@@ -1,0 +1,72 @@
+FILE app.py  lines=1967
+1700| 20|                     packer, st.session_state.manifest,
+1701| 16|                 )
+1702| 12|             else:
+1703| 16|                 _blocked_count, _blocked_names = 0, []
+1704| 16|                 packer.pack(
+1705|  0| 
+1706| 20|                     bigger_first=False,
+1707|  0| 
+1708| 20|                     fix_point=True,
+1709|  0| 
+1710| 20|                     check_stable=True,
+1711|  0| 
+1712| 20|                     support_surface_ratio=0.75,
+1713|  0| 
+1714| 20|                     number_of_decimals=3
+1715|  0| 
+1716| 16|                 )
+1717|  0| 
+1718| 12|             if not use_sardine:
+1719| 16|                 packer.putOrder()
+1720|  0| 
+1721| 12|             packed_geometries = []
+1722|  0| 
+1723| 12|             manifest_lookup = {
+1724|  0| 
+1725| 20|                     f"{item['name']} #{i+1}": item
+1726|  0| 
+1727| 20|                     for item in st.session_state.manifest
+1728|  0| 
+1729| 20|                     for i in range(item["quantity"])
+1730|  0| 
+1731| 16|                 }
+1732|  0| 
+1733| 12|             for b in packer.bins:
+1734|  0| 
+1735| 20|                     for item in b.items:
+1736|  0| 
+1737| 24|                         m = manifest_lookup[item.name]
+1738|  0| 
+1739| 24|                         pos = item.position
+1740|  0| 
+1741| 24|                         dim = item.getDimension()
+1742|  0| 
+1743| 24|                         packed_geometries.append(
+1744|  0| 
+1745| 28|                             PackedItem(
+1746|  0| 
+1747| 32|                                 name=item.name,
+1748|  0| 
+1749| 32|                                 x=float(pos[0]) / 100,
+1750| 32|                                 y=float(pos[1]) / 100,
+1751| 32|                                 z=float(pos[2]) / 100,
+1752|  0| 
+1753| 32|                                 w=float(dim[0]) / 100,
+1754| 32|                                 h=float(dim[1]) / 100,
+1755| 32|                                 d=float(dim[2]) / 100,
+1756|  0| 
+1757| 32|                                 weight=float(item.weight),
+1758|  0| 
+1759| 32|                                 max_load=m["max_load"]
+1760|  0| 
+1761| 28|                             )
+1762|  0| 
+1763| 24|                         )
+1764|  0| 
+1765| 12|             utilization = calculate_utilization(
+1766| 20|                     packed_geometries,
+1767| 20|                     float(truck_w * truck_h * truck_d)
+1768| 16|                 )
+1769|  0| 
+1770| 12|             load_distribution, _ = calculate_load_distribution(
