@@ -12,6 +12,7 @@ list the caller converts into ``PackedItem`` objects via the shared
 helpers already in ``app.py``.
 """
 from dataclasses import replace
+import math
 import time
 
 from .schemas import CargoItem, Truck, Placement, Solution
@@ -105,6 +106,152 @@ def score_solution(solution: Solution, truck_vol: float,
     return overall
 
 
+# ──────────────────────────────────────────────────────────────────────
+#  Canonical manifest pipeline
+# ──────────────────────────────────────────────────────────────────────
+
+def to_canonical(manifest, truck_w, truck_h, truck_d, truck_weight):
+    """Build a **single canonical JSON-serialisable manifest** from the
+    raw ``st.session_state.manifest`` dicts.
+
+    This is the *one* shape every engine consumes.  It normalises:
+      * dimensions to **metres** (the manifest already stores metres),
+      * ``max_load`` ↔ ``fragile`` (fragile ⇒ max_load = own weight),
+      * truck metadata as a first-class sub-dict.
+
+    Returns a plain ``dict`` that can be ``json.dumps``-ed without custom
+    encoders (``Infinity`` is serialised as a large sentinel or via
+    ``math.isinf`` check).
+    """
+    canonical_items = []
+    for idx, m in enumerate(manifest):
+        ml = m["max_load"]
+        is_fragile = (
+            isinstance(ml, (int, float))
+            and not math.isinf(float(ml))
+            and float(ml) == float(m["weight"])
+        )
+        canonical_items.append({
+            "name": str(m["name"]),
+            "w": round(float(m["w"]), 6),
+            "h": round(float(m["h"]), 6),
+            "d": round(float(m["d"]), 6),
+            "weight": float(m["weight"]),
+            "quantity": int(m.get("quantity", 1)),
+            "max_load": float(ml) if math.isfinite(float(ml)) else None,
+            "sequence": int(m["sequence"]),
+            "fragile": bool(is_fragile),
+        })
+    truck_obj = {
+        "name": "Truck",
+        "width": round(float(truck_w), 6),
+        "height": round(float(truck_h), 6),
+        "depth": round(float(truck_d), 6),
+        "max_weight": float(truck_weight),
+    }
+    return {"truck": truck_obj, "items": canonical_items}
+
+
+def to_solution(canonical, engine="unknown", strategy="baseline",
+                score=0.0, extra=None):
+    """Convert a *canonical* result dict back into a :class:`Solution`.
+
+    ``canonical`` has the shape::
+
+        {
+            "truck": {"width", "height", "depth", "max_weight"},
+            "packed":   [ {x, y, z, w, h, d, weight, rotation_type,
+                          max_load, color, name, partno}, ... ],
+            "unfitted": [ ... same shape ... ],
+        }
+
+    All numeric values are in **metres** and **kg**.
+    """
+    t = canonical["truck"]
+    truck = Truck(
+        name=t.get("name", "Truck"),
+        width=float(t["width"]),
+        height=float(t["height"]),
+        depth=float(t["depth"]),
+        max_weight=float(t["max_weight"]),
+    )
+
+    def _make_placement(p):
+        return Placement(
+            name=p.get("name", ""),
+            partno=p.get("partno", ""),
+            x=float(p["x"]),
+            y=float(p["y"]),
+            z=float(p["z"]),
+            w=float(p["w"]),
+            h=float(p["h"]),
+            d=float(p["d"]),
+            weight=float(p["weight"]),
+            rotation_type=int(p.get("rotation_type", 0)),
+            max_load=(
+                float("inf")
+                if p.get("max_load") is None or math.isinf(float(p["max_load"]))
+                else float(p["max_load"])
+            ),
+            color=p.get("color", "#1f77b4"),
+        )
+
+    packed = [_make_placement(p) for p in canonical.get("packed", [])]
+    unfitted = [_make_placement(p) for p in canonical.get("unfitted", [])]
+
+    return Solution(
+        truck=truck,
+        packed=packed,
+        unfitted=unfitted,
+        engine=engine,
+        score=float(score),
+        strategy=strategy,
+        extra=dict(extra) if extra else {},
+    )
+
+
+def solution_to_canonical(solution):
+    """Inverse of :func:`to_solution` — flatten a :class:`Solution` back into
+    the plain, JSON-serialisable canonical result dict::
+
+        {"truck": {...}, "packed": [...], "unfitted": [...]}
+
+    Used by the round-trip tests and by any engine that wants to hand its
+    raw placement list to :func:`to_solution` without leaking dataclasses.
+    All numbers stay in **metres** / **kg**.
+    """
+    def _dump(p, placed):
+        return {
+            "name": p.name,
+            "partno": p.partno,
+            "x": float(p.x) if placed else 0.0,
+            "y": float(p.y) if placed else 0.0,
+            "z": float(p.z) if placed else 0.0,
+            "w": float(p.w),
+            "h": float(p.h),
+            "d": float(p.d),
+            "weight": float(p.weight),
+            "rotation_type": int(p.rotation_type),
+            "max_load": (None if math.isinf(float(p.max_load))
+                         else float(p.max_load)),
+            "color": p.color,
+        }
+
+    t = solution.truck
+    return {
+        "truck": {
+            "name": t.name,
+            "width": float(t.width),
+            "height": float(t.height),
+            "depth": float(t.depth),
+            "max_weight": float(t.max_weight),
+        },
+        "packed": [_dump(p, True) for p in solution.packed],
+        "unfitted": [_dump(p, False) for p in solution.unfitted],
+    }
+
+
 __all__ = [
     "solve", "_manifest_to_items", "expand_items", "score_solution",
+    "to_canonical", "to_solution", "solution_to_canonical",
 ]

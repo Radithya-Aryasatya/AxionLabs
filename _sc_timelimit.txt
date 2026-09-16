@@ -1,0 +1,3 @@
+﻿E:\Arkan\OpenAI_Competition\AI_modelsIntegration\sardine-can\SC.Core\Heuristics\Heuristic.cs:41:        /// Indicates whether the timelimit is reached. <code>true</code> if the timelimit is exceeded, <code>false</code> otherwise.
+E:\Arkan\OpenAI_Competition\AI_modelsIntegration\sardine-can\SC.Core\Heuristics\Heuristic.cs:43:        public bool TimeUp { get { return TimeSpan.MaxValue != Config.TimeLimit && DateTime.Now > TimeStart + Config.TimeLimit; } }
+E:\Arkan\OpenAI_Competition\AI_modelsIntegration\sardine-can\SC.Core\Linear\LinearModelBase.cs:134:            model.SetTimelimit(Config.TimeLimit);

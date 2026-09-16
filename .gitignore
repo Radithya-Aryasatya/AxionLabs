@@ -10,6 +10,10 @@ setup.py
 venv
 debug.log
 test*
+# ...but the repository's own pytest suite lives in tests/ and MUST be
+# tracked, so re-include it after the blanket "test*" rule above.
+!tests/
+!tests/**
 .venv/
 .venv/
 .venv

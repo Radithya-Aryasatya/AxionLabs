@@ -1,0 +1,45 @@
+== solver_common
+__init__.py
+__pycache__
+interface.py
+schemas.py
+== solver_classic
+__init__.py
+adapter.py
+== solver_sardine
+__init__.py
+baseline.py
+improver.py
+memory.py
+== docs
+MANIFEST_CONTRACT.md
+RESULT_CONTRACT.md
+SC_CLI_CONTRACT.md
+== tests
+__init__.py
+__pycache__
+test_manifest_parity.py
+== py3dbp
+__init__.py
+__pycache__
+auxiliary_methods.py
+constants.py
+main.py
+== components
+__init__.py
+__pycache__
+anomaly_banner.py
+cargo_manifest_panel.py
+cctv_feed.py
+digital_twin.py
+fleet_card.py
+gemini_audit.py
+header.py
+manager_controls.py
+tri_view_panel.py
+== state
+__init__.py
+__pycache__
+dock_state.py
+fleet_state.py
+notifications.py

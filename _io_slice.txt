@@ -1,0 +1,118 @@
+﻿                ID = c.ID,
+                Mesh = new MeshCube()
+                {
+                    Length = c.Length,
+                    Width = c.Width,
+                    Height = c.Height
+                },
+                MaxWeight = c.MaxWeight,
+                Data = c.Data
+            }));
+            instance.Pieces.AddRange(jsonInstance.Pieces.Select(p =>
+            {
+                var convp = new VariablePiece() { ID = p.ID, Weight = p.Weight };
+                if (p.Flags != null)
+                    convp.SetFlags(p.Flags.Select(f => (f.FlagId, f.FlagValue)));
+
+                if (p.ForbiddenOrientations != null && p.AllowedOrientations == null)
+                    convp.ForbiddenOrientations = new(p.ForbiddenOrientations);
+                if (p.AllowedOrientations != null)
+                {
+                    convp.ForbiddenOrientations = MeshConstants.ORIENTATIONS.Except(p.AllowedOrientations).ToHashSet();
+                    if (p.ForbiddenOrientations != null)
+                        convp.ForbiddenOrientations.UnionWith(p.ForbiddenOrientations);
+                }
+
+                foreach (var comp in p.Cubes)
+                    convp.AddComponent(comp.X, comp.Y, comp.Z, comp.Length, comp.Width, comp.Height);
+
+                convp.Data = p.Data;
+                return convp;
+            }));
+            if (jsonInstance.Rules != null && jsonInstance.Rules.FlagRules != null)
+                instance.Rules = new RuleSet()
+                {
+                    FlagRules = jsonInstance.Rules.FlagRules.Select(r => new FlagRule()
+                    {
+                        FlagId = r.FlagId,
+                        RuleType = r.RuleType,
+                        Parameter = r.Parameter,
+                    }).ToList(),
+                };
+            // Seal it
+            foreach (var container in instance.Containers)
+                container.Seal();
+            foreach (var piece in instance.Pieces)
+                piece.Seal();
+
+            // Return new instance
+            return instance;
+        }
+        /// <summary>
+        /// Convert this instance into a simplified type for JSON serialization.
+        /// </summary>
+        /// <returns>The instance as a simplified representation.</returns>
+        public JsonInstance ToJsonInstance()
+        {
+            // Convert to JSON representation
+            var jsonInstance = new JsonInstance()
+            {
+                Name = Name,
+                Data = Data,
+                Containers = Containers.Select(c =>
+                    new JsonContainer()
+                    {
+                        ID = c.ID,
+                        Data = c.Data,
+                        MaxWeight = c.MaxWeight,
+                        Length = c.Mesh.Length,
+                        Width = c.Mesh.Width,
+                        Height = c.Mesh.Height
+                    }).ToList(),
+                Pieces = Pieces.Select(p =>
+                    new JsonPiece()
+                    {
+                        ID = p.ID,
+                        Weight = p.Weight,
+                        Data = p.Data,
+                        Flags = p.GetFlags().Select(f => new JsonFlag() { FlagId = f.flag, FlagValue = f.value }).ToList(),
+                        ForbiddenOrientations = p.ForbiddenOrientations.ToList(),
+                        Cubes = p.Original.Components.Select(c =>
+                            new JsonCube()
+                            {
+                                X = c.RelPosition.X,
+                                Y = c.RelPosition.Y,
+                                Z = c.RelPosition.Z,
+                                Length = c.Length,
+                                Width = c.Width,
+                                Height = c.Height
+                            }).ToList()
+                    }).ToList(),
+                Rules = new JsonRuleSet()
+                {
+                    FlagRules = Rules.FlagRules.Select(r => new JsonFlagRule()
+                    {
+                        FlagId = r.FlagId,
+                        RuleType = r.RuleType,
+                        Parameter = r.Parameter
+                    }).ToList(),
+                }
+            };
+            // Return it
+            return jsonInstance;
+        }
+        /// <summary>
+        /// Reads an instance file from the given path.
+        /// </summary>
+        /// <param name="path">The path to the instance file</param>
+        /// <returns>The read instance</returns>
+        public static Instance ReadJson(string json)
+        {
+            // Deserialize JSON
+            var jsonInstance = JsonIO.From<JsonInstance>(json);
+            // Convert and return it
+            return FromJsonInstance(jsonInstance);
+        }
+        /// <summary>
+        /// Converts the instance to a JSON string.
+        /// </summary>

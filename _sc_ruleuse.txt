@@ -1,0 +1,12 @@
+﻿  E:\Arkan\OpenAI_Competition\AI_modelsIntegration\sardine-can\SC.Core\ObjectModel\InstanceIO.cs:261:            if (jsonInstance.Rules != null && jsonInstance.Rules.FlagRules != null)
+  E:\Arkan\OpenAI_Competition\AI_modelsIntegration\sardine-can\SC.Core\ObjectModel\InstanceIO.cs:262:                instance.Rules = new RuleSet()
+  E:\Arkan\OpenAI_Competition\AI_modelsIntegration\sardine-can\SC.Core\ObjectModel\InstanceIO.cs:263:                {
+> E:\Arkan\OpenAI_Competition\AI_modelsIntegration\sardine-can\SC.Core\ObjectModel\InstanceIO.cs:264:                    FlagRules = jsonInstance.Rules.FlagRules.Select(r => new FlagRule()
+  E:\Arkan\OpenAI_Competition\AI_modelsIntegration\sardine-can\SC.Core\ObjectModel\InstanceIO.cs:265:                    {
+  E:\Arkan\OpenAI_Competition\AI_modelsIntegration\sardine-can\SC.Core\ObjectModel\InstanceIO.cs:266:                        FlagId = r.FlagId,
+  E:\Arkan\OpenAI_Competition\AI_modelsIntegration\sardine-can\SC.Core\ObjectModel\InstanceIO.cs:267:                        RuleType = r.RuleType,
+  E:\Arkan\OpenAI_Competition\AI_modelsIntegration\sardine-can\SC.Core\ObjectModel\InstanceIO.cs:268:                        Parameter = r.Parameter,
+  E:\Arkan\OpenAI_Competition\AI_modelsIntegration\sardine-can\SC.Core\ObjectModel\InstanceIO.cs:269:                    }).ToList(),
+  E:\Arkan\OpenAI_Competition\AI_modelsIntegration\sardine-can\SC.Core\ObjectModel\InstanceIO.cs:270:                };
+  E:\Arkan\OpenAI_Competition\AI_modelsIntegration\sardine-can\SC.Core\ObjectModel\InstanceIO.cs:271:            // Seal it
+  E:\Arkan\OpenAI_Competition\AI_modelsIntegration\sardine-can\SC.Core\ObjectModel\InstanceIO.cs:272:            foreach (var container in instance.Containers)

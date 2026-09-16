@@ -1,0 +1,1139 @@
+
+===== Configuration/Configuration.cs =====
+using SC.Core.ObjectModel.Additionals;
+using SC.Core.ObjectModel.Configuration;
+using SC.Core.ObjectModel.Interfaces;
+using SC.Core.Toolbox;
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Text;
+using System.Text.Json.Serialization;
+using System.Threading.Tasks;
+using System.Xml.Serialization;
+
+namespace SC.Core.ObjectModel.Configuration
+{
+    /// <summary>
+    /// The basic configuration class
+    /// </summary>
+    public class Configuration
+    {
+        #region Default values constructor
+
+        /// <summary>
+        /// Creates a new configuration
+        /// </summary>
+        public Configuration() { }
+
+        /// <summary>
+        /// Creates a new configuration
+        /// </summary>
+        /// <param name="method">The method to use</param>
+        /// <param name="handleTetris">Indicates whether to respect tetris pieces (applies for some heuristics)</param>
+        public Configuration(MethodType method, bool handleTetris)
+        {
+            // Set some default time-limit to not accidentally cause infinite runs
+            TimeLimit = TimeSpan.FromSeconds(10);
+
+            // Base settings
+            Type = method;
+            HandleGravity = true;
+            HandleCompatibility = true;
+            HandleStackability = true;
+            HandleRotatability = true;
+            HandleForbiddenOrientations = true;
+            Name = "Default";
+
+            if (method == MethodType.ALNS || method == MethodType.ExtremePointInsertion || method == MethodType.PushInsertion || method == MethodType.SpaceDefragmentation)
+            {
+                Tetris = true;
+                PieceOrder = PieceOrderType.VwH;
+                BestFit = true;
+                MeritType = MeritFunctionType.MEDXYZ;
+                Improvement = true;
+                PieceReorder = PieceReorderType.Score;
+                RandomSalt = 0.1;
+                InflateAndReplaceInsertion = true;
+                NormalizationOrder = new DimensionMarker[3] { DimensionMarker.X, DimensionMarker.Y, DimensionMarker.Z };
+                ExhaustiveEPProne = false;
+                StagnationDistance = 3000;
+                MaximumPercentageOfStoreModification = 1.0;
+                InitialMaximumPercentageOfStoreModification = 0.1;
+                PossibleSwaps = 1;
+                MaxSwaps = 4;
+                LongTermScoreReInitDistance = 1000;
+                PushInsertionVIDs = new int[] { 8, 7, 6, 4, 5, 3, 2, 1 };
+
+                switch (method)
+                {
+                    case MethodType.ExtremePointInsertion:
+                        {
+                            if (handleTetris)
+                            {
+                                Tetris = true;
+                                PieceOrder = PieceOrderType.VwH;
+                                BestFit = false;
+                                MeritType = MeritFunctionType.MEDXYZ;
+                                Improvement = true;
+                                PieceReorder = PieceReorderType.Score;
+                                RandomSalt = 0.08368586690516754;
+                                InflateAndReplaceInsertion = false;
+                                NormalizationOrder = new DimensionMarker[3] { DimensionMarker.X, DimensionMarker.Y, DimensionMarker.Z };
+                                ExhaustiveEPProne = false;
+                                StagnationDistance = 3000;
+                                MaximumPercentageOfStoreModification = 4.276000422314785;
+                                InitialMaximumPercentageOfStoreModification = 0.12554562961303808;
+                                PossibleSwaps = 1;
+                                MaxSwaps = 8;
+                                LongTermScoreReInitDistance = 623;
+                                PushInsertionVIDs = new int[] { 8, 7, 6, 4, 5, 3, 2, 1 };
+                            }
+                            else
+                            {
+                                Tetris = false;
+                                PieceOrder = PieceOrderType.VwH;
+                                BestFit = true;
+                                MeritType = MeritFunctionType.MFV;
+                                Improvement = true;
+                                PieceReorder = PieceReorderType.Score;
+                                RandomSalt = 0.030644342734285967;
+                                InflateAndReplaceInsertion = false;
+                                NormalizationOrder = new DimensionMarker[3] { DimensionMarker.X, DimensionMarker.Y, DimensionMarker.Z };
+                                ExhaustiveEPProne = false;
+                                StagnationDistance = 3000;
+                                MaximumPercentageOfStoreModification = 2.3622753818267688;
+                                InitialMaximumPercentageOfStoreModification = 0.9173096014024229;
+                                PossibleSwaps = 4;
+                                MaxSwaps = 5;
+                                LongTermScoreReInitDistance = 2001;
+                                PushInsertionVIDs = new int[] { 8, 7, 6, 4, 5, 3, 2, 1 };
+                            }
+                        }
+                        break;
+                    case MethodType.SpaceDefragmentation:
+                        {
+                            Tetris = false;
+                            PieceOrder = PieceOrderType.HWL;
+                            BestFit = false;
+                            MeritType = MeritFunctionType.MEDXY;
+                            Improvement = true;
+                            PieceReorder = PieceReorderType.Score;
+                            RandomSalt = 0.8866072829180582;
+                            InflateAndReplaceInsertion = true;
+                            NormalizationOrder = new DimensionMarker[3] { DimensionMarker.X, DimensionMarker.Y, DimensionMarker.Z };
+                            ExhaustiveEPProne = false;
+                            StagnationDistance = 3000;
+                            MaximumPercentageOfStoreModification = 2.3622753818267688;
+                            InitialMaximumPercentageOfStoreModification = 1.0117912386757508;
+                            PossibleSwaps = 1;
+                            MaxSwaps = 7;
+                            LongTermScoreReInitDistance = 691;
+                            PushInsertionVIDs = new int[] { 8, 7, 6, 4, 5, 3, 2, 1 };
+                        }
+                        break;
+                    case MethodType.PushInsertion:
+                        {
+                            if (handleTetris)
+                            {
+                                Tetris = true;
+                                PieceOrder = PieceOrderType.V;
+                                BestFit = false;
+                                MeritType = MeritFunctionType.MEDXY;
+                                Improvement = true;
+                                PieceReorder = PieceReorderType.Score;
+                                RandomSalt = 0.008158387839849155;
+                                InflateAndReplaceInsertion = false;
+                                NormalizationOrder = new DimensionMarker[3] { DimensionMarker.Z, DimensionMarker.X, DimensionMarker.Y };
+                                ExhaustiveEPProne = false;
+                                StagnationDistance = 3000;
+                                MaximumPercentageOfStoreModification = 3.708327203520489;
+                                InitialMaximumPercentageOfStoreModification = 0.01965795921601555;
+                                PossibleSwaps = 3;
+                                MaxSwaps = 4;
+                                LongTermScoreReInitDistance = 75;
+                                PushInsertionVIDs = new int[] { 8, 7, 6, 4 };
+                            }
+                            else
+                            {
+                                Tetris = false;
+                                PieceOrder = PieceOrderType.HWL;
+                                BestFit = false;
+                                MeritType = MeritFunctionType.MEDXY;
+                                Improvement = true;
+                                PieceReorder = PieceReorderType.Score;
+                                RandomSalt = 0.12794130221974132;
+                                InflateAndReplaceInsertion = false;
+                                NormalizationOrder = new DimensionMarker[3] { DimensionMarker.Z, DimensionMarker.Y, DimensionMarker.X };
+                                ExhaustiveEPProne = false;
+                                StagnationDistance = 3000;
+                                MaximumPercentageOfStoreModification = 4.934867626876022;
+                                InitialMaximumPercentageOfStoreModification = 0.06707718133633729;
+                                PossibleSwaps = 3;
+                                MaxSwaps = 5;
+                                LongTermScoreReInitDistance = 861;
+                                PushInsertionVIDs = new int[] { 8, 7, 6, 4, 5, 3, 2, 1 };
+                            }
+                        }
+                        break;
+                    case MethodType.ALNS:
+                        {
+                            if (handleTetris)
+                            {
+                                Tetris = true;
+                                PieceOrder = PieceOrderType.VwH;
+                                BestFit = false;
+                                MeritType = MeritFunctionType.MEDXYZ;
+                                Improvement = true;
+                                PieceReorder = PieceReorderType.Score;
+                                RandomSalt = 0.08368586690516754;
+                                InflateAndReplaceInsertion = false;
+                                NormalizationOrder = new DimensionMarker[3] { DimensionMarker.X, DimensionMarker.Y, DimensionMarker.Z };
+                                ExhaustiveEPProne = false;
+                                StagnationDistance = 3000;
+                                MaximumPercentageOfStoreModification = 4.276000422314785;
+                                InitialMaximumPercentageOfStoreModification = 0.12554562961303808;
+                                PossibleSwaps = 1;
+                                MaxSwaps = 8;
+                                LongTermScoreReInitDistance = 623;
+                                PushInsertionVIDs = new int[] { 8, 7, 6, 4, 5, 3, 2, 1 };
+                            }
+                            else
+                            {
+                                Tetris = false;
+                                PieceOrder = PieceOrderType.VwH;
+                                BestFit = true;
+                                MeritType = MeritFunctionType.MFV;
+                                Improvement = true;
+                                PieceReorder = PieceReorderType.Score;
+                                RandomSalt = 0.030644342734285967;
+                                InflateAndReplaceInsertion = false;
+                                NormalizationOrder = new DimensionMarker[3] { DimensionMarker.X, DimensionMarker.Y, DimensionMarker.Z };
+                                ExhaustiveEPProne = false;
+                                StagnationDistance = 3000;
+                                MaximumPercentageOfStoreModification = 2.3622753818267688;
+                                InitialMaximumPercentageOfStoreModification = 0.9173096014024229;
+                                PossibleSwaps = 4;
+                                MaxSwaps = 5;
+                                LongTermScoreReInitDistance = 2001;
+                                PushInsertionVIDs = new int[] { 8, 7, 6, 4, 5, 3, 2, 1 };
+                            }
+                        }
+                        break;
+                    case MethodType.FrontLeftBottomStyle:
+                    case MethodType.TetrisStyle:
+                    case MethodType.SpaceIndexed:
+                    default: throw new ArgumentException("Unknown method type: " + method.ToString());
+                }
+            }
+            else
+            {
+                Goal = OptimizationGoal.MaxUtilization;
+                SolverToUse = Solvers.Gurobi;
+            }
+        }
+
+        #endregion
+
+        #region Global stuff
+
+        /// <summary>
+        /// Name of the configuration
+        /// </summary>
+        public string Name { get; set; } = "default";
+
+        /// <summary>
+        /// The type of the method to use
+        /// </summary>
+        public MethodType Type { get; set; } = MethodType.ExtremePointInsertion;
+
+        /// <summary>
+        /// Gets or sets the timelimit for the solution process
+        /// </summary>
+        [XmlIgnore, JsonIgnore]
+        public TimeSpan TimeLimit { get; set; } = TimeSpan.FromMinutes(10);
+        /// <summary>
+        /// The timelimit for the solution process in seconds
+        /// </summary>
+        public double TimeLimitInSeconds { get { return TimeLimit.TotalSeconds; } set { TimeLimit = TimeSpan.FromSeconds(value); } }
+
+        /// <summary>
+        /// The maximum number of iterations for the solution process. A negative value indicates no limit.
+        /// </summary>
+        public int IterationsLimit { get; set; } = -1;
+
+        /// <summary>
+        /// Indicates whether to respect the gravity contraint or not
+        /// </summary>
+        public bool HandleGravity { get; set; } = false;
+
+        /// <summary>
+        /// Indicates whether to respect the compatibility of pieces when loading them into one container or not
+        /// </summary>
+        public bool HandleCompatibility { get; set; } = true;
+
+        /// <summary>
+        /// Indicates whether to respect the stackability of pieces or not
+        /// </summary>
+        public bool HandleStackability { get; set; } = false;
+
+        /// <summary>
+        /// Indicates whether to enable rotations or use only the default orientation
+        /// </summary>
+        public bool HandleRotatability { get; set; } = true;
+
+        /// <summary>
+        /// Indicates wheter to restrict the orientations of a piece to the feasible ones or not
+        /// </summary>
+        public bool HandleForbiddenOrientations { get; set; } = true;
+
+        /// <summary>
+        /// The seed for any kind of randomization
+        /// </summary>
+        public int Seed { get; set; } = 0;
+
+        /// <summary>
+        /// Defines a limit for the number of parallel threads allowed.
+        /// </summary>
+        public int ThreadLimit { get; set; } = 0;
+
+        #endregion
+
+        #region Intermediate fields
+
+        /// <summary>
+        /// Gets or sets basic log function to which all log messages get submitted
+        /// </summary>
+        [XmlIgnore]
+        public Action<string> Log;
+
+        /// <summary>
+        /// Gets or sets the function which submits the current best solution
+        /// </summary>
+        [XmlIgnore]
+        public Action<COSolution, bool, string, string> SubmitSolution;
+
+        /// <summary>
+        /// Used to log the current status of the solution. The first element is the time-stamp and the second one the incumbent value.
+        /// </summary>
+        [XmlIgnore]
+        public Action<double, double> LogSolutionStatus;
+
+        /// <summary>
+        /// The time-stamp of the start of the solve process
+        /// </summary>
+        [XmlIgnore]
+        public DateTime StartTimeStamp;
+
+        #endregion
+
+        #region Transformer related properties
+
+        /// <summary>
+        /// Defines the optimization goal
+        /// </summary>
+        public OptimizationGoal Goal { get; set; } = OptimizationGoal.MaxUtilization;
+
+        /// <summary>
+        /// Defines the solver to use
+        /// </summary>
+        public Solvers SolverToUse { get; set; } = Solvers.Gurobi;
+
+        #endregion
+
+        #region Heuristic related properties
+
+        /// <summary>
+        /// The interval at which the primal heuristic logs its progress.
+        /// Since the log interval of the wrapping improvement phase is normally more interesting, this is turned off by default (0.0).
+        /// </summary>
+        public double PrimalHeuristicLogInterval { get; set; } = 0.0;
+
+        /// <summary>
+        /// Defines the objective.
+        /// </summary>
+        public ObjectiveType Objective { get; set; } = ObjectiveType.MaxVolume;
+
+        /// <summary>
+        /// Defines the type of the container sorting to apply at the beginning.
+        /// </summary>
+        public ContainerInitOrderType ContainerOrderInit { get; set; } = ContainerInitOrderType.Capacity;
+
+        /// <summary>
+        /// Defines the type of the container sorting to apply while improving.
+        /// </summary>
+        public ContainerReorderType ContainerOrderReorder { get; set; } = ContainerReorderType.None;
+
+        /// <summary>
+        /// Defines the fraction of containers to be used automatically (opened) instead of aiming to fill as few containers as possible.
+        // The fraction is based on the volume of the pieces and the estimated volume of the containers.
+        /// </summary>
+        public double ContainerOpen { get; set; }
+
+        /// <summary>
+        /// Defines the initial order of the pieces
+        /// </summary>
+        public PieceOrderType PieceOrder { get; set; } = PieceOrderType.VwH;
+
+        /// <summary>
+        /// Defines whether to improve the initial solution
+        /// </summary>
+        public bool Improvement { get; set; } = true;
+
+        /// <summary>
+        /// Enables or disables Tetris-level insertion
+        /// </summary>
+        public bool Tetris { get; set; } = true;
+
+        /// <summary>
+        /// Defines whether to use the best available insertion point or the first valid one
+        /// </summary>
+        public bool BestFit { get; set; } = true;
+
+        /// <summary>
+        /// Deletes EPs more extensively
+        /// </summary>
+        public bool ExhaustiveEPProne { get; set; } = false;
+
+        /// <summary>
+        /// Defines how pieces are being reordered between iterations.
+        /// </summary>
+        public PieceReorderType PieceReorder { get; set; } = PieceReorderType.Score;
+
+        /// <summary>
+        /// Defines the merit function when best-fit is active
+        /// </summary>
+        public MeritFunctionType MeritType { get; set; } = MeritFunctionType.MEDXYZ;
+
+        /// <summary>
+        /// Defines a random salt applied to the score-based ordering
+        /// </summary>
+        public double RandomSalt { get; set; } = 0.1;
+
+        /// <summary>
+        /// Defines the normalization order (SD and PI only)
+        /// </summary>
+        public DimensionMarker[] NormalizationOrder { get; set; } = new DimensionMarker[3] { DimensionMarker.X, DimensionMarker.Y, DimensionMarker.Z };
+
+        /// <summary>
+        /// Defines the iteration count after which the improvement-phase terminates if not better solution is found
+        /// </summary>
+        public int StagnationDistance { get; set; } = 3000;
+
+        /// <summary>
+        /// p of GASP
+        /// </summary>
+        public double MaximumPercentageOfStoreModification { get; set; } = 1.0;
+
+        /// <summary>
+        /// s (overlined) of GASP
+        /// </summary>
+        public double InitialMaximumPercentageOfStoreModification { get; set; } = 0.1;
+
+        /// <summary>
+        /// k of GASP
+        /// </summary>
+        public int PossibleSwaps { get; set; } = 1;
+
+        /// <summary>
+        /// k_max of GASP
+        /// </summary>
+        public int MaxSwaps { get; set; } = 4;
+
+        /// <summary>
+        /// The iteration count after which a long term re-initialization is done if no improvement was found
+        /// </summary>
+        public int LongTermScoreReInitDistance { get; set; } = 600;
+
+        /// <summary>
+        /// Activates the insertion by replacing other pieces (SD only)
+        /// </summary>
+        public bool InflateAndReplaceInsertion { get; set; } = false;
+
+        /// <summary>
+        /// The vertex IDs of the container at which PI tries to insert pieces. The order is mandatory.
+        /// </summary>
+        public int[] PushInsertionVIDs { get; set; } = new int[] { 8, 7, 6, 4, 5, 3, 2, 1 };
+
+        #endregion
+
+        #region I/O
+
+        /// <summary>
+        /// Default extension for configurations
+        /// </summary>
+        public const string DEFAULT_EXTENSION = ".xconf";
+
+        /// <summary>
+        /// Writes the config to the specified file.
+        /// </summary>
+        /// <param name="path">The path to the file. (default extension will be added if missing)</param>
+        public void Write(string path)
+        {
+            XmlSerializer serializer = new XmlSerializer(typeof(Configuration));
+            if (!path.EndsWith(DEFAULT_EXTENSION)) { path = path + DEFAULT_EXTENSION; }
+            using (TextWriter sw = new StreamWriter(path))
+                serializer.Serialize(sw, this);
+        }
+
+        /// <summary>
+        /// Reads the config from the file.
+        /// </summary>
+        /// <param name="path">Path to the file.</param>
+        /// <returns>The config</returns>
+        public static Configuration Read(string path)
+        {
+            XmlSerializer serializer = new XmlSerializer(typeof(Configuration));
+            Configuration config;
+            using (TextReader sr = new StreamReader(path))
+                config = (Configuration)serializer.Deserialize(sr);
+            return config;
+        }
+
+        #endregion
+    }
+}
+
+===== Configuration/Solvers.cs =====
+using System;
+using System.Collections.Generic;
+using System.Text;
+
+namespace SC.Core.ObjectModel.Configuration
+{
+    /// <summary>
+    /// All supported solvers.
+    /// </summary>
+    public enum Solvers
+    {
+        Cplex,
+        Gurobi,
+    }
+}
+
+===== Configuration/OptimizationGoal.cs =====
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace SC.Core.ObjectModel.Configuration
+{
+    /// <summary>
+    /// Indicates the goal of the optimization.
+    /// </summary>
+    public enum OptimizationGoal
+    {
+        /// <summary>
+        /// Minimizes the count of the used containers
+        /// </summary>
+        MinContainer,
+
+        /// <summary>
+        /// Maximizes the used space
+        /// </summary>
+        MaxUtilization
+    }
+}
+
+===== IO/JsonIO.cs =====
+using SC.Core.ObjectModel.IO.Behavior;
+using SC.Core.ObjectModel.IO.Json;
+using System;
+using System.Collections.Generic;
+using System.Globalization;
+using System.Linq;
+using System.Text;
+using System.Text.Json;
+using System.Text.Json.Serialization;
+
+namespace SC.Core.ObjectModel.IO
+{
+    /// <summary>
+    /// Contains some JSON (de-)serializer helper methods.
+    /// </summary>
+    public static class JsonIO
+    {
+        /// <summary>
+        /// Simply used for syncing getters.
+        /// </summary>
+        private static readonly object SyncLock = new object();
+        /// <summary>
+        /// The options that must be used for all JSON serialization.
+        /// </summary>
+        private static JsonSerializerOptions _options = null;
+        /// <summary>
+        /// The options that must be used for all JSON serialization.
+        /// </summary>
+        public static JsonSerializerOptions OPTIONS
+        {
+            get
+            {
+                lock (SyncLock)
+                {
+                    // Simply return options, if already present
+                    if (_options != null) return _options;
+                    // Initiate and return options
+                    _options = new JsonSerializerOptions();
+                    SetJsonSerializerOptions(_options);
+                    return _options;
+                }
+            }
+        }
+        /// <summary>
+        /// Sets the default JSON serializer options at the given options object.
+        /// </summary>
+        /// <param name="opts">The options instance (must be unaltered otherwise).</param>
+        public static void SetJsonSerializerOptions(JsonSerializerOptions opts)
+        {
+            opts.Converters.Add(new JsonStringEnumConverter(CapslockNamingPolicy.Capslock));
+            opts.DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull;
+        }
+
+        /// <summary>
+        /// Creates a JSON representation of the given object.
+        /// </summary>
+        /// <typeparam name="T">Representing JSON type (e.g.: <see cref="JsonInstance"/>).</typeparam>
+        /// <param name="problemInstance">The object to convert.</param>
+        /// <returns>The JSON representation of the object.</returns>
+        public static string To<T>(T problemInstance) => JsonSerializer.Serialize(problemInstance, OPTIONS);
+
+        /// <summary>
+        /// Deserializes the given JSON to the corresponding object representation.
+        /// </summary>
+        /// <typeparam name="T">Representing JSON type (e.g.: <see cref="JsonInstance"/>).</typeparam>
+        /// <param name="json">The JSON.</param>
+        /// <returns>The corresponding object representation.</returns>
+        public static T From<T>(string json) => JsonSerializer.Deserialize<T>(json, OPTIONS);
+
+        /// <summary>
+        /// Checks basic inconsistencies of the given instance and returns informative errors if found.
+        /// </summary>
+        /// <param name="instance">The instance to check.</param>
+        /// <returns>Returns an error describing the identified problem or <code>null</code> if no problems were found.</returns>
+        public static string Validate(JsonInstance instance)
+        {
+            // Check mandatory
+            if (instance == null)
+                return "no instance provided";
+            if ((instance.Containers?.Count ?? 0) <= 0)
+                return "no containers provided";
+            if ((instance.Pieces?.Count ?? 0) <= 0)
+                return "no pieces provided";
+
+            // Check containers
+            var knownContainerIDs = new HashSet<int>();
+            foreach (var container in instance.Containers)
+            {
+                var added = knownContainerIDs.Add(container.ID);
+                if (!added)
+                    return $"container ID {container.ID} is duplicated";
+                if (container.Length <= 0)
+                    return $"invalid length {container.Length.ToString(CultureInfo.InvariantCulture)} of container {container.ID}";
+                if (container.Width <= 0)
+                    return $"invalid width {container.Width.ToString(CultureInfo.InvariantCulture)} of container {container.ID}";
+                if (container.Height <= 0)
+                    return $"invalid height {container.Height.ToString(CultureInfo.InvariantCulture)} of container {container.ID}";
+            }
+
+            // Check pieces
+            var knownPieceIDs = new HashSet<int>();
+            foreach (var piece in instance.Pieces)
+            {
+                var added = knownPieceIDs.Add(piece.ID);
+                if (!added)
+                    return $"piece ID {piece.ID} is duplicated";
+                if ((piece.Cubes?.Count ?? 0) <= 0)
+                    return $"no cubes for piece {piece.ID} provided";
+                foreach (var cube in piece.Cubes)
+                {
+                    if (cube.Length <= 0)
+                        return $"invalid length {cube.Length.ToString(CultureInfo.InvariantCulture)} of cube of piece {piece.ID}";
+                    if (cube.Width <= 0)
+                        return $"invalid width {cube.Width.ToString(CultureInfo.InvariantCulture)} of cube of piece {piece.ID}";
+                    if (cube.Height <= 0)
+                        return $"invalid height {cube.Height.ToString(CultureInfo.InvariantCulture)} of cube of piece {piece.ID}";
+                    if (cube.X < 0)
+                        return $"invalid x-offset {cube.X.ToString(CultureInfo.InvariantCulture)} of cube of piece {piece.ID}";
+                    if (cube.Y < 0)
+                        return $"invalid y-offset {cube.Y.ToString(CultureInfo.InvariantCulture)} of cube of piece {piece.ID}";
+                    if (cube.Z < 0)
+                        return $"invalid z-offset {cube.Z.ToString(CultureInfo.InvariantCulture)} of cube of piece {piece.ID}";
+                }
+            }
+
+            // No errors found
+            return null;
+        }
+    }
+}
+
+===== IO/Behavior/CapslockNamingPolicy.cs =====
+using System;
+using System.Collections.Generic;
+using System.Text;
+using System.Text.Json;
+
+namespace SC.Core.ObjectModel.IO.Behavior
+{
+    public class CapslockNamingPolicy : JsonNamingPolicy
+    {
+        public static CapslockNamingPolicy Capslock { get; } = new CapslockNamingPolicy();
+
+        public override string ConvertName(string name)
+        {
+            // Simply convert to UPPER CASE
+            return name.ToUpperInvariant();
+        }
+    }
+}
+
+===== Rules/FlagRule.cs =====
+using System;
+using System.Collections.Generic;
+using System.Text;
+
+namespace SC.Core.ObjectModel.Rules
+{
+    /// <summary>
+    /// Stores a rule for handling a particular flag.
+    /// </summary>
+    public class FlagRule
+    {
+        /// <summary>
+        /// The ID of the flag controlled by this rule.
+        /// </summary>
+        public int FlagId { get; set; }
+        /// <summary>
+        /// The type of this rule.
+        /// </summary>
+        public FlagRuleType RuleType { get; set; }
+        /// <summary>
+        /// The parameter to use with this rule.
+        /// E.g., lesser or equal different pieces as this per type can be present in a container.
+        /// </summary>
+        public int Parameter { get; set; }
+
+        /// <summary>
+        /// Clones this flag rule definition.
+        /// </summary>
+        /// <returns>The cloned rule.</returns>
+        public FlagRule Clone() => new FlagRule() { FlagId = FlagId, RuleType = RuleType, Parameter = Parameter };
+
+        /// <summary>
+        /// Returns an informative string representation of this object.
+        /// </summary>
+        /// <returns>An informative string representing this object.</returns>
+        public override string ToString() => $"({FlagId},{RuleType},{Parameter}";
+    }
+}
+
+===== Rules/FlagRuleType.cs =====
+using System;
+using System.Collections.Generic;
+using System.Text;
+
+namespace SC.Core.ObjectModel.Rules
+{
+    /// <summary>
+    /// Distinguishes the different types of flag rules.
+    /// </summary>
+    public enum FlagRuleType
+    {
+        /// <summary>
+        /// All pieces in a container must be of the same type.
+        /// </summary>
+        Disjoint = 0,
+        /// <summary>
+        /// At most as many different pieces per type (as given) can be present in a container.
+        /// </summary>
+        LesserEqualsPieces = 1,
+        /// <summary>
+        /// At most as many different types (as given) can be present in a container.
+        /// </summary>
+        LesserEqualsTypes = 2,
+    }
+}
+
+===== Rules/RuleSet.cs =====
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+namespace SC.Core.ObjectModel.Rules
+{
+    /// <summary>
+    /// Contains all rule definitions to adhere to when solving the problem instance.
+    /// </summary>
+    public class RuleSet
+    {
+        /// <summary>
+        /// All flag based rules to adhere to.
+        /// </summary>
+        public List<FlagRule> FlagRules { get; set; } = new List<FlagRule>();
+
+        /// <summary>
+        /// Clones this flag rule-set.
+        /// </summary>
+        /// <returns>The cloned rule-set.</returns>
+        public RuleSet Clone() => new RuleSet() { FlagRules = FlagRules.Select(r => r.Clone()).ToList() };
+    }
+}
+
+===== MethodType.cs =====
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace SC.Core.ObjectModel
+{
+    /// <summary>
+    /// Defines the method used for solving
+    /// </summary>
+    public enum MethodType
+    {
+        /// <summary>
+        /// The basic extreme point insertion heuristic
+        /// </summary>
+        ExtremePointInsertion,
+
+        /// <summary>
+        /// The space defragmentation heuristic
+        /// </summary>
+        SpaceDefragmentation,
+
+        /// <summary>
+        /// The new method
+        /// </summary>
+        PushInsertion,
+
+        /// <summary>
+        /// Indicates that the ALNS meta-heuristic will be used for solving
+        /// </summary>
+        ALNS,
+
+        /// <summary>
+        /// Indicates that the FLB model shall get solved
+        /// </summary>
+        FrontLeftBottomStyle,
+
+        /// <summary>
+        /// Indicates that the tetris model shall get solved
+        /// </summary>
+        TetrisStyle,
+
+        /// <summary>
+        /// Indicates that the hybrid model shall get solved
+        /// </summary>
+        HybridStyle,
+
+        /// <summary>
+        /// Indicates that the space-indexed model shall get solved
+        /// </summary>
+        SpaceIndexed
+    }
+}
+
+===== Additionals/MeritType.cs =====
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace SC.Core.ObjectModel.Additionals
+{
+    /// <summary>
+    /// Defines the different available merit functions
+    /// </summary>
+    public enum MeritFunctionType
+    {
+        /// <summary>
+        /// No merit function is used
+        /// </summary>
+        None,
+
+        /// <summary>
+        /// Aims to minimize the free volume left after item accomodation
+        /// </summary>
+        MFV,
+
+        /// <summary>
+        /// Aims to minimize the size of the resulting packing regarding x and y
+        /// </summary>
+        MMPSXY,
+
+        /// <summary>
+        /// Exploits the <code>MinimizeMaximumPackingSizeXY</code> and also distinguishes between the positioning inside the packing area
+        /// </summary>
+        LPXY,
+
+        /// <summary>
+        /// Aims to maximize the utilization of the residual space at the insertion point
+        /// </summary>
+        MRSU,
+
+        /// <summary>
+        /// Aims to minimize the euclidean distance to the origin
+        /// </summary>
+        MEDXYZ,
+
+        /// <summary>
+        /// Aims to minimize the euclidean distance to the origin only regarding x and y
+        /// </summary>
+        MEDXY,
+
+        /// <summary>
+        /// Aims to minimize packing height
+        /// </summary>
+        H,
+
+        /// <summary>
+        /// Aims to minimize packing height while aiming for fewer containers (Reduce-Height-Reduce-Container)
+        /// </summary>
+        RHRC,
+    }
+}
+
+===== Additionals/Objective.cs =====
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using SC.Core.ObjectModel.Elements;
+using SC.Core.Toolbox;
+
+namespace SC.Core.ObjectModel.Additionals
+{
+    /// <summary>
+    /// Tracks information about the objective.
+    /// </summary>
+    public class Objective
+    {
+        /// <summary>
+        /// Creates a new instance of the objective.
+        /// </summary>
+        /// <param name="solution">The solution this objective belongs to.</param>
+        public Objective(COSolution solution)
+        {
+            Solution = solution;
+            _heightBigM = solution.InstanceLinked.Containers.Max(c => c.Mesh.Height);
+        }
+
+        /// <summary>
+        /// The solution this objective belongs to.
+        /// </summary>
+        private COSolution Solution { get; set; }
+
+        /// <summary>
+        /// The objective value of the corresponding solution.
+        /// </summary>
+        public double Value
+        {
+            get
+            {
+                switch (Solution.Configuration.Objective)
+                {
+                    case ObjectiveType.MaxVolume:
+                        return _volumeContained;
+                    case ObjectiveType.MaxDensity:
+                        {
+                            return
+                                -Solution.OffloadPieces.Count * _heightBigM * 2
+                                - Solution.ContainerInfos.Count(c => c.NumberOfPieces > 0) * _heightBigM
+                                - Solution.ContainerInfos.Where(c => c.NumberOfPieces > 0).Sum(c => c.PackingHeight / c.Container.Mesh.Height);
+                        }
+                    default:
+                        throw new ArgumentException($"Unknown objective type: {Solution.Configuration.Objective}");
+                }
+            }
+        }
+
+        /// <summary>
+        /// The big M value for container height.
+        /// </summary>
+        private double _heightBigM;
+
+        /// <summary>
+        /// The volume packed inside of the containers.
+        /// </summary>
+        private double _volumeContained;
+
+
+        /// <summary>
+        /// Adds a piece to the container.
+        /// </summary>
+        /// <param name="piece">The piece to add.</param>
+        /// <param name="orientation">The orientation of the piece.</param>
+        /// <param name="position">The position of the piece.</param>
+        public void AddPiece(VariablePiece piece, int orientation, MeshPoint position)
+        {
+            _volumeContained += Solution.Configuration.Tetris ? piece.Volume : piece.Original.BoundingBox.Volume;
+        }
+
+        /// <summary>
+        /// Removes a piece from the container.
+        /// </summary>
+        /// <param name="piece">The piece to remove.</param>
+        /// <param name="orientation">The orientation of the piece.</param>
+        /// <param name="position">The position of the piece.</param>
+        public void RemovePiece(VariablePiece piece, int orientation, MeshPoint position)
+        {
+            _volumeContained -= Solution.Configuration.Tetris ? piece.Volume : piece.Original.BoundingBox.Volume;
+        }
+
+        /// <summary>
+        /// Clears the container.
+        /// </summary>
+        public void Clear()
+        {
+            _volumeContained = 0;
+        }
+
+        /// <summary>
+        /// Clones the container info.
+        /// </summary>
+        /// <param name="solution">The solution this objective belongs to.</param>
+        /// <returns>A new instance of the container info.</returns>
+        public Objective Clone(COSolution solution)
+        {
+            return new Objective(solution)
+            {
+                _volumeContained = _volumeContained
+            };
+        }
+    }
+}
+
+===== Additionals/ObjectiveType.cs =====
+namespace SC.Core.ObjectModel.Additionals
+{
+    /// <summary>
+    /// Defines the different available objective types.
+    /// </summary>
+    public enum ObjectiveType
+    {
+        /// <summary>
+        /// Aims to pack as much volume as possible.
+        /// </summary>
+        MaxVolume,
+        /// <summary>
+        /// Aims to pack as dense as possible.
+        /// </summary>
+        MaxDensity,
+    }
+}
+
+===== Additionals/PieceOrder.cs =====
+using SC.Core.ObjectModel.Elements;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace SC.Core.ObjectModel.Additionals
+{
+    /// <summary>
+    /// Defines the different piece-order types
+    /// </summary>
+    public enum PieceOrderType
+    {
+        /// <summary>
+        /// Pieces are ordered by their volume
+        /// </summary>
+        V,
+
+        /// <summary>
+        /// Pieces are ordered by their height then by their width then by their length
+        /// </summary>
+        HWL,
+
+        /// <summary>
+        /// Pieces are ordered by their length with a height tie-breaker
+        /// </summary>
+        VwH,
+
+        /// <summary>
+        /// Pieces are ordered by their height with a volume tie-breaker
+        /// </summary>
+        HwV,
+
+        /// <summary>
+        /// Pieces are ordered by their contact face with a height tie-breaker
+        /// </summary>
+        AwH,
+
+        /// <summary>
+        /// Pieces are ordered by their height with an area tie-breaker
+        /// </summary>
+        HwA
+    }
+
+    /// <summary>
+    /// Supplies objects used for piece-ordering
+    /// </summary>
+    public class PieceOrderSupply
+    {
+        public static List<VariablePiece> Sort(List<VariablePiece> pieces, PieceOrderType type)
+        {
+            switch (type)
+            {
+                case PieceOrderType.V:
+                    return pieces.OrderByDescending(p => p.Volume).ToList();
+                case PieceOrderType.HWL:
+                    return pieces.OrderByDescending(p => p.Original.BoundingBox.Height)
+                        .ThenByDescending(p => p.Original.BoundingBox.Width)
+                        .ThenByDescending(p => p.Original.BoundingBox.Length).ToList();
+                case PieceOrderType.VwH:
+                    return pieces.OrderByDescending(p => p.Volume)
+                        .ThenByDescending(p => p.Original.BoundingBox.Height).ToList();
+                case PieceOrderType.HwV:
+                    return pieces.OrderByDescending(p => p.Original.BoundingBox.Height)
+                        .ThenByDescending(p => p.Volume).ToList();
+                case PieceOrderType.AwH:
+                    return pieces.OrderByDescending(p => p.Original.BoundingBox.Length * p.Original.BoundingBox.Width)
+                        .ThenByDescending(p => p.Original.BoundingBox.Height).ToList();
+                case PieceOrderType.HwA:
+                    return pieces.OrderByDescending(p => p.Original.BoundingBox.Height)
+                        .ThenByDescending(p => p.Original.BoundingBox.Length * p.Original.BoundingBox.Width).ToList();
+                default:
+                    return pieces.OrderByDescending(p => p.Volume).ToList();
+            }
+        }
+    }
+}
+
+===== Additionals/PieceReorder.cs =====
+using SC.Core.ObjectModel.Elements;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace SC.Core.ObjectModel.Additionals
+{
+    /// <summary>
+    /// Defines the different piece-reorder types
+    /// </summary>
+    public enum PieceReorderType
+    {
+        /// <summary>
+        /// Pieces are re-ordered based on their scores.
+        /// </summary>
+        Score,
+        /// <summary>
+        /// Pieces are re-ordered randomly.
+        /// </summary>
+        Random,
+        /// <summary>
+        /// Pieces are not re-ordered.
+        /// </summary>
+        None,
+    }
+}

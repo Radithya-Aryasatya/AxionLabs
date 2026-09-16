@@ -1,0 +1,247 @@
+﻿LINES 246
+1: """Tests for :mod:`solver_sardine.cli_bridge`.
+2: 
+3: The C# toolchain (``dotnet``) is NOT required for these tests: they validate
+4: the pure-Python halves of the bridge ΓÇö manifest encoding, solution parsing,
+5: and the offline fallback to :mod:`solver_sardine.baseline`.
+6: 
+7: Axis contract under test (see ``docs/SC_CLI_CONTRACT.md``):
+8: 
+9:     AxionLabs          C# SC.CLI
+10:     ---------          ----------
+11:     .x              <- position.x
+12:     .y (vertical)   <- position.z
+13:     .z (front-back) <- position.y
+14:     .w              <- cube.length      (C# container "length" == width)
+15:     .h              <- cube.height      (vertical, z-up)
+16:     .d              <- cube.width
+17: """
+18: import os
+19: import sys
+20: 
+21: import pytest
+22: 
+23: sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+24: 
+25: from solver_common.interface import to_canonical, to_solution  # noqa: E402
+26: from solver_sardine import cli_bridge  # noqa: E402
+27: 
+28: RAW_MANIFEST = [
+29:     {"name": "Box A", "w": 1.0, "h": 0.5, "d": 0.8, "weight": 10.0,
+30:      "quantity": 2, "sequence": 1, "max_load": 50.0, "fragile": False},
+31:     {"name": "Box B", "w": 0.6, "h": 0.6, "d": 0.6, "weight": 5.0,
+32:      "quantity": 1, "sequence": 2, "max_load": 5.0, "fragile": True},
+33: ]
+34: TRUCK_W, TRUCK_H, TRUCK_D, TRUCK_WEIGHT = 2.4, 2.4, 6.0, 4000.0
+35: 
+36: # A synthetic SC.CLI reply: one "Box A #1" placed, "Box B #1" offloaded.
+37: FAKE_SOLUTION = {
+38:     "containers": [{
+39:         "id": 1,
+40:         "length": TRUCK_W, "width": TRUCK_D, "height": TRUCK_H,
+41:         "assignments": [
+42:             {"piece": 0,
+43:              "position": {"x": 0.3, "y": 1.2, "z": 2.0, "a": 0, "b": 0, "c": 0},
+44:              "cubes": [{"x": 0, "y": 0, "z": 0,
+45:                         "length": 1.0, "width": 0.8, "height": 0.5}],
+46:              "data": {"partno": "Box A #1", "quantity_idx": "Box A#1"}},
+47:         ],
+48:     }],
+49:     "offload": [
+50:         {"piece": 2,
+51:          "cubes": [{"x": 0, "y": 0, "z": 0,
+52:                     "length": 0.6, "width": 0.6, "height": 0.6}],
+53:          "data": {"partno": "Box B #1", "quantity_idx": "Box B#1"}},
+54:     ],
+55: }
+56: 
+57: 
+58: @pytest.fixture()
+59: def canonical():
+60:     return to_canonical(RAW_MANIFEST, TRUCK_W, TRUCK_H, TRUCK_D, TRUCK_WEIGHT)
+61: 
+62: 
+63: # ---------------------------------------------------------------- encoding
+64: 
+65: def test_container_axes_are_rotated_to_csharp(canonical):
+66:     """AxionLabs width/depth/height -> C# length/width/height (meters)."""
+67:     cont = cli_bridge.to_sc_manifest(canonical)["containers"][0]
+68:     assert cont["length"] == TRUCK_W   # x  <- width
+69:     assert cont["width"] == TRUCK_D    # y  <- depth
+70:     assert cont["height"] == TRUCK_H   # z  <- height
+71:     assert cont["maxWeight"] == TRUCK_WEIGHT
+72: 
+73: 
+74: def test_every_manifest_unit_becomes_a_piece(canonical):
+75:     pieces = cli_bridge.to_sc_manifest(canonical)["pieces"]
+76:     assert len(pieces) == 3                      # 2 x Box A + 1 x Box B
+77:     assert [p["id"] for p in pieces] == [0, 1, 2]
+78: 
+79: 
+80: def test_piece_cube_axes_and_orientations(canonical):
+81:     p0 = cli_bridge.to_sc_manifest(canonical)["pieces"][0]
+82:     cube = p0["cubes"][0]
+83:     assert cube["length"] == 1.0   # <- w
+84:     assert cube["width"] == 0.8    # <- d
+85:     assert cube["height"] == 0.5   # <- h
+86:     # updown=False -> spin on the floor only (height stays vertical).
+87:     assert p0["allowedOrientations"] == [0, 1, 2, 3]
+88:     assert p0["allowedOrientations"] == cli_bridge.ORIENTATIONS_THIS_SIDE_UP
+89:     assert p0["forbiddenOrientations"] == []
+90: 
+91: 
+92: def test_piece_ids_are_unit_unique_and_recoverable(canonical):
+93:     pieces = cli_bridge.to_sc_manifest(canonical)["pieces"]
+94:     idxs = [p["data"]["quantity_idx"] for p in pieces]
+95:     assert idxs == ["Box A#1", "Box A#2", "Box B#1"]
+96:     assert len(set(idxs)) == len(idxs)
+97:     assert pieces[0]["data"]["partno"] == "Box A #1"
+98: 
+99: 
+100: def test_fragile_item_gets_this_side_up_flag(canonical):
+101:     pieces = cli_bridge.to_sc_manifest(canonical)["pieces"]
+102:     frag = [p for p in pieces if p["data"]["quantity_idx"] == "Box B#1"][0]
+103:     assert frag["flags"] == [{"flagId": cli_bridge.FLAG_THIS_SIDE_UP,
+104:                               "flagValue": cli_bridge.FLAG_FRAGILE}]
+105:     assert pieces[0]["flags"] == []
+106: 
+107: 
+108: def test_calculation_envelope_shape(canonical):
+109:     inst = cli_bridge.to_sc_manifest(canonical)
+110:     calc = cli_bridge.wrap_in_calculation(
+111:         inst, cli_bridge._sc_config(budget_seconds=12.0))
+112:     assert set(calc) == {"configuration", "instance"}
+113:     assert calc["configuration"]["timeLimit"] == 12.0
+114:     assert calc["instance"] is inst
+115:     # Budget is clamped to a positive floor so the C# TimeSpan is valid.
+116:     assert cli_bridge._sc_config(0)["timeLimit"] == 30.0
+117: 
+118: 
+119: # ----------------------------------------------------------------- parsing
+120: 
+121: def test_parse_rotates_axes_back_to_axionlabs(canonical):
+122:     """C# (x, y, z) -> AxionLabs (x, z, y); dims -> (length, width, height)."""
+123:     res = cli_bridge.parse_sc_solution(FAKE_SOLUTION, canonical)
+124:     pk = res["packed"][0]
+125:     assert pk["x"] == 0.3
+126:     assert pk["y"] == 1.2                    # vertical  <- C# z
+127:     assert pk["z"] == 2.0                    # front-back <- C# y
+128:     assert pk["w"] == 1.0                    # <- cube.length
+129:     assert pk["h"] == 0.5                    # <- cube.height
+130:     assert pk["d"] == 0.8                    # <- cube.width
+131:     assert pk["weight"] == 10.0              # recovered from the manifest
+132:     assert pk["max_load"] == 50.0
+133:     assert pk["name"] == "Box A #1"
+134: 
+135: 
+136: def test_parse_maps_orientation_to_py3dbp_rotation_type(canonical):
+137:     """spin-only orientations 0/2 -> RT_WHD (0); 1/3 -> RT_DHW (3)."""
+138:     res = cli_bridge.parse_sc_solution(FAKE_SOLUTION, canonical)
+139:     assert res["packed"][0]["rotation_type"] == 0   # length == item w
+140: 
+141:     rotated = dict(FAKE_SOLUTION)
+142:     rotated["containers"] = [{
+143:         "id": 1, "length": TRUCK_W, "width": TRUCK_D, "height": TRUCK_H,
+144:         "assignments": [{
+145:             "piece": 0,
+146:             "position": {"x": 0.0, "y": 0.0, "z": 0.0},
+147:             "cubes": [{"x": 0, "y": 0, "z": 0, "length": 0.8,
+148:                        "width": 1.0, "height": 0.5}],
+149:             "data": {"partno": "Box A #1", "quantity_idx": "Box A#1"},
+150:         }],
+151:     }]
+152:     pk = cli_bridge.parse_sc_solution(rotated, canonical)["packed"][0]
+153:     assert pk["rotation_type"] == 3                 # RT_DHW
+154:     assert pk["w"] == 0.8 and pk["d"] == 1.0
+155: 
+156: 
+157: def test_parse_collects_offloaded_pieces(canonical):
+158:     res = cli_bridge.parse_sc_solution(FAKE_SOLUTION, canonical)
+159:     assert [u["name"] for u in res["unfitted"]] == ["Box B #1"]
+160:     assert res["unfitted"][0]["w"] == 0.6
+161: 
+162: 
+163: def test_parse_preserves_truck_geometry(canonical):
+164:     truck = cli_bridge.parse_sc_solution(FAKE_SOLUTION, canonical)["truck"]
+165:     assert truck["width"] == TRUCK_W
+166:     assert truck["height"] == TRUCK_H
+167:     assert truck["depth"] == TRUCK_D
+168:     assert truck["max_weight"] == TRUCK_WEIGHT
+169: 
+170: 
+171: def test_parsed_result_converts_to_solution(canonical):
+172:     """The canonical result must satisfy solver_common's Solution schema."""
+173:     res = cli_bridge.parse_sc_solution(FAKE_SOLUTION, canonical)
+174:     sol = to_solution(res, engine="sardine-can", strategy="epi-csharp")
+175:     assert sol.engine == "sardine-can"
+176:     assert len(sol.packed) == 1
+177:     assert len(sol.unfitted) == 1
+178:     assert sol.truck.width == TRUCK_W
+179:     assert sol.packed[0].h == 0.5
+180: 
+181: 
+182: # ---------------------------------------------------------------- fallback
+183: 
+184: def test_find_cli_returns_none_without_toolchain(monkeypatch):
+185:     """With no env override we fall back to the shipped-binary scan."""
+186:     monkeypatch.delenv("SC_CLI", raising=False)
+187:     monkeypatch.delenv("SOLARINE_CLI", raising=False)
+188:     monkeypatch.setattr(cli_bridge, "_CLI_CANDIDATES", [])
+189:     assert cli_bridge.find_cli() is None
+190: 
+191: 
+192: def test_solve_via_cli_falls_back_to_baseline(canonical, monkeypatch):
+193:     """A missing CLI must never raise ΓÇö it degrades to the Python baseline."""
+194:     monkeypatch.setattr(cli_bridge, "find_cli", lambda: None)
+195:     canon = dict(canonical)
+196:     canon["_raw_manifest"] = RAW_MANIFEST
+197:     used_native, sol = cli_bridge.solve_via_cli(canon)
+198:     assert used_native is False
+199:     assert sol.engine == "sardine-baseline"
+200:     assert len(sol.packed) == 3                  # everything fits the truck
+201:     assert sol.extra.get("fallback") is True
+202: 
+203: 
+204: def test_solve_via_cli_falls_back_on_cli_error(canonical, monkeypatch):
+205:     """A CLI that errors out also degrades gracefully (no exception)."""
+206:     monkeypatch.setattr(cli_bridge, "find_cli", lambda: "sc-cli-not-real")
+207:     monkeypatch.setattr(cli_bridge, "_run_cli_subprocess",
+208:                         lambda argv, payload, timeout: (None, "boom"))
+209:     canon = dict(canonical)
+210:     canon["_raw_manifest"] = RAW_MANIFEST
+211:     used_native, sol = cli_bridge.solve_via_cli(canon)
+212:     assert used_native is False
+213:     assert sol.engine == "sardine-baseline"
+214: 
+215: 
+216: def test_solve_via_cli_uses_native_result_when_available(canonical,
+217:                                                          monkeypatch):
+218:     """A healthy CLI reply must be parsed and returned as the native engine."""
+219:     monkeypatch.setattr(cli_bridge, "find_cli", lambda: "sc-cli")
+220:     monkeypatch.setattr(cli_bridge, "_run_cli_subprocess",
+221:                         lambda argv, payload, timeout: (FAKE_SOLUTION, ""))
+222:     used_native, sol = cli_bridge.solve_via_cli(dict(canonical))
+223:     assert used_native is True
+224:     assert sol.engine == "sardine-can"
+225:     assert sol.strategy == "epi-csharp"
+226:     assert len(sol.packed) == 1
+227:     assert sol.extra["cli"] is True
+228: 
+229: 
+230: def test_bridge_never_reads_excel():
+231:     """Architectural guard: the bridge must not pull in an Excel reader."""
+232:     src = open(os.path.join(os.path.dirname(os.path.dirname(
+233:         os.path.abspath(__file__))), "solver_sardine", "cli_bridge.py"),
+234:         encoding="utf-8").read()
+235:     for banned in ("read_excel", "openpyxl", "xlrd", "pandas"):
+236:         assert banned not in src, f"bridge must not use {banned}"
+237: 
+238: 
+239: def test_meters_only_no_centimeter_scaling():
+240:     """Architectural guard: the bridge works in meters only (no ``* 100``)."""
+241:     src = open(os.path.join(os.path.dirname(os.path.dirname(
+242:         os.path.abspath(__file__))), "solver_sardine", "cli_bridge.py"),
+243:         encoding="utf-8").read()
+244:     assert "* 100" not in src
+245:     assert "*100" not in src
+246: 
