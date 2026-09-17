@@ -31,11 +31,11 @@ def render_cargo_manifest(fleet: Fleet):
     # --- Header Metrics ---
     col1, col2, col3, col4 = st.columns(4)
     with col1:
-        st.metric("Total Expected", total_expected)
+        st.metric("Total Expected Manifest", total_expected)
     with col2:
-        st.metric("Packed", packed_count)
+        st.metric("Total Expected Packed", packed_count)
     with col3:
-        st.metric("Remaining", remaining_count,
+        st.metric("Total Expected Remaining", remaining_count,
                   delta=-remaining_count if remaining_count > 0 else 0)
     with col4:
         st.metric("Unfitted", unfitted_count)
@@ -43,7 +43,7 @@ def render_cargo_manifest(fleet: Fleet):
     st.markdown("---")
 
     # --- Loaded Items (packed successfully) ---
-    st.subheader("📦 Loaded Items")
+    st.subheader("Expected Items to be Loaded")
 
     loaded_items = [
         item for item in manifest_summary if item.get('packed', 0) > 0
@@ -58,7 +58,7 @@ def render_cargo_manifest(fleet: Fleet):
     st.markdown("---")
 
     # --- Remaining Items (not yet packed) ---
-    st.subheader("⏳ Remaining Items")
+    st.subheader("Expected Remaining Items")
 
     remaining_items = [
         item for item in manifest_summary
@@ -75,7 +75,7 @@ def render_cargo_manifest(fleet: Fleet):
     unfitted_items = fleet.packing_layout.get('layout', {}).get('unfitted_items', [])
     if unfitted_items:
         st.markdown("---")
-        st.subheader("⚠️ Unpacked Items (Rejected by Constraints)")
+        st.subheader("Unpacked Items (Rejected by Constraints)")
         for item in unfitted_items:
             st.error(f"**{item['name']}** could not be packed securely.")
 

@@ -48,7 +48,7 @@ def render_tri_view_panel(fleet: Fleet):
     col_left, col_center = st.columns([1, 1])
 
     with col_left:
-        st.markdown("### 1️⃣ CCTV Live Stream")
+        st.markdown("### CCTV Live Stream")
         # Task 4: honor operator-selected CCTV (fix in cctv_feed honors path).
         from services.cctv_manager import resolve_dock_cctv
         effective_cctv = resolve_dock_cctv(fleet.dock_number)
@@ -74,12 +74,12 @@ def render_tri_view_panel(fleet: Fleet):
             )
 
     with col_center:
-        st.markdown("### 2️⃣ Digital Twin (3D Bin Packing Plan)")
+        st.markdown("### Digital Twin (3D Bin Packing Plan)")
         render_digital_twin(fleet)
 
     # Panel 3: Cargo Manifest + Gemini Audit (full width)
     st.markdown("---")
-    st.markdown("### 3️⃣ Cargo Manifest & Gemini AI Audit")
+    st.markdown("### Cargo Manifest & Gemini AI Audit")
 
     col_right1, col_right2 = st.columns([1, 1])
 

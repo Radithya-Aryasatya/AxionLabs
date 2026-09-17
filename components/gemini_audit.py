@@ -11,7 +11,7 @@ from utils.formatters import format_datetime
 
 def render_gemini_audit(fleet: Fleet):
     """Render the Gemini AI audit log section for a fleet."""
-    st.subheader("🤖 Gemini AI Interpretative Audit")
+    st.subheader("Gemini AI Interpretative Audit")
 
     gemini_analysis = fleet.gemini_analysis
 

@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "updated": 1789551523.2490668,
+  "ai_weights": {
+    "8b874f2e44ac9b90": {
+      "volume-desc": {
+        "wins": 1,
+        "runs": 1,
+        "weight": 0.6667,
+        "score_delta_sum": 12.5,
+        "last_updated": 1789551523.2490668
+      }
+    }
+  }
+}
