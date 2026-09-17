@@ -6,7 +6,8 @@
     2.4,
     6.0
   ],
-  "fill_percentage": 66.5,
+  "sequence_priority": "ON",
+  "fill_percentage": 75.5,
   "loading_in_progress": true,
   "doors_closing": false,
   "truck_moving": false,
@@ -14,7 +15,6 @@
     {
       "name": "PKG-2005 Glassware & Ceramic Cargo",
       "package_id": "PKG-2005",
-      "description": "Glassware & Ceramic Cargo",
       "quantity": 15,
       "packed": 15,
       "remaining": 0,
@@ -35,10 +35,9 @@
     {
       "name": "PKG-2008 Precision LED Panels",
       "package_id": "PKG-2008",
-      "description": "Precision LED Panels",
       "quantity": 8,
-      "packed": 0,
-      "remaining": 8,
+      "packed": 8,
+      "remaining": 0,
       "fragile": true,
       "max_load": 10,
       "weight": 18.5,
@@ -56,7 +55,6 @@
     {
       "name": "PKG-2002 Large Home Appliance Crates",
       "package_id": "PKG-2002",
-      "description": "Large Home Appliance Crates",
       "quantity": 6,
       "packed": 6,
       "remaining": 0,
@@ -77,10 +75,9 @@
     {
       "name": "PKG-2007 Bulk Office Paper Trays",
       "package_id": "PKG-2007",
-      "description": "Bulk Office Paper Trays",
       "quantity": 19,
-      "packed": 19,
-      "remaining": 0,
+      "packed": 12,
+      "remaining": 7,
       "fragile": false,
       "max_load": 100,
       "weight": 12.5,
@@ -98,7 +95,6 @@
     {
       "name": "PKG-2003 Medium Storage Boxes (Apparel)",
       "package_id": "PKG-2003",
-      "description": "Medium Storage Boxes (Apparel)",
       "quantity": 48,
       "packed": 48,
       "remaining": 0,
@@ -119,7 +115,6 @@
     {
       "name": "PKG-2006 Industrial Tool Cases",
       "package_id": "PKG-2006",
-      "description": "Industrial Tool Cases",
       "quantity": 11,
       "packed": 11,
       "remaining": 0,
@@ -140,7 +135,6 @@
     {
       "name": "PKG-2001 Standard Shipping Cartons (Electronics)",
       "package_id": "PKG-2001",
-      "description": "Standard Shipping Cartons (Electronics)",
       "quantity": 39,
       "packed": 39,
       "remaining": 0,
@@ -161,7 +155,6 @@
     {
       "name": "PKG-2004 Flat-Pack Furniture Cartons",
       "package_id": "PKG-2004",
-      "description": "Flat-Pack Furniture Cartons",
       "quantity": 10,
       "packed": 10,
       "remaining": 0,
@@ -182,2684 +175,17 @@
   ],
   "packed_items": [
     {
-      "name": "PKG-2004 Flat-Pack Furniture Cartons #1",
-      "part_number": "PKG-2004-1",
-      "position": [
-        0.0,
-        0.0,
-        0.0
-      ],
-      "dimensions": [
-        100.0,
-        60.0,
-        60.0
-      ],
-      "weight": 28.0,
-      "fragile": false,
-      "package_id": "PKG-2004",
-      "zone": "Zone A-3",
-      "sequence": 4,
-      "city": "Charlotte",
-      "handling": "Side-wall vertical placement"
-    },
-    {
-      "name": "PKG-2004 Flat-Pack Furniture Cartons #2",
-      "part_number": "PKG-2004-2",
-      "position": [
-        100.0,
-        0.0,
-        0.0
-      ],
-      "dimensions": [
-        100.0,
-        60.0,
-        60.0
-      ],
-      "weight": 28.0,
-      "fragile": false,
-      "package_id": "PKG-2004",
-      "zone": "Zone A-3",
-      "sequence": 4,
-      "city": "Charlotte",
-      "handling": "Side-wall vertical placement"
-    },
-    {
-      "name": "PKG-2004 Flat-Pack Furniture Cartons #3",
-      "part_number": "PKG-2004-3",
-      "position": [
-        0.0,
-        0.0,
-        60.0
-      ],
-      "dimensions": [
-        100.0,
-        60.0,
-        60.0
-      ],
-      "weight": 28.0,
-      "fragile": false,
-      "package_id": "PKG-2004",
-      "zone": "Zone A-3",
-      "sequence": 4,
-      "city": "Charlotte",
-      "handling": "Side-wall vertical placement"
-    },
-    {
-      "name": "PKG-2004 Flat-Pack Furniture Cartons #4",
-      "part_number": "PKG-2004-4",
-      "position": [
-        100.0,
-        0.0,
-        60.0
-      ],
-      "dimensions": [
-        100.0,
-        60.0,
-        60.0
-      ],
-      "weight": 28.0,
-      "fragile": false,
-      "package_id": "PKG-2004",
-      "zone": "Zone A-3",
-      "sequence": 4,
-      "city": "Charlotte",
-      "handling": "Side-wall vertical placement"
-    },
-    {
-      "name": "PKG-2004 Flat-Pack Furniture Cartons #5",
-      "part_number": "PKG-2004-5",
-      "position": [
-        0.0,
-        0.0,
-        120.0
-      ],
-      "dimensions": [
-        100.0,
-        60.0,
-        60.0
-      ],
-      "weight": 28.0,
-      "fragile": false,
-      "package_id": "PKG-2004",
-      "zone": "Zone A-3",
-      "sequence": 4,
-      "city": "Charlotte",
-      "handling": "Side-wall vertical placement"
-    },
-    {
-      "name": "PKG-2004 Flat-Pack Furniture Cartons #6",
-      "part_number": "PKG-2004-6",
-      "position": [
-        100.0,
-        0.0,
-        120.0
-      ],
-      "dimensions": [
-        100.0,
-        60.0,
-        60.0
-      ],
-      "weight": 28.0,
-      "fragile": false,
-      "package_id": "PKG-2004",
-      "zone": "Zone A-3",
-      "sequence": 4,
-      "city": "Charlotte",
-      "handling": "Side-wall vertical placement"
-    },
-    {
-      "name": "PKG-2004 Flat-Pack Furniture Cartons #7",
-      "part_number": "PKG-2004-7",
-      "position": [
-        0.0,
-        0.0,
-        180.0
-      ],
-      "dimensions": [
-        100.0,
-        60.0,
-        60.0
-      ],
-      "weight": 28.0,
-      "fragile": false,
-      "package_id": "PKG-2004",
-      "zone": "Zone A-3",
-      "sequence": 4,
-      "city": "Charlotte",
-      "handling": "Side-wall vertical placement"
-    },
-    {
-      "name": "PKG-2004 Flat-Pack Furniture Cartons #8",
-      "part_number": "PKG-2004-8",
-      "position": [
-        100.0,
-        0.0,
-        180.0
-      ],
-      "dimensions": [
-        100.0,
-        60.0,
-        60.0
-      ],
-      "weight": 28.0,
-      "fragile": false,
-      "package_id": "PKG-2004",
-      "zone": "Zone A-3",
-      "sequence": 4,
-      "city": "Charlotte",
-      "handling": "Side-wall vertical placement"
-    },
-    {
-      "name": "PKG-2004 Flat-Pack Furniture Cartons #9",
-      "part_number": "PKG-2004-9",
-      "position": [
-        0.0,
-        0.0,
-        240.0
-      ],
-      "dimensions": [
-        100.0,
-        60.0,
-        60.0
-      ],
-      "weight": 28.0,
-      "fragile": false,
-      "package_id": "PKG-2004",
-      "zone": "Zone A-3",
-      "sequence": 4,
-      "city": "Charlotte",
-      "handling": "Side-wall vertical placement"
-    },
-    {
-      "name": "PKG-2004 Flat-Pack Furniture Cartons #10",
-      "part_number": "PKG-2004-10",
-      "position": [
-        100.0,
-        0.0,
-        240.0
-      ],
-      "dimensions": [
-        100.0,
-        60.0,
-        60.0
-      ],
-      "weight": 28.0,
-      "fragile": false,
-      "package_id": "PKG-2004",
-      "zone": "Zone A-3",
-      "sequence": 4,
-      "city": "Charlotte",
-      "handling": "Side-wall vertical placement"
-    },
-    {
-      "name": "PKG-2006 Industrial Tool Cases #1",
-      "part_number": "PKG-2006-1",
-      "position": [
-        0.0,
-        0.0,
-        300.0
-      ],
-      "dimensions": [
-        80.0,
-        50.0,
-        60.0
-      ],
-      "weight": 22.0,
-      "fragile": false,
-      "package_id": "PKG-2006",
-      "zone": "Zone B-1",
-      "sequence": 2,
-      "city": "Nashville",
-      "handling": "Heavy load - Lower deck"
-    },
-    {
-      "name": "PKG-2006 Industrial Tool Cases #2",
-      "part_number": "PKG-2006-2",
-      "position": [
-        80.0,
-        0.0,
-        300.0
-      ],
-      "dimensions": [
-        80.0,
-        50.0,
-        60.0
-      ],
-      "weight": 22.0,
-      "fragile": false,
-      "package_id": "PKG-2006",
-      "zone": "Zone B-1",
-      "sequence": 2,
-      "city": "Nashville",
-      "handling": "Heavy load - Lower deck"
-    },
-    {
-      "name": "PKG-2006 Industrial Tool Cases #3",
-      "part_number": "PKG-2006-3",
-      "position": [
-        160.0,
-        0.0,
-        300.0
-      ],
-      "dimensions": [
-        80.0,
-        50.0,
-        60.0
-      ],
-      "weight": 22.0,
-      "fragile": false,
-      "package_id": "PKG-2006",
-      "zone": "Zone B-1",
-      "sequence": 2,
-      "city": "Nashville",
-      "handling": "Heavy load - Lower deck"
-    },
-    {
-      "name": "PKG-2006 Industrial Tool Cases #4",
-      "part_number": "PKG-2006-4",
-      "position": [
-        0.0,
-        0.0,
-        360.0
-      ],
-      "dimensions": [
-        80.0,
-        50.0,
-        60.0
-      ],
-      "weight": 22.0,
-      "fragile": false,
-      "package_id": "PKG-2006",
-      "zone": "Zone B-1",
-      "sequence": 2,
-      "city": "Nashville",
-      "handling": "Heavy load - Lower deck"
-    },
-    {
-      "name": "PKG-2006 Industrial Tool Cases #5",
-      "part_number": "PKG-2006-5",
-      "position": [
-        80.0,
-        0.0,
-        360.0
-      ],
-      "dimensions": [
-        80.0,
-        50.0,
-        60.0
-      ],
-      "weight": 22.0,
-      "fragile": false,
-      "package_id": "PKG-2006",
-      "zone": "Zone B-1",
-      "sequence": 2,
-      "city": "Nashville",
-      "handling": "Heavy load - Lower deck"
-    },
-    {
-      "name": "PKG-2006 Industrial Tool Cases #6",
-      "part_number": "PKG-2006-6",
-      "position": [
-        160.0,
-        0.0,
-        360.0
-      ],
-      "dimensions": [
-        80.0,
-        50.0,
-        60.0
-      ],
-      "weight": 22.0,
-      "fragile": false,
-      "package_id": "PKG-2006",
-      "zone": "Zone B-1",
-      "sequence": 2,
-      "city": "Nashville",
-      "handling": "Heavy load - Lower deck"
-    },
-    {
-      "name": "PKG-2006 Industrial Tool Cases #7",
-      "part_number": "PKG-2006-7",
-      "position": [
-        0.0,
-        0.0,
-        420.0
-      ],
-      "dimensions": [
-        80.0,
-        50.0,
-        60.0
-      ],
-      "weight": 22.0,
-      "fragile": false,
-      "package_id": "PKG-2006",
-      "zone": "Zone B-1",
-      "sequence": 2,
-      "city": "Nashville",
-      "handling": "Heavy load - Lower deck"
-    },
-    {
-      "name": "PKG-2006 Industrial Tool Cases #8",
-      "part_number": "PKG-2006-8",
-      "position": [
-        80.0,
-        0.0,
-        420.0
-      ],
-      "dimensions": [
-        80.0,
-        50.0,
-        60.0
-      ],
-      "weight": 22.0,
-      "fragile": false,
-      "package_id": "PKG-2006",
-      "zone": "Zone B-1",
-      "sequence": 2,
-      "city": "Nashville",
-      "handling": "Heavy load - Lower deck"
-    },
-    {
-      "name": "PKG-2006 Industrial Tool Cases #9",
-      "part_number": "PKG-2006-9",
-      "position": [
-        160.0,
-        0.0,
-        420.0
-      ],
-      "dimensions": [
-        80.0,
-        50.0,
-        60.0
-      ],
-      "weight": 22.0,
-      "fragile": false,
-      "package_id": "PKG-2006",
-      "zone": "Zone B-1",
-      "sequence": 2,
-      "city": "Nashville",
-      "handling": "Heavy load - Lower deck"
-    },
-    {
-      "name": "PKG-2006 Industrial Tool Cases #10",
-      "part_number": "PKG-2006-10",
-      "position": [
-        0.0,
-        0.0,
-        480.0
-      ],
-      "dimensions": [
-        80.0,
-        50.0,
-        60.0
-      ],
-      "weight": 22.0,
-      "fragile": false,
-      "package_id": "PKG-2006",
-      "zone": "Zone B-1",
-      "sequence": 2,
-      "city": "Nashville",
-      "handling": "Heavy load - Lower deck"
-    },
-    {
-      "name": "PKG-2006 Industrial Tool Cases #11",
-      "part_number": "PKG-2006-11",
-      "position": [
-        80.0,
-        0.0,
-        480.0
-      ],
-      "dimensions": [
-        80.0,
-        50.0,
-        60.0
-      ],
-      "weight": 22.0,
-      "fragile": false,
-      "package_id": "PKG-2006",
-      "zone": "Zone B-1",
-      "sequence": 2,
-      "city": "Nashville",
-      "handling": "Heavy load - Lower deck"
-    },
-    {
-      "name": "PKG-2007 Bulk Office Paper Trays #1",
-      "part_number": "PKG-2007-1",
-      "position": [
-        0.0,
-        60.0,
-        0.0
-      ],
-      "dimensions": [
-        120.0,
-        30.0,
-        80.0
-      ],
-      "weight": 12.5,
-      "fragile": false,
-      "package_id": "PKG-2007",
-      "zone": "Zone C-2",
-      "sequence": 1,
-      "city": "Portland",
-      "handling": "Standard stackable"
-    },
-    {
-      "name": "PKG-2007 Bulk Office Paper Trays #2",
-      "part_number": "PKG-2007-2",
-      "position": [
-        120.0,
-        60.0,
-        0.0
-      ],
-      "dimensions": [
-        120.0,
-        30.0,
-        80.0
-      ],
-      "weight": 12.5,
-      "fragile": false,
-      "package_id": "PKG-2007",
-      "zone": "Zone C-2",
-      "sequence": 1,
-      "city": "Portland",
-      "handling": "Standard stackable"
-    },
-    {
-      "name": "PKG-2007 Bulk Office Paper Trays #3",
-      "part_number": "PKG-2007-3",
-      "position": [
-        0.0,
-        60.0,
-        80.0
-      ],
-      "dimensions": [
-        120.0,
-        30.0,
-        80.0
-      ],
-      "weight": 12.5,
-      "fragile": false,
-      "package_id": "PKG-2007",
-      "zone": "Zone C-2",
-      "sequence": 1,
-      "city": "Portland",
-      "handling": "Standard stackable"
-    },
-    {
-      "name": "PKG-2007 Bulk Office Paper Trays #4",
-      "part_number": "PKG-2007-4",
-      "position": [
-        120.0,
-        60.0,
-        80.0
-      ],
-      "dimensions": [
-        120.0,
-        30.0,
-        80.0
-      ],
-      "weight": 12.5,
-      "fragile": false,
-      "package_id": "PKG-2007",
-      "zone": "Zone C-2",
-      "sequence": 1,
-      "city": "Portland",
-      "handling": "Standard stackable"
-    },
-    {
-      "name": "PKG-2007 Bulk Office Paper Trays #5",
-      "part_number": "PKG-2007-5",
-      "position": [
-        0.0,
-        60.0,
-        160.0
-      ],
-      "dimensions": [
-        120.0,
-        30.0,
-        80.0
-      ],
-      "weight": 12.5,
-      "fragile": false,
-      "package_id": "PKG-2007",
-      "zone": "Zone C-2",
-      "sequence": 1,
-      "city": "Portland",
-      "handling": "Standard stackable"
-    },
-    {
-      "name": "PKG-2007 Bulk Office Paper Trays #6",
-      "part_number": "PKG-2007-6",
-      "position": [
-        120.0,
-        60.0,
-        160.0
-      ],
-      "dimensions": [
-        120.0,
-        30.0,
-        80.0
-      ],
-      "weight": 12.5,
-      "fragile": false,
-      "package_id": "PKG-2007",
-      "zone": "Zone C-2",
-      "sequence": 1,
-      "city": "Portland",
-      "handling": "Standard stackable"
-    },
-    {
-      "name": "PKG-2007 Bulk Office Paper Trays #7",
-      "part_number": "PKG-2007-7",
-      "position": [
-        0.0,
-        60.0,
-        240.0
-      ],
-      "dimensions": [
-        120.0,
-        30.0,
-        80.0
-      ],
-      "weight": 12.5,
-      "fragile": false,
-      "package_id": "PKG-2007",
-      "zone": "Zone C-2",
-      "sequence": 1,
-      "city": "Portland",
-      "handling": "Standard stackable"
-    },
-    {
-      "name": "PKG-2007 Bulk Office Paper Trays #8",
-      "part_number": "PKG-2007-8",
-      "position": [
-        120.0,
-        60.0,
-        240.0
-      ],
-      "dimensions": [
-        120.0,
-        30.0,
-        80.0
-      ],
-      "weight": 12.5,
-      "fragile": false,
-      "package_id": "PKG-2007",
-      "zone": "Zone C-2",
-      "sequence": 1,
-      "city": "Portland",
-      "handling": "Standard stackable"
-    },
-    {
-      "name": "PKG-2007 Bulk Office Paper Trays #9",
-      "part_number": "PKG-2007-9",
-      "position": [
-        0.0,
-        60.0,
-        320.0
-      ],
-      "dimensions": [
-        120.0,
-        30.0,
-        80.0
-      ],
-      "weight": 12.5,
-      "fragile": false,
-      "package_id": "PKG-2007",
-      "zone": "Zone C-2",
-      "sequence": 1,
-      "city": "Portland",
-      "handling": "Standard stackable"
-    },
-    {
-      "name": "PKG-2007 Bulk Office Paper Trays #10",
-      "part_number": "PKG-2007-10",
-      "position": [
-        120.0,
-        60.0,
-        320.0
-      ],
-      "dimensions": [
-        120.0,
-        30.0,
-        80.0
-      ],
-      "weight": 12.5,
-      "fragile": false,
-      "package_id": "PKG-2007",
-      "zone": "Zone C-2",
-      "sequence": 1,
-      "city": "Portland",
-      "handling": "Standard stackable"
-    },
-    {
-      "name": "PKG-2007 Bulk Office Paper Trays #11",
-      "part_number": "PKG-2007-11",
-      "position": [
-        0.0,
-        60.0,
-        400.0
-      ],
-      "dimensions": [
-        120.0,
-        30.0,
-        80.0
-      ],
-      "weight": 12.5,
-      "fragile": false,
-      "package_id": "PKG-2007",
-      "zone": "Zone C-2",
-      "sequence": 1,
-      "city": "Portland",
-      "handling": "Standard stackable"
-    },
-    {
-      "name": "PKG-2007 Bulk Office Paper Trays #12",
-      "part_number": "PKG-2007-12",
-      "position": [
-        120.0,
-        60.0,
-        400.0
-      ],
-      "dimensions": [
-        120.0,
-        30.0,
-        80.0
-      ],
-      "weight": 12.5,
-      "fragile": false,
-      "package_id": "PKG-2007",
-      "zone": "Zone C-2",
-      "sequence": 1,
-      "city": "Portland",
-      "handling": "Standard stackable"
-    },
-    {
-      "name": "PKG-2007 Bulk Office Paper Trays #13",
-      "part_number": "PKG-2007-13",
-      "position": [
-        0.0,
-        60.0,
-        480.0
-      ],
-      "dimensions": [
-        120.0,
-        30.0,
-        80.0
-      ],
-      "weight": 12.5,
-      "fragile": false,
-      "package_id": "PKG-2007",
-      "zone": "Zone C-2",
-      "sequence": 1,
-      "city": "Portland",
-      "handling": "Standard stackable"
-    },
-    {
-      "name": "PKG-2007 Bulk Office Paper Trays #14",
-      "part_number": "PKG-2007-14",
-      "position": [
-        120.0,
-        60.0,
-        480.0
-      ],
-      "dimensions": [
-        120.0,
-        30.0,
-        80.0
-      ],
-      "weight": 12.5,
-      "fragile": false,
-      "package_id": "PKG-2007",
-      "zone": "Zone C-2",
-      "sequence": 1,
-      "city": "Portland",
-      "handling": "Standard stackable"
-    },
-    {
-      "name": "PKG-2007 Bulk Office Paper Trays #15",
-      "part_number": "PKG-2007-15",
-      "position": [
-        0.0,
-        90.0,
-        0.0
-      ],
-      "dimensions": [
-        120.0,
-        30.0,
-        80.0
-      ],
-      "weight": 12.5,
-      "fragile": false,
-      "package_id": "PKG-2007",
-      "zone": "Zone C-2",
-      "sequence": 1,
-      "city": "Portland",
-      "handling": "Standard stackable"
-    },
-    {
-      "name": "PKG-2007 Bulk Office Paper Trays #16",
-      "part_number": "PKG-2007-16",
-      "position": [
-        120.0,
-        90.0,
-        0.0
-      ],
-      "dimensions": [
-        120.0,
-        30.0,
-        80.0
-      ],
-      "weight": 12.5,
-      "fragile": false,
-      "package_id": "PKG-2007",
-      "zone": "Zone C-2",
-      "sequence": 1,
-      "city": "Portland",
-      "handling": "Standard stackable"
-    },
-    {
-      "name": "PKG-2007 Bulk Office Paper Trays #17",
-      "part_number": "PKG-2007-17",
-      "position": [
-        0.0,
-        90.0,
-        80.0
-      ],
-      "dimensions": [
-        120.0,
-        30.0,
-        80.0
-      ],
-      "weight": 12.5,
-      "fragile": false,
-      "package_id": "PKG-2007",
-      "zone": "Zone C-2",
-      "sequence": 1,
-      "city": "Portland",
-      "handling": "Standard stackable"
-    },
-    {
-      "name": "PKG-2007 Bulk Office Paper Trays #18",
-      "part_number": "PKG-2007-18",
-      "position": [
-        120.0,
-        90.0,
-        80.0
-      ],
-      "dimensions": [
-        120.0,
-        30.0,
-        80.0
-      ],
-      "weight": 12.5,
-      "fragile": false,
-      "package_id": "PKG-2007",
-      "zone": "Zone C-2",
-      "sequence": 1,
-      "city": "Portland",
-      "handling": "Standard stackable"
-    },
-    {
-      "name": "PKG-2007 Bulk Office Paper Trays #19",
-      "part_number": "PKG-2007-19",
-      "position": [
-        0.0,
-        90.0,
-        160.0
-      ],
-      "dimensions": [
-        120.0,
-        30.0,
-        80.0
-      ],
-      "weight": 12.5,
-      "fragile": false,
-      "package_id": "PKG-2007",
-      "zone": "Zone C-2",
-      "sequence": 1,
-      "city": "Portland",
-      "handling": "Standard stackable"
-    },
-    {
-      "name": "PKG-2003 Medium Storage Boxes (Apparel) #1",
-      "part_number": "PKG-2003-1",
-      "position": [
-        160.0,
-        0.0,
-        480.0
-      ],
-      "dimensions": [
-        60.0,
-        40.0,
-        50.0
-      ],
-      "weight": 10.0,
-      "fragile": false,
-      "package_id": "PKG-2003",
-      "zone": "Zone A-1",
-      "sequence": 7,
-      "city": "Austin",
-      "handling": "Standard stackable"
-    },
-    {
-      "name": "PKG-2003 Medium Storage Boxes (Apparel) #2",
-      "part_number": "PKG-2003-2",
-      "position": [
-        0.0,
-        0.0,
-        540.0
-      ],
-      "dimensions": [
-        60.0,
-        40.0,
-        50.0
-      ],
-      "weight": 10.0,
-      "fragile": false,
-      "package_id": "PKG-2003",
-      "zone": "Zone A-1",
-      "sequence": 7,
-      "city": "Austin",
-      "handling": "Standard stackable"
-    },
-    {
-      "name": "PKG-2003 Medium Storage Boxes (Apparel) #3",
-      "part_number": "PKG-2003-3",
-      "position": [
-        60.0,
-        0.0,
-        540.0
-      ],
-      "dimensions": [
-        60.0,
-        40.0,
-        50.0
-      ],
-      "weight": 10.0,
-      "fragile": false,
-      "package_id": "PKG-2003",
-      "zone": "Zone A-1",
-      "sequence": 7,
-      "city": "Austin",
-      "handling": "Standard stackable"
-    },
-    {
-      "name": "PKG-2003 Medium Storage Boxes (Apparel) #4",
-      "part_number": "PKG-2003-4",
-      "position": [
-        120.0,
-        0.0,
-        540.0
-      ],
-      "dimensions": [
-        60.0,
-        40.0,
-        50.0
-      ],
-      "weight": 10.0,
-      "fragile": false,
-      "package_id": "PKG-2003",
-      "zone": "Zone A-1",
-      "sequence": 7,
-      "city": "Austin",
-      "handling": "Standard stackable"
-    },
-    {
-      "name": "PKG-2003 Medium Storage Boxes (Apparel) #5",
-      "part_number": "PKG-2003-5",
-      "position": [
-        180.0,
-        0.0,
-        540.0
-      ],
-      "dimensions": [
-        60.0,
-        40.0,
-        50.0
-      ],
-      "weight": 10.0,
-      "fragile": false,
-      "package_id": "PKG-2003",
-      "zone": "Zone A-1",
-      "sequence": 7,
-      "city": "Austin",
-      "handling": "Standard stackable"
-    },
-    {
-      "name": "PKG-2003 Medium Storage Boxes (Apparel) #6",
-      "part_number": "PKG-2003-6",
-      "position": [
-        0.0,
-        120.0,
-        0.0
-      ],
-      "dimensions": [
-        60.0,
-        40.0,
-        50.0
-      ],
-      "weight": 10.0,
-      "fragile": false,
-      "package_id": "PKG-2003",
-      "zone": "Zone A-1",
-      "sequence": 7,
-      "city": "Austin",
-      "handling": "Standard stackable"
-    },
-    {
-      "name": "PKG-2003 Medium Storage Boxes (Apparel) #7",
-      "part_number": "PKG-2003-7",
-      "position": [
-        60.0,
-        120.0,
-        0.0
-      ],
-      "dimensions": [
-        60.0,
-        40.0,
-        50.0
-      ],
-      "weight": 10.0,
-      "fragile": false,
-      "package_id": "PKG-2003",
-      "zone": "Zone A-1",
-      "sequence": 7,
-      "city": "Austin",
-      "handling": "Standard stackable"
-    },
-    {
-      "name": "PKG-2003 Medium Storage Boxes (Apparel) #8",
-      "part_number": "PKG-2003-8",
-      "position": [
-        120.0,
-        120.0,
-        0.0
-      ],
-      "dimensions": [
-        60.0,
-        40.0,
-        50.0
-      ],
-      "weight": 10.0,
-      "fragile": false,
-      "package_id": "PKG-2003",
-      "zone": "Zone A-1",
-      "sequence": 7,
-      "city": "Austin",
-      "handling": "Standard stackable"
-    },
-    {
-      "name": "PKG-2003 Medium Storage Boxes (Apparel) #9",
-      "part_number": "PKG-2003-9",
-      "position": [
-        180.0,
-        120.0,
-        0.0
-      ],
-      "dimensions": [
-        60.0,
-        40.0,
-        50.0
-      ],
-      "weight": 10.0,
-      "fragile": false,
-      "package_id": "PKG-2003",
-      "zone": "Zone A-1",
-      "sequence": 7,
-      "city": "Austin",
-      "handling": "Standard stackable"
-    },
-    {
-      "name": "PKG-2003 Medium Storage Boxes (Apparel) #10",
-      "part_number": "PKG-2003-10",
-      "position": [
-        0.0,
-        120.0,
-        50.0
-      ],
-      "dimensions": [
-        60.0,
-        40.0,
-        50.0
-      ],
-      "weight": 10.0,
-      "fragile": false,
-      "package_id": "PKG-2003",
-      "zone": "Zone A-1",
-      "sequence": 7,
-      "city": "Austin",
-      "handling": "Standard stackable"
-    },
-    {
-      "name": "PKG-2003 Medium Storage Boxes (Apparel) #11",
-      "part_number": "PKG-2003-11",
-      "position": [
-        60.0,
-        120.0,
-        50.0
-      ],
-      "dimensions": [
-        60.0,
-        40.0,
-        50.0
-      ],
-      "weight": 10.0,
-      "fragile": false,
-      "package_id": "PKG-2003",
-      "zone": "Zone A-1",
-      "sequence": 7,
-      "city": "Austin",
-      "handling": "Standard stackable"
-    },
-    {
-      "name": "PKG-2003 Medium Storage Boxes (Apparel) #12",
-      "part_number": "PKG-2003-12",
-      "position": [
-        120.0,
-        120.0,
-        50.0
-      ],
-      "dimensions": [
-        60.0,
-        40.0,
-        50.0
-      ],
-      "weight": 10.0,
-      "fragile": false,
-      "package_id": "PKG-2003",
-      "zone": "Zone A-1",
-      "sequence": 7,
-      "city": "Austin",
-      "handling": "Standard stackable"
-    },
-    {
-      "name": "PKG-2003 Medium Storage Boxes (Apparel) #13",
-      "part_number": "PKG-2003-13",
-      "position": [
-        180.0,
-        120.0,
-        50.0
-      ],
-      "dimensions": [
-        60.0,
-        40.0,
-        50.0
-      ],
-      "weight": 10.0,
-      "fragile": false,
-      "package_id": "PKG-2003",
-      "zone": "Zone A-1",
-      "sequence": 7,
-      "city": "Austin",
-      "handling": "Standard stackable"
-    },
-    {
-      "name": "PKG-2003 Medium Storage Boxes (Apparel) #14",
-      "part_number": "PKG-2003-14",
-      "position": [
-        0.0,
-        120.0,
-        100.0
-      ],
-      "dimensions": [
-        60.0,
-        40.0,
-        50.0
-      ],
-      "weight": 10.0,
-      "fragile": false,
-      "package_id": "PKG-2003",
-      "zone": "Zone A-1",
-      "sequence": 7,
-      "city": "Austin",
-      "handling": "Standard stackable"
-    },
-    {
-      "name": "PKG-2003 Medium Storage Boxes (Apparel) #15",
-      "part_number": "PKG-2003-15",
-      "position": [
-        60.0,
-        120.0,
-        100.0
-      ],
-      "dimensions": [
-        60.0,
-        40.0,
-        50.0
-      ],
-      "weight": 10.0,
-      "fragile": false,
-      "package_id": "PKG-2003",
-      "zone": "Zone A-1",
-      "sequence": 7,
-      "city": "Austin",
-      "handling": "Standard stackable"
-    },
-    {
-      "name": "PKG-2003 Medium Storage Boxes (Apparel) #16",
-      "part_number": "PKG-2003-16",
-      "position": [
-        120.0,
-        120.0,
-        100.0
-      ],
-      "dimensions": [
-        60.0,
-        40.0,
-        50.0
-      ],
-      "weight": 10.0,
-      "fragile": false,
-      "package_id": "PKG-2003",
-      "zone": "Zone A-1",
-      "sequence": 7,
-      "city": "Austin",
-      "handling": "Standard stackable"
-    },
-    {
-      "name": "PKG-2003 Medium Storage Boxes (Apparel) #17",
-      "part_number": "PKG-2003-17",
-      "position": [
-        180.0,
-        120.0,
-        100.0
-      ],
-      "dimensions": [
-        60.0,
-        40.0,
-        50.0
-      ],
-      "weight": 10.0,
-      "fragile": false,
-      "package_id": "PKG-2003",
-      "zone": "Zone A-1",
-      "sequence": 7,
-      "city": "Austin",
-      "handling": "Standard stackable"
-    },
-    {
-      "name": "PKG-2003 Medium Storage Boxes (Apparel) #18",
-      "part_number": "PKG-2003-18",
-      "position": [
-        0.0,
-        120.0,
-        150.0
-      ],
-      "dimensions": [
-        60.0,
-        40.0,
-        50.0
-      ],
-      "weight": 10.0,
-      "fragile": false,
-      "package_id": "PKG-2003",
-      "zone": "Zone A-1",
-      "sequence": 7,
-      "city": "Austin",
-      "handling": "Standard stackable"
-    },
-    {
-      "name": "PKG-2003 Medium Storage Boxes (Apparel) #19",
-      "part_number": "PKG-2003-19",
-      "position": [
-        60.0,
-        120.0,
-        150.0
-      ],
-      "dimensions": [
-        60.0,
-        40.0,
-        50.0
-      ],
-      "weight": 10.0,
-      "fragile": false,
-      "package_id": "PKG-2003",
-      "zone": "Zone A-1",
-      "sequence": 7,
-      "city": "Austin",
-      "handling": "Standard stackable"
-    },
-    {
-      "name": "PKG-2003 Medium Storage Boxes (Apparel) #20",
-      "part_number": "PKG-2003-20",
-      "position": [
-        120.0,
-        120.0,
-        150.0
-      ],
-      "dimensions": [
-        60.0,
-        40.0,
-        50.0
-      ],
-      "weight": 10.0,
-      "fragile": false,
-      "package_id": "PKG-2003",
-      "zone": "Zone A-1",
-      "sequence": 7,
-      "city": "Austin",
-      "handling": "Standard stackable"
-    },
-    {
-      "name": "PKG-2003 Medium Storage Boxes (Apparel) #21",
-      "part_number": "PKG-2003-21",
-      "position": [
-        180.0,
-        120.0,
-        150.0
-      ],
-      "dimensions": [
-        60.0,
-        40.0,
-        50.0
-      ],
-      "weight": 10.0,
-      "fragile": false,
-      "package_id": "PKG-2003",
-      "zone": "Zone A-1",
-      "sequence": 7,
-      "city": "Austin",
-      "handling": "Standard stackable"
-    },
-    {
-      "name": "PKG-2003 Medium Storage Boxes (Apparel) #22",
-      "part_number": "PKG-2003-22",
-      "position": [
-        0.0,
-        120.0,
-        200.0
-      ],
-      "dimensions": [
-        60.0,
-        40.0,
-        50.0
-      ],
-      "weight": 10.0,
-      "fragile": false,
-      "package_id": "PKG-2003",
-      "zone": "Zone A-1",
-      "sequence": 7,
-      "city": "Austin",
-      "handling": "Standard stackable"
-    },
-    {
-      "name": "PKG-2003 Medium Storage Boxes (Apparel) #23",
-      "part_number": "PKG-2003-23",
-      "position": [
-        60.0,
-        120.0,
-        200.0
-      ],
-      "dimensions": [
-        60.0,
-        40.0,
-        50.0
-      ],
-      "weight": 10.0,
-      "fragile": false,
-      "package_id": "PKG-2003",
-      "zone": "Zone A-1",
-      "sequence": 7,
-      "city": "Austin",
-      "handling": "Standard stackable"
-    },
-    {
-      "name": "PKG-2003 Medium Storage Boxes (Apparel) #24",
-      "part_number": "PKG-2003-24",
-      "position": [
-        120.0,
-        120.0,
-        200.0
-      ],
-      "dimensions": [
-        60.0,
-        40.0,
-        50.0
-      ],
-      "weight": 10.0,
-      "fragile": false,
-      "package_id": "PKG-2003",
-      "zone": "Zone A-1",
-      "sequence": 7,
-      "city": "Austin",
-      "handling": "Standard stackable"
-    },
-    {
-      "name": "PKG-2003 Medium Storage Boxes (Apparel) #25",
-      "part_number": "PKG-2003-25",
-      "position": [
-        180.0,
-        120.0,
-        200.0
-      ],
-      "dimensions": [
-        60.0,
-        40.0,
-        50.0
-      ],
-      "weight": 10.0,
-      "fragile": false,
-      "package_id": "PKG-2003",
-      "zone": "Zone A-1",
-      "sequence": 7,
-      "city": "Austin",
-      "handling": "Standard stackable"
-    },
-    {
-      "name": "PKG-2003 Medium Storage Boxes (Apparel) #26",
-      "part_number": "PKG-2003-26",
-      "position": [
-        0.0,
-        120.0,
-        250.0
-      ],
-      "dimensions": [
-        60.0,
-        40.0,
-        50.0
-      ],
-      "weight": 10.0,
-      "fragile": false,
-      "package_id": "PKG-2003",
-      "zone": "Zone A-1",
-      "sequence": 7,
-      "city": "Austin",
-      "handling": "Standard stackable"
-    },
-    {
-      "name": "PKG-2003 Medium Storage Boxes (Apparel) #27",
-      "part_number": "PKG-2003-27",
-      "position": [
-        60.0,
-        120.0,
-        250.0
-      ],
-      "dimensions": [
-        60.0,
-        40.0,
-        50.0
-      ],
-      "weight": 10.0,
-      "fragile": false,
-      "package_id": "PKG-2003",
-      "zone": "Zone A-1",
-      "sequence": 7,
-      "city": "Austin",
-      "handling": "Standard stackable"
-    },
-    {
-      "name": "PKG-2003 Medium Storage Boxes (Apparel) #28",
-      "part_number": "PKG-2003-28",
-      "position": [
-        120.0,
-        120.0,
-        250.0
-      ],
-      "dimensions": [
-        60.0,
-        40.0,
-        50.0
-      ],
-      "weight": 10.0,
-      "fragile": false,
-      "package_id": "PKG-2003",
-      "zone": "Zone A-1",
-      "sequence": 7,
-      "city": "Austin",
-      "handling": "Standard stackable"
-    },
-    {
-      "name": "PKG-2003 Medium Storage Boxes (Apparel) #29",
-      "part_number": "PKG-2003-29",
-      "position": [
-        180.0,
-        120.0,
-        250.0
-      ],
-      "dimensions": [
-        60.0,
-        40.0,
-        50.0
-      ],
-      "weight": 10.0,
-      "fragile": false,
-      "package_id": "PKG-2003",
-      "zone": "Zone A-1",
-      "sequence": 7,
-      "city": "Austin",
-      "handling": "Standard stackable"
-    },
-    {
-      "name": "PKG-2003 Medium Storage Boxes (Apparel) #30",
-      "part_number": "PKG-2003-30",
-      "position": [
-        0.0,
-        120.0,
-        300.0
-      ],
-      "dimensions": [
-        60.0,
-        40.0,
-        50.0
-      ],
-      "weight": 10.0,
-      "fragile": false,
-      "package_id": "PKG-2003",
-      "zone": "Zone A-1",
-      "sequence": 7,
-      "city": "Austin",
-      "handling": "Standard stackable"
-    },
-    {
-      "name": "PKG-2003 Medium Storage Boxes (Apparel) #31",
-      "part_number": "PKG-2003-31",
-      "position": [
-        60.0,
-        120.0,
-        300.0
-      ],
-      "dimensions": [
-        60.0,
-        40.0,
-        50.0
-      ],
-      "weight": 10.0,
-      "fragile": false,
-      "package_id": "PKG-2003",
-      "zone": "Zone A-1",
-      "sequence": 7,
-      "city": "Austin",
-      "handling": "Standard stackable"
-    },
-    {
-      "name": "PKG-2003 Medium Storage Boxes (Apparel) #32",
-      "part_number": "PKG-2003-32",
-      "position": [
-        120.0,
-        120.0,
-        300.0
-      ],
-      "dimensions": [
-        60.0,
-        40.0,
-        50.0
-      ],
-      "weight": 10.0,
-      "fragile": false,
-      "package_id": "PKG-2003",
-      "zone": "Zone A-1",
-      "sequence": 7,
-      "city": "Austin",
-      "handling": "Standard stackable"
-    },
-    {
-      "name": "PKG-2003 Medium Storage Boxes (Apparel) #33",
-      "part_number": "PKG-2003-33",
-      "position": [
-        180.0,
-        120.0,
-        300.0
-      ],
-      "dimensions": [
-        60.0,
-        40.0,
-        50.0
-      ],
-      "weight": 10.0,
-      "fragile": false,
-      "package_id": "PKG-2003",
-      "zone": "Zone A-1",
-      "sequence": 7,
-      "city": "Austin",
-      "handling": "Standard stackable"
-    },
-    {
-      "name": "PKG-2003 Medium Storage Boxes (Apparel) #34",
-      "part_number": "PKG-2003-34",
-      "position": [
-        0.0,
-        120.0,
-        350.0
-      ],
-      "dimensions": [
-        60.0,
-        40.0,
-        50.0
-      ],
-      "weight": 10.0,
-      "fragile": false,
-      "package_id": "PKG-2003",
-      "zone": "Zone A-1",
-      "sequence": 7,
-      "city": "Austin",
-      "handling": "Standard stackable"
-    },
-    {
-      "name": "PKG-2003 Medium Storage Boxes (Apparel) #35",
-      "part_number": "PKG-2003-35",
-      "position": [
-        60.0,
-        120.0,
-        350.0
-      ],
-      "dimensions": [
-        60.0,
-        40.0,
-        50.0
-      ],
-      "weight": 10.0,
-      "fragile": false,
-      "package_id": "PKG-2003",
-      "zone": "Zone A-1",
-      "sequence": 7,
-      "city": "Austin",
-      "handling": "Standard stackable"
-    },
-    {
-      "name": "PKG-2003 Medium Storage Boxes (Apparel) #36",
-      "part_number": "PKG-2003-36",
-      "position": [
-        120.0,
-        120.0,
-        350.0
-      ],
-      "dimensions": [
-        60.0,
-        40.0,
-        50.0
-      ],
-      "weight": 10.0,
-      "fragile": false,
-      "package_id": "PKG-2003",
-      "zone": "Zone A-1",
-      "sequence": 7,
-      "city": "Austin",
-      "handling": "Standard stackable"
-    },
-    {
-      "name": "PKG-2003 Medium Storage Boxes (Apparel) #37",
-      "part_number": "PKG-2003-37",
-      "position": [
-        180.0,
-        120.0,
-        350.0
-      ],
-      "dimensions": [
-        60.0,
-        40.0,
-        50.0
-      ],
-      "weight": 10.0,
-      "fragile": false,
-      "package_id": "PKG-2003",
-      "zone": "Zone A-1",
-      "sequence": 7,
-      "city": "Austin",
-      "handling": "Standard stackable"
-    },
-    {
-      "name": "PKG-2003 Medium Storage Boxes (Apparel) #38",
-      "part_number": "PKG-2003-38",
-      "position": [
-        0.0,
-        120.0,
-        400.0
-      ],
-      "dimensions": [
-        60.0,
-        40.0,
-        50.0
-      ],
-      "weight": 10.0,
-      "fragile": false,
-      "package_id": "PKG-2003",
-      "zone": "Zone A-1",
-      "sequence": 7,
-      "city": "Austin",
-      "handling": "Standard stackable"
-    },
-    {
-      "name": "PKG-2003 Medium Storage Boxes (Apparel) #39",
-      "part_number": "PKG-2003-39",
-      "position": [
-        60.0,
-        120.0,
-        400.0
-      ],
-      "dimensions": [
-        60.0,
-        40.0,
-        50.0
-      ],
-      "weight": 10.0,
-      "fragile": false,
-      "package_id": "PKG-2003",
-      "zone": "Zone A-1",
-      "sequence": 7,
-      "city": "Austin",
-      "handling": "Standard stackable"
-    },
-    {
-      "name": "PKG-2003 Medium Storage Boxes (Apparel) #40",
-      "part_number": "PKG-2003-40",
-      "position": [
-        120.0,
-        120.0,
-        400.0
-      ],
-      "dimensions": [
-        60.0,
-        40.0,
-        50.0
-      ],
-      "weight": 10.0,
-      "fragile": false,
-      "package_id": "PKG-2003",
-      "zone": "Zone A-1",
-      "sequence": 7,
-      "city": "Austin",
-      "handling": "Standard stackable"
-    },
-    {
-      "name": "PKG-2003 Medium Storage Boxes (Apparel) #41",
-      "part_number": "PKG-2003-41",
-      "position": [
-        180.0,
-        120.0,
-        400.0
-      ],
-      "dimensions": [
-        60.0,
-        40.0,
-        50.0
-      ],
-      "weight": 10.0,
-      "fragile": false,
-      "package_id": "PKG-2003",
-      "zone": "Zone A-1",
-      "sequence": 7,
-      "city": "Austin",
-      "handling": "Standard stackable"
-    },
-    {
-      "name": "PKG-2003 Medium Storage Boxes (Apparel) #42",
-      "part_number": "PKG-2003-42",
-      "position": [
-        0.0,
-        120.0,
-        450.0
-      ],
-      "dimensions": [
-        60.0,
-        40.0,
-        50.0
-      ],
-      "weight": 10.0,
-      "fragile": false,
-      "package_id": "PKG-2003",
-      "zone": "Zone A-1",
-      "sequence": 7,
-      "city": "Austin",
-      "handling": "Standard stackable"
-    },
-    {
-      "name": "PKG-2003 Medium Storage Boxes (Apparel) #43",
-      "part_number": "PKG-2003-43",
-      "position": [
-        60.0,
-        120.0,
-        450.0
-      ],
-      "dimensions": [
-        60.0,
-        40.0,
-        50.0
-      ],
-      "weight": 10.0,
-      "fragile": false,
-      "package_id": "PKG-2003",
-      "zone": "Zone A-1",
-      "sequence": 7,
-      "city": "Austin",
-      "handling": "Standard stackable"
-    },
-    {
-      "name": "PKG-2003 Medium Storage Boxes (Apparel) #44",
-      "part_number": "PKG-2003-44",
-      "position": [
-        120.0,
-        120.0,
-        450.0
-      ],
-      "dimensions": [
-        60.0,
-        40.0,
-        50.0
-      ],
-      "weight": 10.0,
-      "fragile": false,
-      "package_id": "PKG-2003",
-      "zone": "Zone A-1",
-      "sequence": 7,
-      "city": "Austin",
-      "handling": "Standard stackable"
-    },
-    {
-      "name": "PKG-2003 Medium Storage Boxes (Apparel) #45",
-      "part_number": "PKG-2003-45",
-      "position": [
-        180.0,
-        120.0,
-        450.0
-      ],
-      "dimensions": [
-        60.0,
-        40.0,
-        50.0
-      ],
-      "weight": 10.0,
-      "fragile": false,
-      "package_id": "PKG-2003",
-      "zone": "Zone A-1",
-      "sequence": 7,
-      "city": "Austin",
-      "handling": "Standard stackable"
-    },
-    {
-      "name": "PKG-2003 Medium Storage Boxes (Apparel) #46",
-      "part_number": "PKG-2003-46",
-      "position": [
-        0.0,
-        120.0,
-        500.0
-      ],
-      "dimensions": [
-        60.0,
-        40.0,
-        50.0
-      ],
-      "weight": 10.0,
-      "fragile": false,
-      "package_id": "PKG-2003",
-      "zone": "Zone A-1",
-      "sequence": 7,
-      "city": "Austin",
-      "handling": "Standard stackable"
-    },
-    {
-      "name": "PKG-2003 Medium Storage Boxes (Apparel) #47",
-      "part_number": "PKG-2003-47",
-      "position": [
-        60.0,
-        120.0,
-        500.0
-      ],
-      "dimensions": [
-        60.0,
-        40.0,
-        50.0
-      ],
-      "weight": 10.0,
-      "fragile": false,
-      "package_id": "PKG-2003",
-      "zone": "Zone A-1",
-      "sequence": 7,
-      "city": "Austin",
-      "handling": "Standard stackable"
-    },
-    {
-      "name": "PKG-2003 Medium Storage Boxes (Apparel) #48",
-      "part_number": "PKG-2003-48",
-      "position": [
-        120.0,
-        120.0,
-        500.0
-      ],
-      "dimensions": [
-        60.0,
-        40.0,
-        50.0
-      ],
-      "weight": 10.0,
-      "fragile": false,
-      "package_id": "PKG-2003",
-      "zone": "Zone A-1",
-      "sequence": 7,
-      "city": "Austin",
-      "handling": "Standard stackable"
-    },
-    {
-      "name": "PKG-2001 Standard Shipping Cartons (Electronics) #1",
-      "part_number": "PKG-2001-1",
-      "position": [
-        180.0,
-        120.0,
-        500.0
-      ],
-      "dimensions": [
-        50.0,
-        40.0,
-        40.0
-      ],
-      "weight": 8.5,
-      "fragile": false,
-      "package_id": "PKG-2001",
-      "zone": "Zone C-3",
-      "sequence": 5,
-      "city": "Vegas",
-      "handling": "Standard stackable"
-    },
-    {
-      "name": "PKG-2001 Standard Shipping Cartons (Electronics) #2",
-      "part_number": "PKG-2001-2",
-      "position": [
-        0.0,
-        120.0,
-        550.0
-      ],
-      "dimensions": [
-        50.0,
-        40.0,
-        40.0
-      ],
-      "weight": 8.5,
-      "fragile": false,
-      "package_id": "PKG-2001",
-      "zone": "Zone C-3",
-      "sequence": 5,
-      "city": "Vegas",
-      "handling": "Standard stackable"
-    },
-    {
-      "name": "PKG-2001 Standard Shipping Cartons (Electronics) #3",
-      "part_number": "PKG-2001-3",
-      "position": [
-        50.0,
-        120.0,
-        550.0
-      ],
-      "dimensions": [
-        50.0,
-        40.0,
-        40.0
-      ],
-      "weight": 8.5,
-      "fragile": false,
-      "package_id": "PKG-2001",
-      "zone": "Zone C-3",
-      "sequence": 5,
-      "city": "Vegas",
-      "handling": "Standard stackable"
-    },
-    {
-      "name": "PKG-2001 Standard Shipping Cartons (Electronics) #4",
-      "part_number": "PKG-2001-4",
-      "position": [
-        100.0,
-        120.0,
-        550.0
-      ],
-      "dimensions": [
-        50.0,
-        40.0,
-        40.0
-      ],
-      "weight": 8.5,
-      "fragile": false,
-      "package_id": "PKG-2001",
-      "zone": "Zone C-3",
-      "sequence": 5,
-      "city": "Vegas",
-      "handling": "Standard stackable"
-    },
-    {
-      "name": "PKG-2001 Standard Shipping Cartons (Electronics) #5",
-      "part_number": "PKG-2001-5",
-      "position": [
-        150.0,
-        120.0,
-        550.0
-      ],
-      "dimensions": [
-        50.0,
-        40.0,
-        40.0
-      ],
-      "weight": 8.5,
-      "fragile": false,
-      "package_id": "PKG-2001",
-      "zone": "Zone C-3",
-      "sequence": 5,
-      "city": "Vegas",
-      "handling": "Standard stackable"
-    },
-    {
-      "name": "PKG-2001 Standard Shipping Cartons (Electronics) #6",
-      "part_number": "PKG-2001-6",
-      "position": [
-        0.0,
-        160.0,
-        0.0
-      ],
-      "dimensions": [
-        50.0,
-        40.0,
-        40.0
-      ],
-      "weight": 8.5,
-      "fragile": false,
-      "package_id": "PKG-2001",
-      "zone": "Zone C-3",
-      "sequence": 5,
-      "city": "Vegas",
-      "handling": "Standard stackable"
-    },
-    {
-      "name": "PKG-2001 Standard Shipping Cartons (Electronics) #7",
-      "part_number": "PKG-2001-7",
-      "position": [
-        50.0,
-        160.0,
-        0.0
-      ],
-      "dimensions": [
-        50.0,
-        40.0,
-        40.0
-      ],
-      "weight": 8.5,
-      "fragile": false,
-      "package_id": "PKG-2001",
-      "zone": "Zone C-3",
-      "sequence": 5,
-      "city": "Vegas",
-      "handling": "Standard stackable"
-    },
-    {
-      "name": "PKG-2001 Standard Shipping Cartons (Electronics) #8",
-      "part_number": "PKG-2001-8",
-      "position": [
-        100.0,
-        160.0,
-        0.0
-      ],
-      "dimensions": [
-        50.0,
-        40.0,
-        40.0
-      ],
-      "weight": 8.5,
-      "fragile": false,
-      "package_id": "PKG-2001",
-      "zone": "Zone C-3",
-      "sequence": 5,
-      "city": "Vegas",
-      "handling": "Standard stackable"
-    },
-    {
-      "name": "PKG-2001 Standard Shipping Cartons (Electronics) #9",
-      "part_number": "PKG-2001-9",
-      "position": [
-        150.0,
-        160.0,
-        0.0
-      ],
-      "dimensions": [
-        50.0,
-        40.0,
-        40.0
-      ],
-      "weight": 8.5,
-      "fragile": false,
-      "package_id": "PKG-2001",
-      "zone": "Zone C-3",
-      "sequence": 5,
-      "city": "Vegas",
-      "handling": "Standard stackable"
-    },
-    {
-      "name": "PKG-2001 Standard Shipping Cartons (Electronics) #10",
-      "part_number": "PKG-2001-10",
-      "position": [
-        0.0,
-        160.0,
-        40.0
-      ],
-      "dimensions": [
-        50.0,
-        40.0,
-        40.0
-      ],
-      "weight": 8.5,
-      "fragile": false,
-      "package_id": "PKG-2001",
-      "zone": "Zone C-3",
-      "sequence": 5,
-      "city": "Vegas",
-      "handling": "Standard stackable"
-    },
-    {
-      "name": "PKG-2001 Standard Shipping Cartons (Electronics) #11",
-      "part_number": "PKG-2001-11",
-      "position": [
-        50.0,
-        160.0,
-        40.0
-      ],
-      "dimensions": [
-        50.0,
-        40.0,
-        40.0
-      ],
-      "weight": 8.5,
-      "fragile": false,
-      "package_id": "PKG-2001",
-      "zone": "Zone C-3",
-      "sequence": 5,
-      "city": "Vegas",
-      "handling": "Standard stackable"
-    },
-    {
-      "name": "PKG-2001 Standard Shipping Cartons (Electronics) #12",
-      "part_number": "PKG-2001-12",
-      "position": [
-        100.0,
-        160.0,
-        40.0
-      ],
-      "dimensions": [
-        50.0,
-        40.0,
-        40.0
-      ],
-      "weight": 8.5,
-      "fragile": false,
-      "package_id": "PKG-2001",
-      "zone": "Zone C-3",
-      "sequence": 5,
-      "city": "Vegas",
-      "handling": "Standard stackable"
-    },
-    {
-      "name": "PKG-2001 Standard Shipping Cartons (Electronics) #13",
-      "part_number": "PKG-2001-13",
-      "position": [
-        150.0,
-        160.0,
-        40.0
-      ],
-      "dimensions": [
-        50.0,
-        40.0,
-        40.0
-      ],
-      "weight": 8.5,
-      "fragile": false,
-      "package_id": "PKG-2001",
-      "zone": "Zone C-3",
-      "sequence": 5,
-      "city": "Vegas",
-      "handling": "Standard stackable"
-    },
-    {
-      "name": "PKG-2001 Standard Shipping Cartons (Electronics) #14",
-      "part_number": "PKG-2001-14",
-      "position": [
-        0.0,
-        160.0,
-        80.0
-      ],
-      "dimensions": [
-        50.0,
-        40.0,
-        40.0
-      ],
-      "weight": 8.5,
-      "fragile": false,
-      "package_id": "PKG-2001",
-      "zone": "Zone C-3",
-      "sequence": 5,
-      "city": "Vegas",
-      "handling": "Standard stackable"
-    },
-    {
-      "name": "PKG-2001 Standard Shipping Cartons (Electronics) #15",
-      "part_number": "PKG-2001-15",
-      "position": [
-        50.0,
-        160.0,
-        80.0
-      ],
-      "dimensions": [
-        50.0,
-        40.0,
-        40.0
-      ],
-      "weight": 8.5,
-      "fragile": false,
-      "package_id": "PKG-2001",
-      "zone": "Zone C-3",
-      "sequence": 5,
-      "city": "Vegas",
-      "handling": "Standard stackable"
-    },
-    {
-      "name": "PKG-2001 Standard Shipping Cartons (Electronics) #16",
-      "part_number": "PKG-2001-16",
-      "position": [
-        100.0,
-        160.0,
-        80.0
-      ],
-      "dimensions": [
-        50.0,
-        40.0,
-        40.0
-      ],
-      "weight": 8.5,
-      "fragile": false,
-      "package_id": "PKG-2001",
-      "zone": "Zone C-3",
-      "sequence": 5,
-      "city": "Vegas",
-      "handling": "Standard stackable"
-    },
-    {
-      "name": "PKG-2001 Standard Shipping Cartons (Electronics) #17",
-      "part_number": "PKG-2001-17",
-      "position": [
-        150.0,
-        160.0,
-        80.0
-      ],
-      "dimensions": [
-        50.0,
-        40.0,
-        40.0
-      ],
-      "weight": 8.5,
-      "fragile": false,
-      "package_id": "PKG-2001",
-      "zone": "Zone C-3",
-      "sequence": 5,
-      "city": "Vegas",
-      "handling": "Standard stackable"
-    },
-    {
-      "name": "PKG-2001 Standard Shipping Cartons (Electronics) #18",
-      "part_number": "PKG-2001-18",
-      "position": [
-        0.0,
-        160.0,
-        120.0
-      ],
-      "dimensions": [
-        50.0,
-        40.0,
-        40.0
-      ],
-      "weight": 8.5,
-      "fragile": false,
-      "package_id": "PKG-2001",
-      "zone": "Zone C-3",
-      "sequence": 5,
-      "city": "Vegas",
-      "handling": "Standard stackable"
-    },
-    {
-      "name": "PKG-2001 Standard Shipping Cartons (Electronics) #19",
-      "part_number": "PKG-2001-19",
-      "position": [
-        50.0,
-        160.0,
-        120.0
-      ],
-      "dimensions": [
-        50.0,
-        40.0,
-        40.0
-      ],
-      "weight": 8.5,
-      "fragile": false,
-      "package_id": "PKG-2001",
-      "zone": "Zone C-3",
-      "sequence": 5,
-      "city": "Vegas",
-      "handling": "Standard stackable"
-    },
-    {
-      "name": "PKG-2001 Standard Shipping Cartons (Electronics) #20",
-      "part_number": "PKG-2001-20",
-      "position": [
-        100.0,
-        160.0,
-        120.0
-      ],
-      "dimensions": [
-        50.0,
-        40.0,
-        40.0
-      ],
-      "weight": 8.5,
-      "fragile": false,
-      "package_id": "PKG-2001",
-      "zone": "Zone C-3",
-      "sequence": 5,
-      "city": "Vegas",
-      "handling": "Standard stackable"
-    },
-    {
-      "name": "PKG-2001 Standard Shipping Cartons (Electronics) #21",
-      "part_number": "PKG-2001-21",
-      "position": [
-        150.0,
-        160.0,
-        120.0
-      ],
-      "dimensions": [
-        50.0,
-        40.0,
-        40.0
-      ],
-      "weight": 8.5,
-      "fragile": false,
-      "package_id": "PKG-2001",
-      "zone": "Zone C-3",
-      "sequence": 5,
-      "city": "Vegas",
-      "handling": "Standard stackable"
-    },
-    {
-      "name": "PKG-2001 Standard Shipping Cartons (Electronics) #22",
-      "part_number": "PKG-2001-22",
-      "position": [
-        0.0,
-        160.0,
-        160.0
-      ],
-      "dimensions": [
-        50.0,
-        40.0,
-        40.0
-      ],
-      "weight": 8.5,
-      "fragile": false,
-      "package_id": "PKG-2001",
-      "zone": "Zone C-3",
-      "sequence": 5,
-      "city": "Vegas",
-      "handling": "Standard stackable"
-    },
-    {
-      "name": "PKG-2001 Standard Shipping Cartons (Electronics) #23",
-      "part_number": "PKG-2001-23",
-      "position": [
-        50.0,
-        160.0,
-        160.0
-      ],
-      "dimensions": [
-        50.0,
-        40.0,
-        40.0
-      ],
-      "weight": 8.5,
-      "fragile": false,
-      "package_id": "PKG-2001",
-      "zone": "Zone C-3",
-      "sequence": 5,
-      "city": "Vegas",
-      "handling": "Standard stackable"
-    },
-    {
-      "name": "PKG-2001 Standard Shipping Cartons (Electronics) #24",
-      "part_number": "PKG-2001-24",
-      "position": [
-        100.0,
-        160.0,
-        160.0
-      ],
-      "dimensions": [
-        50.0,
-        40.0,
-        40.0
-      ],
-      "weight": 8.5,
-      "fragile": false,
-      "package_id": "PKG-2001",
-      "zone": "Zone C-3",
-      "sequence": 5,
-      "city": "Vegas",
-      "handling": "Standard stackable"
-    },
-    {
-      "name": "PKG-2001 Standard Shipping Cartons (Electronics) #25",
-      "part_number": "PKG-2001-25",
-      "position": [
-        150.0,
-        160.0,
-        160.0
-      ],
-      "dimensions": [
-        50.0,
-        40.0,
-        40.0
-      ],
-      "weight": 8.5,
-      "fragile": false,
-      "package_id": "PKG-2001",
-      "zone": "Zone C-3",
-      "sequence": 5,
-      "city": "Vegas",
-      "handling": "Standard stackable"
-    },
-    {
-      "name": "PKG-2001 Standard Shipping Cartons (Electronics) #26",
-      "part_number": "PKG-2001-26",
-      "position": [
-        0.0,
-        160.0,
-        200.0
-      ],
-      "dimensions": [
-        50.0,
-        40.0,
-        40.0
-      ],
-      "weight": 8.5,
-      "fragile": false,
-      "package_id": "PKG-2001",
-      "zone": "Zone C-3",
-      "sequence": 5,
-      "city": "Vegas",
-      "handling": "Standard stackable"
-    },
-    {
-      "name": "PKG-2001 Standard Shipping Cartons (Electronics) #27",
-      "part_number": "PKG-2001-27",
-      "position": [
-        50.0,
-        160.0,
-        200.0
-      ],
-      "dimensions": [
-        50.0,
-        40.0,
-        40.0
-      ],
-      "weight": 8.5,
-      "fragile": false,
-      "package_id": "PKG-2001",
-      "zone": "Zone C-3",
-      "sequence": 5,
-      "city": "Vegas",
-      "handling": "Standard stackable"
-    },
-    {
-      "name": "PKG-2001 Standard Shipping Cartons (Electronics) #28",
-      "part_number": "PKG-2001-28",
-      "position": [
-        100.0,
-        160.0,
-        200.0
-      ],
-      "dimensions": [
-        50.0,
-        40.0,
-        40.0
-      ],
-      "weight": 8.5,
-      "fragile": false,
-      "package_id": "PKG-2001",
-      "zone": "Zone C-3",
-      "sequence": 5,
-      "city": "Vegas",
-      "handling": "Standard stackable"
-    },
-    {
-      "name": "PKG-2001 Standard Shipping Cartons (Electronics) #29",
-      "part_number": "PKG-2001-29",
-      "position": [
-        150.0,
-        160.0,
-        200.0
-      ],
-      "dimensions": [
-        50.0,
-        40.0,
-        40.0
-      ],
-      "weight": 8.5,
-      "fragile": false,
-      "package_id": "PKG-2001",
-      "zone": "Zone C-3",
-      "sequence": 5,
-      "city": "Vegas",
-      "handling": "Standard stackable"
-    },
-    {
-      "name": "PKG-2001 Standard Shipping Cartons (Electronics) #30",
-      "part_number": "PKG-2001-30",
-      "position": [
-        0.0,
-        160.0,
-        240.0
-      ],
-      "dimensions": [
-        50.0,
-        40.0,
-        40.0
-      ],
-      "weight": 8.5,
-      "fragile": false,
-      "package_id": "PKG-2001",
-      "zone": "Zone C-3",
-      "sequence": 5,
-      "city": "Vegas",
-      "handling": "Standard stackable"
-    },
-    {
-      "name": "PKG-2001 Standard Shipping Cartons (Electronics) #31",
-      "part_number": "PKG-2001-31",
-      "position": [
-        50.0,
-        160.0,
-        240.0
-      ],
-      "dimensions": [
-        50.0,
-        40.0,
-        40.0
-      ],
-      "weight": 8.5,
-      "fragile": false,
-      "package_id": "PKG-2001",
-      "zone": "Zone C-3",
-      "sequence": 5,
-      "city": "Vegas",
-      "handling": "Standard stackable"
-    },
-    {
-      "name": "PKG-2001 Standard Shipping Cartons (Electronics) #32",
-      "part_number": "PKG-2001-32",
-      "position": [
-        100.0,
-        160.0,
-        240.0
-      ],
-      "dimensions": [
-        50.0,
-        40.0,
-        40.0
-      ],
-      "weight": 8.5,
-      "fragile": false,
-      "package_id": "PKG-2001",
-      "zone": "Zone C-3",
-      "sequence": 5,
-      "city": "Vegas",
-      "handling": "Standard stackable"
-    },
-    {
-      "name": "PKG-2001 Standard Shipping Cartons (Electronics) #33",
-      "part_number": "PKG-2001-33",
-      "position": [
-        150.0,
-        160.0,
-        240.0
-      ],
-      "dimensions": [
-        50.0,
-        40.0,
-        40.0
-      ],
-      "weight": 8.5,
-      "fragile": false,
-      "package_id": "PKG-2001",
-      "zone": "Zone C-3",
-      "sequence": 5,
-      "city": "Vegas",
-      "handling": "Standard stackable"
-    },
-    {
-      "name": "PKG-2001 Standard Shipping Cartons (Electronics) #34",
-      "part_number": "PKG-2001-34",
-      "position": [
-        0.0,
-        160.0,
-        280.0
-      ],
-      "dimensions": [
-        50.0,
-        40.0,
-        40.0
-      ],
-      "weight": 8.5,
-      "fragile": false,
-      "package_id": "PKG-2001",
-      "zone": "Zone C-3",
-      "sequence": 5,
-      "city": "Vegas",
-      "handling": "Standard stackable"
-    },
-    {
-      "name": "PKG-2001 Standard Shipping Cartons (Electronics) #35",
-      "part_number": "PKG-2001-35",
-      "position": [
-        50.0,
-        160.0,
-        280.0
-      ],
-      "dimensions": [
-        50.0,
-        40.0,
-        40.0
-      ],
-      "weight": 8.5,
-      "fragile": false,
-      "package_id": "PKG-2001",
-      "zone": "Zone C-3",
-      "sequence": 5,
-      "city": "Vegas",
-      "handling": "Standard stackable"
-    },
-    {
-      "name": "PKG-2001 Standard Shipping Cartons (Electronics) #36",
-      "part_number": "PKG-2001-36",
-      "position": [
-        100.0,
-        160.0,
-        280.0
-      ],
-      "dimensions": [
-        50.0,
-        40.0,
-        40.0
-      ],
-      "weight": 8.5,
-      "fragile": false,
-      "package_id": "PKG-2001",
-      "zone": "Zone C-3",
-      "sequence": 5,
-      "city": "Vegas",
-      "handling": "Standard stackable"
-    },
-    {
-      "name": "PKG-2001 Standard Shipping Cartons (Electronics) #37",
-      "part_number": "PKG-2001-37",
-      "position": [
-        150.0,
-        160.0,
-        280.0
-      ],
-      "dimensions": [
-        50.0,
-        40.0,
-        40.0
-      ],
-      "weight": 8.5,
-      "fragile": false,
-      "package_id": "PKG-2001",
-      "zone": "Zone C-3",
-      "sequence": 5,
-      "city": "Vegas",
-      "handling": "Standard stackable"
-    },
-    {
-      "name": "PKG-2001 Standard Shipping Cartons (Electronics) #38",
-      "part_number": "PKG-2001-38",
-      "position": [
-        0.0,
-        160.0,
-        320.0
-      ],
-      "dimensions": [
-        50.0,
-        40.0,
-        40.0
-      ],
-      "weight": 8.5,
-      "fragile": false,
-      "package_id": "PKG-2001",
-      "zone": "Zone C-3",
-      "sequence": 5,
-      "city": "Vegas",
-      "handling": "Standard stackable"
-    },
-    {
-      "name": "PKG-2001 Standard Shipping Cartons (Electronics) #39",
-      "part_number": "PKG-2001-39",
-      "position": [
-        50.0,
-        160.0,
-        320.0
-      ],
-      "dimensions": [
-        50.0,
-        40.0,
-        40.0
-      ],
-      "weight": 8.5,
-      "fragile": false,
-      "package_id": "PKG-2001",
-      "zone": "Zone C-3",
-      "sequence": 5,
-      "city": "Vegas",
-      "handling": "Standard stackable"
-    },
-    {
       "name": "PKG-2005 Glassware & Ceramic Cargo #1",
       "part_number": "PKG-2005-1",
       "position": [
         0.0,
-        160.0,
-        360.0
+        0.0,
+        0.0
       ],
       "dimensions": [
         60.0,
-        40.0,
-        50.0
+        50.0,
+        40.0
       ],
       "weight": 14.0,
       "fragile": true,
@@ -2867,20 +193,21 @@
       "zone": "Zone C-1",
       "sequence": 8,
       "city": "Boston",
-      "handling": "Fragile - Top load only"
+      "handling": "Fragile - Top load only",
+      "max_load": 10.0
     },
     {
       "name": "PKG-2005 Glassware & Ceramic Cargo #2",
       "part_number": "PKG-2005-2",
       "position": [
-        60.0,
-        160.0,
-        360.0
+        0.0,
+        50.0,
+        0.0
       ],
       "dimensions": [
         60.0,
-        40.0,
-        50.0
+        50.0,
+        40.0
       ],
       "weight": 14.0,
       "fragile": true,
@@ -2888,20 +215,21 @@
       "zone": "Zone C-1",
       "sequence": 8,
       "city": "Boston",
-      "handling": "Fragile - Top load only"
+      "handling": "Fragile - Top load only",
+      "max_load": 10.0
     },
     {
       "name": "PKG-2005 Glassware & Ceramic Cargo #3",
       "part_number": "PKG-2005-3",
       "position": [
-        120.0,
-        160.0,
-        360.0
+        0.0,
+        100.0,
+        0.0
       ],
       "dimensions": [
         60.0,
-        40.0,
-        50.0
+        50.0,
+        40.0
       ],
       "weight": 14.0,
       "fragile": true,
@@ -2909,20 +237,21 @@
       "zone": "Zone C-1",
       "sequence": 8,
       "city": "Boston",
-      "handling": "Fragile - Top load only"
+      "handling": "Fragile - Top load only",
+      "max_load": 10.0
     },
     {
       "name": "PKG-2005 Glassware & Ceramic Cargo #4",
       "part_number": "PKG-2005-4",
       "position": [
-        180.0,
-        160.0,
-        360.0
+        0.0,
+        150.0,
+        0.0
       ],
       "dimensions": [
         60.0,
-        40.0,
-        50.0
+        50.0,
+        40.0
       ],
       "weight": 14.0,
       "fragile": true,
@@ -2930,20 +259,21 @@
       "zone": "Zone C-1",
       "sequence": 8,
       "city": "Boston",
-      "handling": "Fragile - Top load only"
+      "handling": "Fragile - Top load only",
+      "max_load": 10.0
     },
     {
       "name": "PKG-2005 Glassware & Ceramic Cargo #5",
       "part_number": "PKG-2005-5",
       "position": [
+        60.0,
         0.0,
-        160.0,
-        410.0
+        0.0
       ],
       "dimensions": [
         60.0,
-        40.0,
-        50.0
+        50.0,
+        40.0
       ],
       "weight": 14.0,
       "fragile": true,
@@ -2951,20 +281,21 @@
       "zone": "Zone C-1",
       "sequence": 8,
       "city": "Boston",
-      "handling": "Fragile - Top load only"
+      "handling": "Fragile - Top load only",
+      "max_load": 10.0
     },
     {
       "name": "PKG-2005 Glassware & Ceramic Cargo #6",
       "part_number": "PKG-2005-6",
       "position": [
         60.0,
-        160.0,
-        410.0
+        50.0,
+        0.0
       ],
       "dimensions": [
         60.0,
-        40.0,
-        50.0
+        50.0,
+        40.0
       ],
       "weight": 14.0,
       "fragile": true,
@@ -2972,20 +303,21 @@
       "zone": "Zone C-1",
       "sequence": 8,
       "city": "Boston",
-      "handling": "Fragile - Top load only"
+      "handling": "Fragile - Top load only",
+      "max_load": 10.0
     },
     {
       "name": "PKG-2005 Glassware & Ceramic Cargo #7",
       "part_number": "PKG-2005-7",
       "position": [
-        120.0,
-        160.0,
-        410.0
+        60.0,
+        100.0,
+        0.0
       ],
       "dimensions": [
         60.0,
-        40.0,
-        50.0
+        50.0,
+        40.0
       ],
       "weight": 14.0,
       "fragile": true,
@@ -2993,20 +325,21 @@
       "zone": "Zone C-1",
       "sequence": 8,
       "city": "Boston",
-      "handling": "Fragile - Top load only"
+      "handling": "Fragile - Top load only",
+      "max_load": 10.0
     },
     {
       "name": "PKG-2005 Glassware & Ceramic Cargo #8",
       "part_number": "PKG-2005-8",
       "position": [
-        180.0,
-        160.0,
-        410.0
+        60.0,
+        150.0,
+        0.0
       ],
       "dimensions": [
         60.0,
-        40.0,
-        50.0
+        50.0,
+        40.0
       ],
       "weight": 14.0,
       "fragile": true,
@@ -3014,20 +347,21 @@
       "zone": "Zone C-1",
       "sequence": 8,
       "city": "Boston",
-      "handling": "Fragile - Top load only"
+      "handling": "Fragile - Top load only",
+      "max_load": 10.0
     },
     {
       "name": "PKG-2005 Glassware & Ceramic Cargo #9",
       "part_number": "PKG-2005-9",
       "position": [
+        120.0,
         0.0,
-        160.0,
-        460.0
+        0.0
       ],
       "dimensions": [
         60.0,
-        40.0,
-        50.0
+        50.0,
+        40.0
       ],
       "weight": 14.0,
       "fragile": true,
@@ -3035,20 +369,21 @@
       "zone": "Zone C-1",
       "sequence": 8,
       "city": "Boston",
-      "handling": "Fragile - Top load only"
+      "handling": "Fragile - Top load only",
+      "max_load": 10.0
     },
     {
       "name": "PKG-2005 Glassware & Ceramic Cargo #10",
       "part_number": "PKG-2005-10",
       "position": [
-        60.0,
-        160.0,
-        460.0
+        120.0,
+        50.0,
+        0.0
       ],
       "dimensions": [
         60.0,
-        40.0,
-        50.0
+        50.0,
+        40.0
       ],
       "weight": 14.0,
       "fragile": true,
@@ -3056,20 +391,21 @@
       "zone": "Zone C-1",
       "sequence": 8,
       "city": "Boston",
-      "handling": "Fragile - Top load only"
+      "handling": "Fragile - Top load only",
+      "max_load": 10.0
     },
     {
       "name": "PKG-2005 Glassware & Ceramic Cargo #11",
       "part_number": "PKG-2005-11",
       "position": [
         120.0,
-        160.0,
-        460.0
+        100.0,
+        0.0
       ],
       "dimensions": [
         60.0,
-        40.0,
-        50.0
+        50.0,
+        40.0
       ],
       "weight": 14.0,
       "fragile": true,
@@ -3077,20 +413,21 @@
       "zone": "Zone C-1",
       "sequence": 8,
       "city": "Boston",
-      "handling": "Fragile - Top load only"
+      "handling": "Fragile - Top load only",
+      "max_load": 10.0
     },
     {
       "name": "PKG-2005 Glassware & Ceramic Cargo #12",
       "part_number": "PKG-2005-12",
       "position": [
-        180.0,
-        160.0,
-        460.0
+        120.0,
+        150.0,
+        0.0
       ],
       "dimensions": [
         60.0,
-        40.0,
-        50.0
+        50.0,
+        40.0
       ],
       "weight": 14.0,
       "fragile": true,
@@ -3098,20 +435,21 @@
       "zone": "Zone C-1",
       "sequence": 8,
       "city": "Boston",
-      "handling": "Fragile - Top load only"
+      "handling": "Fragile - Top load only",
+      "max_load": 10.0
     },
     {
       "name": "PKG-2005 Glassware & Ceramic Cargo #13",
       "part_number": "PKG-2005-13",
       "position": [
+        180.0,
         0.0,
-        160.0,
-        510.0
+        0.0
       ],
       "dimensions": [
         60.0,
-        40.0,
-        50.0
+        50.0,
+        40.0
       ],
       "weight": 14.0,
       "fragile": true,
@@ -3119,20 +457,21 @@
       "zone": "Zone C-1",
       "sequence": 8,
       "city": "Boston",
-      "handling": "Fragile - Top load only"
+      "handling": "Fragile - Top load only",
+      "max_load": 10.0
     },
     {
       "name": "PKG-2005 Glassware & Ceramic Cargo #14",
       "part_number": "PKG-2005-14",
       "position": [
-        60.0,
-        160.0,
-        510.0
+        180.0,
+        50.0,
+        0.0
       ],
       "dimensions": [
         60.0,
-        40.0,
-        50.0
+        50.0,
+        40.0
       ],
       "weight": 14.0,
       "fragile": true,
@@ -3140,20 +479,21 @@
       "zone": "Zone C-1",
       "sequence": 8,
       "city": "Boston",
-      "handling": "Fragile - Top load only"
+      "handling": "Fragile - Top load only",
+      "max_load": 10.0
     },
     {
       "name": "PKG-2005 Glassware & Ceramic Cargo #15",
       "part_number": "PKG-2005-15",
       "position": [
-        120.0,
-        160.0,
-        510.0
+        180.0,
+        100.0,
+        0.0
       ],
       "dimensions": [
         60.0,
-        40.0,
-        50.0
+        50.0,
+        40.0
       ],
       "weight": 14.0,
       "fragile": true,
@@ -3161,140 +501,2962 @@
       "zone": "Zone C-1",
       "sequence": 8,
       "city": "Boston",
-      "handling": "Fragile - Top load only"
+      "handling": "Fragile - Top load only",
+      "max_load": 10.0
     },
     {
-      "name": "PKG-2002 Large Home Appliance Crates #1",
-      "part_number": "PKG-2002-1",
+      "name": "PKG-2003 Medium Storage Boxes (Apparel) #16",
+      "part_number": "PKG-2003-1",
       "position": [
         180.0,
+        150.0,
+        0.0
+      ],
+      "dimensions": [
+        50.0,
+        60.0,
+        40.0
+      ],
+      "weight": 10.0,
+      "fragile": false,
+      "package_id": "PKG-2003",
+      "zone": "Zone A-1",
+      "sequence": 7,
+      "city": "Austin",
+      "handling": "Standard stackable",
+      "max_load": 100.0
+    },
+    {
+      "name": "PKG-2003 Medium Storage Boxes (Apparel) #17",
+      "part_number": "PKG-2003-2",
+      "position": [
+        0.0,
+        0.0,
+        40.0
+      ],
+      "dimensions": [
+        50.0,
+        60.0,
+        40.0
+      ],
+      "weight": 10.0,
+      "fragile": false,
+      "package_id": "PKG-2003",
+      "zone": "Zone A-1",
+      "sequence": 7,
+      "city": "Austin",
+      "handling": "Standard stackable",
+      "max_load": 100.0
+    },
+    {
+      "name": "PKG-2003 Medium Storage Boxes (Apparel) #18",
+      "part_number": "PKG-2003-3",
+      "position": [
+        0.0,
+        60.0,
+        40.0
+      ],
+      "dimensions": [
+        50.0,
+        60.0,
+        40.0
+      ],
+      "weight": 10.0,
+      "fragile": false,
+      "package_id": "PKG-2003",
+      "zone": "Zone A-1",
+      "sequence": 7,
+      "city": "Austin",
+      "handling": "Standard stackable",
+      "max_load": 100.0
+    },
+    {
+      "name": "PKG-2003 Medium Storage Boxes (Apparel) #19",
+      "part_number": "PKG-2003-4",
+      "position": [
+        0.0,
+        120.0,
+        40.0
+      ],
+      "dimensions": [
+        50.0,
+        60.0,
+        40.0
+      ],
+      "weight": 10.0,
+      "fragile": false,
+      "package_id": "PKG-2003",
+      "zone": "Zone A-1",
+      "sequence": 7,
+      "city": "Austin",
+      "handling": "Standard stackable",
+      "max_load": 100.0
+    },
+    {
+      "name": "PKG-2003 Medium Storage Boxes (Apparel) #20",
+      "part_number": "PKG-2003-5",
+      "position": [
+        0.0,
+        180.0,
+        40.0
+      ],
+      "dimensions": [
+        50.0,
+        60.0,
+        40.0
+      ],
+      "weight": 10.0,
+      "fragile": false,
+      "package_id": "PKG-2003",
+      "zone": "Zone A-1",
+      "sequence": 7,
+      "city": "Austin",
+      "handling": "Standard stackable",
+      "max_load": 100.0
+    },
+    {
+      "name": "PKG-2003 Medium Storage Boxes (Apparel) #21",
+      "part_number": "PKG-2003-6",
+      "position": [
+        50.0,
+        0.0,
+        40.0
+      ],
+      "dimensions": [
+        50.0,
+        60.0,
+        40.0
+      ],
+      "weight": 10.0,
+      "fragile": false,
+      "package_id": "PKG-2003",
+      "zone": "Zone A-1",
+      "sequence": 7,
+      "city": "Austin",
+      "handling": "Standard stackable",
+      "max_load": 100.0
+    },
+    {
+      "name": "PKG-2003 Medium Storage Boxes (Apparel) #22",
+      "part_number": "PKG-2003-7",
+      "position": [
+        50.0,
+        60.0,
+        40.0
+      ],
+      "dimensions": [
+        50.0,
+        60.0,
+        40.0
+      ],
+      "weight": 10.0,
+      "fragile": false,
+      "package_id": "PKG-2003",
+      "zone": "Zone A-1",
+      "sequence": 7,
+      "city": "Austin",
+      "handling": "Standard stackable",
+      "max_load": 100.0
+    },
+    {
+      "name": "PKG-2003 Medium Storage Boxes (Apparel) #23",
+      "part_number": "PKG-2003-8",
+      "position": [
+        50.0,
+        120.0,
+        40.0
+      ],
+      "dimensions": [
+        50.0,
+        60.0,
+        40.0
+      ],
+      "weight": 10.0,
+      "fragile": false,
+      "package_id": "PKG-2003",
+      "zone": "Zone A-1",
+      "sequence": 7,
+      "city": "Austin",
+      "handling": "Standard stackable",
+      "max_load": 100.0
+    },
+    {
+      "name": "PKG-2003 Medium Storage Boxes (Apparel) #24",
+      "part_number": "PKG-2003-9",
+      "position": [
+        50.0,
+        180.0,
+        40.0
+      ],
+      "dimensions": [
+        50.0,
+        60.0,
+        40.0
+      ],
+      "weight": 10.0,
+      "fragile": false,
+      "package_id": "PKG-2003",
+      "zone": "Zone A-1",
+      "sequence": 7,
+      "city": "Austin",
+      "handling": "Standard stackable",
+      "max_load": 100.0
+    },
+    {
+      "name": "PKG-2003 Medium Storage Boxes (Apparel) #25",
+      "part_number": "PKG-2003-10",
+      "position": [
+        100.0,
+        0.0,
+        40.0
+      ],
+      "dimensions": [
+        50.0,
+        60.0,
+        40.0
+      ],
+      "weight": 10.0,
+      "fragile": false,
+      "package_id": "PKG-2003",
+      "zone": "Zone A-1",
+      "sequence": 7,
+      "city": "Austin",
+      "handling": "Standard stackable",
+      "max_load": 100.0
+    },
+    {
+      "name": "PKG-2003 Medium Storage Boxes (Apparel) #26",
+      "part_number": "PKG-2003-11",
+      "position": [
+        100.0,
+        60.0,
+        40.0
+      ],
+      "dimensions": [
+        50.0,
+        60.0,
+        40.0
+      ],
+      "weight": 10.0,
+      "fragile": false,
+      "package_id": "PKG-2003",
+      "zone": "Zone A-1",
+      "sequence": 7,
+      "city": "Austin",
+      "handling": "Standard stackable",
+      "max_load": 100.0
+    },
+    {
+      "name": "PKG-2003 Medium Storage Boxes (Apparel) #27",
+      "part_number": "PKG-2003-12",
+      "position": [
+        100.0,
+        120.0,
+        40.0
+      ],
+      "dimensions": [
+        50.0,
+        60.0,
+        40.0
+      ],
+      "weight": 10.0,
+      "fragile": false,
+      "package_id": "PKG-2003",
+      "zone": "Zone A-1",
+      "sequence": 7,
+      "city": "Austin",
+      "handling": "Standard stackable",
+      "max_load": 100.0
+    },
+    {
+      "name": "PKG-2003 Medium Storage Boxes (Apparel) #28",
+      "part_number": "PKG-2003-13",
+      "position": [
+        100.0,
+        180.0,
+        40.0
+      ],
+      "dimensions": [
+        50.0,
+        60.0,
+        40.0
+      ],
+      "weight": 10.0,
+      "fragile": false,
+      "package_id": "PKG-2003",
+      "zone": "Zone A-1",
+      "sequence": 7,
+      "city": "Austin",
+      "handling": "Standard stackable",
+      "max_load": 100.0
+    },
+    {
+      "name": "PKG-2003 Medium Storage Boxes (Apparel) #29",
+      "part_number": "PKG-2003-14",
+      "position": [
+        150.0,
+        0.0,
+        40.0
+      ],
+      "dimensions": [
+        50.0,
+        60.0,
+        40.0
+      ],
+      "weight": 10.0,
+      "fragile": false,
+      "package_id": "PKG-2003",
+      "zone": "Zone A-1",
+      "sequence": 7,
+      "city": "Austin",
+      "handling": "Standard stackable",
+      "max_load": 100.0
+    },
+    {
+      "name": "PKG-2003 Medium Storage Boxes (Apparel) #30",
+      "part_number": "PKG-2003-15",
+      "position": [
+        150.0,
+        60.0,
+        40.0
+      ],
+      "dimensions": [
+        50.0,
+        60.0,
+        40.0
+      ],
+      "weight": 10.0,
+      "fragile": false,
+      "package_id": "PKG-2003",
+      "zone": "Zone A-1",
+      "sequence": 7,
+      "city": "Austin",
+      "handling": "Standard stackable",
+      "max_load": 100.0
+    },
+    {
+      "name": "PKG-2003 Medium Storage Boxes (Apparel) #31",
+      "part_number": "PKG-2003-16",
+      "position": [
+        150.0,
+        120.0,
+        40.0
+      ],
+      "dimensions": [
+        50.0,
+        60.0,
+        40.0
+      ],
+      "weight": 10.0,
+      "fragile": false,
+      "package_id": "PKG-2003",
+      "zone": "Zone A-1",
+      "sequence": 7,
+      "city": "Austin",
+      "handling": "Standard stackable",
+      "max_load": 100.0
+    },
+    {
+      "name": "PKG-2003 Medium Storage Boxes (Apparel) #32",
+      "part_number": "PKG-2003-17",
+      "position": [
+        150.0,
+        180.0,
+        40.0
+      ],
+      "dimensions": [
+        50.0,
+        60.0,
+        40.0
+      ],
+      "weight": 10.0,
+      "fragile": false,
+      "package_id": "PKG-2003",
+      "zone": "Zone A-1",
+      "sequence": 7,
+      "city": "Austin",
+      "handling": "Standard stackable",
+      "max_load": 100.0
+    },
+    {
+      "name": "PKG-2003 Medium Storage Boxes (Apparel) #33",
+      "part_number": "PKG-2003-18",
+      "position": [
+        200.0,
+        0.0,
+        40.0
+      ],
+      "dimensions": [
+        40.0,
+        60.0,
+        50.0
+      ],
+      "weight": 10.0,
+      "fragile": false,
+      "package_id": "PKG-2003",
+      "zone": "Zone A-1",
+      "sequence": 7,
+      "city": "Austin",
+      "handling": "Standard stackable",
+      "max_load": 100.0
+    },
+    {
+      "name": "PKG-2003 Medium Storage Boxes (Apparel) #34",
+      "part_number": "PKG-2003-19",
+      "position": [
+        200.0,
+        60.0,
+        40.0
+      ],
+      "dimensions": [
+        40.0,
+        60.0,
+        50.0
+      ],
+      "weight": 10.0,
+      "fragile": false,
+      "package_id": "PKG-2003",
+      "zone": "Zone A-1",
+      "sequence": 7,
+      "city": "Austin",
+      "handling": "Standard stackable",
+      "max_load": 100.0
+    },
+    {
+      "name": "PKG-2003 Medium Storage Boxes (Apparel) #35",
+      "part_number": "PKG-2003-20",
+      "position": [
+        200.0,
+        120.0,
+        40.0
+      ],
+      "dimensions": [
+        40.0,
+        60.0,
+        50.0
+      ],
+      "weight": 10.0,
+      "fragile": false,
+      "package_id": "PKG-2003",
+      "zone": "Zone A-1",
+      "sequence": 7,
+      "city": "Austin",
+      "handling": "Standard stackable",
+      "max_load": 100.0
+    },
+    {
+      "name": "PKG-2003 Medium Storage Boxes (Apparel) #36",
+      "part_number": "PKG-2003-21",
+      "position": [
+        200.0,
+        180.0,
+        40.0
+      ],
+      "dimensions": [
+        40.0,
+        60.0,
+        50.0
+      ],
+      "weight": 10.0,
+      "fragile": false,
+      "package_id": "PKG-2003",
+      "zone": "Zone A-1",
+      "sequence": 7,
+      "city": "Austin",
+      "handling": "Standard stackable",
+      "max_load": 100.0
+    },
+    {
+      "name": "PKG-2003 Medium Storage Boxes (Apparel) #37",
+      "part_number": "PKG-2003-22",
+      "position": [
+        0.0,
+        0.0,
+        80.0
+      ],
+      "dimensions": [
+        50.0,
+        60.0,
+        40.0
+      ],
+      "weight": 10.0,
+      "fragile": false,
+      "package_id": "PKG-2003",
+      "zone": "Zone A-1",
+      "sequence": 7,
+      "city": "Austin",
+      "handling": "Standard stackable",
+      "max_load": 100.0
+    },
+    {
+      "name": "PKG-2003 Medium Storage Boxes (Apparel) #38",
+      "part_number": "PKG-2003-23",
+      "position": [
+        0.0,
+        60.0,
+        80.0
+      ],
+      "dimensions": [
+        50.0,
+        60.0,
+        40.0
+      ],
+      "weight": 10.0,
+      "fragile": false,
+      "package_id": "PKG-2003",
+      "zone": "Zone A-1",
+      "sequence": 7,
+      "city": "Austin",
+      "handling": "Standard stackable",
+      "max_load": 100.0
+    },
+    {
+      "name": "PKG-2003 Medium Storage Boxes (Apparel) #39",
+      "part_number": "PKG-2003-24",
+      "position": [
+        0.0,
+        120.0,
+        80.0
+      ],
+      "dimensions": [
+        50.0,
+        60.0,
+        40.0
+      ],
+      "weight": 10.0,
+      "fragile": false,
+      "package_id": "PKG-2003",
+      "zone": "Zone A-1",
+      "sequence": 7,
+      "city": "Austin",
+      "handling": "Standard stackable",
+      "max_load": 100.0
+    },
+    {
+      "name": "PKG-2003 Medium Storage Boxes (Apparel) #40",
+      "part_number": "PKG-2003-25",
+      "position": [
+        0.0,
+        180.0,
+        80.0
+      ],
+      "dimensions": [
+        50.0,
+        60.0,
+        40.0
+      ],
+      "weight": 10.0,
+      "fragile": false,
+      "package_id": "PKG-2003",
+      "zone": "Zone A-1",
+      "sequence": 7,
+      "city": "Austin",
+      "handling": "Standard stackable",
+      "max_load": 100.0
+    },
+    {
+      "name": "PKG-2003 Medium Storage Boxes (Apparel) #41",
+      "part_number": "PKG-2003-26",
+      "position": [
+        50.0,
+        0.0,
+        80.0
+      ],
+      "dimensions": [
+        50.0,
+        60.0,
+        40.0
+      ],
+      "weight": 10.0,
+      "fragile": false,
+      "package_id": "PKG-2003",
+      "zone": "Zone A-1",
+      "sequence": 7,
+      "city": "Austin",
+      "handling": "Standard stackable",
+      "max_load": 100.0
+    },
+    {
+      "name": "PKG-2003 Medium Storage Boxes (Apparel) #42",
+      "part_number": "PKG-2003-27",
+      "position": [
+        50.0,
+        60.0,
+        80.0
+      ],
+      "dimensions": [
+        50.0,
+        60.0,
+        40.0
+      ],
+      "weight": 10.0,
+      "fragile": false,
+      "package_id": "PKG-2003",
+      "zone": "Zone A-1",
+      "sequence": 7,
+      "city": "Austin",
+      "handling": "Standard stackable",
+      "max_load": 100.0
+    },
+    {
+      "name": "PKG-2003 Medium Storage Boxes (Apparel) #43",
+      "part_number": "PKG-2003-28",
+      "position": [
+        50.0,
+        120.0,
+        80.0
+      ],
+      "dimensions": [
+        50.0,
+        60.0,
+        40.0
+      ],
+      "weight": 10.0,
+      "fragile": false,
+      "package_id": "PKG-2003",
+      "zone": "Zone A-1",
+      "sequence": 7,
+      "city": "Austin",
+      "handling": "Standard stackable",
+      "max_load": 100.0
+    },
+    {
+      "name": "PKG-2003 Medium Storage Boxes (Apparel) #44",
+      "part_number": "PKG-2003-29",
+      "position": [
+        50.0,
+        180.0,
+        80.0
+      ],
+      "dimensions": [
+        50.0,
+        60.0,
+        40.0
+      ],
+      "weight": 10.0,
+      "fragile": false,
+      "package_id": "PKG-2003",
+      "zone": "Zone A-1",
+      "sequence": 7,
+      "city": "Austin",
+      "handling": "Standard stackable",
+      "max_load": 100.0
+    },
+    {
+      "name": "PKG-2003 Medium Storage Boxes (Apparel) #45",
+      "part_number": "PKG-2003-30",
+      "position": [
+        100.0,
+        0.0,
+        80.0
+      ],
+      "dimensions": [
+        50.0,
+        60.0,
+        40.0
+      ],
+      "weight": 10.0,
+      "fragile": false,
+      "package_id": "PKG-2003",
+      "zone": "Zone A-1",
+      "sequence": 7,
+      "city": "Austin",
+      "handling": "Standard stackable",
+      "max_load": 100.0
+    },
+    {
+      "name": "PKG-2003 Medium Storage Boxes (Apparel) #46",
+      "part_number": "PKG-2003-31",
+      "position": [
+        100.0,
+        60.0,
+        80.0
+      ],
+      "dimensions": [
+        50.0,
+        60.0,
+        40.0
+      ],
+      "weight": 10.0,
+      "fragile": false,
+      "package_id": "PKG-2003",
+      "zone": "Zone A-1",
+      "sequence": 7,
+      "city": "Austin",
+      "handling": "Standard stackable",
+      "max_load": 100.0
+    },
+    {
+      "name": "PKG-2003 Medium Storage Boxes (Apparel) #47",
+      "part_number": "PKG-2003-32",
+      "position": [
+        100.0,
+        120.0,
+        80.0
+      ],
+      "dimensions": [
+        50.0,
+        60.0,
+        40.0
+      ],
+      "weight": 10.0,
+      "fragile": false,
+      "package_id": "PKG-2003",
+      "zone": "Zone A-1",
+      "sequence": 7,
+      "city": "Austin",
+      "handling": "Standard stackable",
+      "max_load": 100.0
+    },
+    {
+      "name": "PKG-2003 Medium Storage Boxes (Apparel) #48",
+      "part_number": "PKG-2003-33",
+      "position": [
+        100.0,
+        180.0,
+        80.0
+      ],
+      "dimensions": [
+        50.0,
+        60.0,
+        40.0
+      ],
+      "weight": 10.0,
+      "fragile": false,
+      "package_id": "PKG-2003",
+      "zone": "Zone A-1",
+      "sequence": 7,
+      "city": "Austin",
+      "handling": "Standard stackable",
+      "max_load": 100.0
+    },
+    {
+      "name": "PKG-2003 Medium Storage Boxes (Apparel) #49",
+      "part_number": "?-34",
+      "position": [
+        150.0,
+        0.0,
+        80.0
+      ],
+      "dimensions": [
+        50.0,
+        60.0,
+        40.0
+      ],
+      "weight": 10.0,
+      "fragile": false,
+      "package_id": "?",
+      "zone": "",
+      "sequence": 1,
+      "city": "",
+      "handling": "",
+      "max_load": 100.0
+    },
+    {
+      "name": "PKG-2003 Medium Storage Boxes (Apparel) #50",
+      "part_number": "?-35",
+      "position": [
+        150.0,
+        60.0,
+        80.0
+      ],
+      "dimensions": [
+        50.0,
+        60.0,
+        40.0
+      ],
+      "weight": 10.0,
+      "fragile": false,
+      "package_id": "?",
+      "zone": "",
+      "sequence": 1,
+      "city": "",
+      "handling": "",
+      "max_load": 100.0
+    },
+    {
+      "name": "PKG-2003 Medium Storage Boxes (Apparel) #51",
+      "part_number": "?-36",
+      "position": [
+        150.0,
+        120.0,
+        80.0
+      ],
+      "dimensions": [
+        50.0,
+        60.0,
+        40.0
+      ],
+      "weight": 10.0,
+      "fragile": false,
+      "package_id": "?",
+      "zone": "",
+      "sequence": 1,
+      "city": "",
+      "handling": "",
+      "max_load": 100.0
+    },
+    {
+      "name": "PKG-2003 Medium Storage Boxes (Apparel) #52",
+      "part_number": "?-37",
+      "position": [
+        150.0,
+        180.0,
+        80.0
+      ],
+      "dimensions": [
+        50.0,
+        60.0,
+        40.0
+      ],
+      "weight": 10.0,
+      "fragile": false,
+      "package_id": "?",
+      "zone": "",
+      "sequence": 1,
+      "city": "",
+      "handling": "",
+      "max_load": 100.0
+    },
+    {
+      "name": "PKG-2003 Medium Storage Boxes (Apparel) #53",
+      "part_number": "?-38",
+      "position": [
+        200.0,
+        0.0,
+        90.0
+      ],
+      "dimensions": [
+        40.0,
+        60.0,
+        50.0
+      ],
+      "weight": 10.0,
+      "fragile": false,
+      "package_id": "?",
+      "zone": "",
+      "sequence": 1,
+      "city": "",
+      "handling": "",
+      "max_load": 100.0
+    },
+    {
+      "name": "PKG-2003 Medium Storage Boxes (Apparel) #54",
+      "part_number": "?-39",
+      "position": [
+        200.0,
+        60.0,
+        90.0
+      ],
+      "dimensions": [
+        40.0,
+        60.0,
+        50.0
+      ],
+      "weight": 10.0,
+      "fragile": false,
+      "package_id": "?",
+      "zone": "",
+      "sequence": 1,
+      "city": "",
+      "handling": "",
+      "max_load": 100.0
+    },
+    {
+      "name": "PKG-2003 Medium Storage Boxes (Apparel) #55",
+      "part_number": "?-40",
+      "position": [
+        200.0,
+        120.0,
+        90.0
+      ],
+      "dimensions": [
+        40.0,
+        60.0,
+        50.0
+      ],
+      "weight": 10.0,
+      "fragile": false,
+      "package_id": "?",
+      "zone": "",
+      "sequence": 1,
+      "city": "",
+      "handling": "",
+      "max_load": 100.0
+    },
+    {
+      "name": "PKG-2003 Medium Storage Boxes (Apparel) #56",
+      "part_number": "?-41",
+      "position": [
+        200.0,
+        180.0,
+        90.0
+      ],
+      "dimensions": [
+        40.0,
+        60.0,
+        50.0
+      ],
+      "weight": 10.0,
+      "fragile": false,
+      "package_id": "?",
+      "zone": "",
+      "sequence": 1,
+      "city": "",
+      "handling": "",
+      "max_load": 100.0
+    },
+    {
+      "name": "PKG-2003 Medium Storage Boxes (Apparel) #57",
+      "part_number": "?-42",
+      "position": [
+        0.0,
+        0.0,
+        120.0
+      ],
+      "dimensions": [
+        50.0,
+        60.0,
+        40.0
+      ],
+      "weight": 10.0,
+      "fragile": false,
+      "package_id": "?",
+      "zone": "",
+      "sequence": 1,
+      "city": "",
+      "handling": "",
+      "max_load": 100.0
+    },
+    {
+      "name": "PKG-2003 Medium Storage Boxes (Apparel) #58",
+      "part_number": "?-43",
+      "position": [
+        0.0,
+        60.0,
+        120.0
+      ],
+      "dimensions": [
+        50.0,
+        60.0,
+        40.0
+      ],
+      "weight": 10.0,
+      "fragile": false,
+      "package_id": "?",
+      "zone": "",
+      "sequence": 1,
+      "city": "",
+      "handling": "",
+      "max_load": 100.0
+    },
+    {
+      "name": "PKG-2003 Medium Storage Boxes (Apparel) #59",
+      "part_number": "?-44",
+      "position": [
+        0.0,
+        120.0,
+        120.0
+      ],
+      "dimensions": [
+        50.0,
+        60.0,
+        40.0
+      ],
+      "weight": 10.0,
+      "fragile": false,
+      "package_id": "?",
+      "zone": "",
+      "sequence": 1,
+      "city": "",
+      "handling": "",
+      "max_load": 100.0
+    },
+    {
+      "name": "PKG-2003 Medium Storage Boxes (Apparel) #60",
+      "part_number": "?-45",
+      "position": [
+        0.0,
+        180.0,
+        120.0
+      ],
+      "dimensions": [
+        50.0,
+        60.0,
+        40.0
+      ],
+      "weight": 10.0,
+      "fragile": false,
+      "package_id": "?",
+      "zone": "",
+      "sequence": 1,
+      "city": "",
+      "handling": "",
+      "max_load": 100.0
+    },
+    {
+      "name": "PKG-2003 Medium Storage Boxes (Apparel) #61",
+      "part_number": "?-46",
+      "position": [
+        50.0,
+        0.0,
+        120.0
+      ],
+      "dimensions": [
+        50.0,
+        60.0,
+        40.0
+      ],
+      "weight": 10.0,
+      "fragile": false,
+      "package_id": "?",
+      "zone": "",
+      "sequence": 1,
+      "city": "",
+      "handling": "",
+      "max_load": 100.0
+    },
+    {
+      "name": "PKG-2003 Medium Storage Boxes (Apparel) #62",
+      "part_number": "?-47",
+      "position": [
+        50.0,
+        60.0,
+        120.0
+      ],
+      "dimensions": [
+        50.0,
+        60.0,
+        40.0
+      ],
+      "weight": 10.0,
+      "fragile": false,
+      "package_id": "?",
+      "zone": "",
+      "sequence": 1,
+      "city": "",
+      "handling": "",
+      "max_load": 100.0
+    },
+    {
+      "name": "PKG-2003 Medium Storage Boxes (Apparel) #63",
+      "part_number": "?-48",
+      "position": [
+        50.0,
+        120.0,
+        120.0
+      ],
+      "dimensions": [
+        50.0,
+        60.0,
+        40.0
+      ],
+      "weight": 10.0,
+      "fragile": false,
+      "package_id": "?",
+      "zone": "",
+      "sequence": 1,
+      "city": "",
+      "handling": "",
+      "max_load": 100.0
+    },
+    {
+      "name": "PKG-2002 Large Home Appliance Crates #64",
+      "part_number": "?-1",
+      "position": [
+        50.0,
+        180.0,
+        120.0
+      ],
+      "dimensions": [
+        40.0,
+        50.0,
+        50.0
+      ],
+      "weight": 45.0,
+      "fragile": true,
+      "package_id": "?",
+      "zone": "",
+      "sequence": 1,
+      "city": "",
+      "handling": "",
+      "max_load": 100.0
+    },
+    {
+      "name": "PKG-2002 Large Home Appliance Crates #65",
+      "part_number": "?-2",
+      "position": [
+        100.0,
+        0.0,
+        120.0
+      ],
+      "dimensions": [
+        40.0,
+        50.0,
+        50.0
+      ],
+      "weight": 45.0,
+      "fragile": true,
+      "package_id": "?",
+      "zone": "",
+      "sequence": 1,
+      "city": "",
+      "handling": "",
+      "max_load": 100.0
+    },
+    {
+      "name": "PKG-2002 Large Home Appliance Crates #66",
+      "part_number": "?-3",
+      "position": [
+        100.0,
+        50.0,
+        120.0
+      ],
+      "dimensions": [
+        40.0,
+        50.0,
+        50.0
+      ],
+      "weight": 45.0,
+      "fragile": true,
+      "package_id": "?",
+      "zone": "",
+      "sequence": 1,
+      "city": "",
+      "handling": "",
+      "max_load": 100.0
+    },
+    {
+      "name": "PKG-2002 Large Home Appliance Crates #67",
+      "part_number": "?-4",
+      "position": [
+        100.0,
+        100.0,
+        120.0
+      ],
+      "dimensions": [
+        40.0,
+        50.0,
+        50.0
+      ],
+      "weight": 45.0,
+      "fragile": true,
+      "package_id": "?",
+      "zone": "",
+      "sequence": 1,
+      "city": "",
+      "handling": "",
+      "max_load": 100.0
+    },
+    {
+      "name": "PKG-2002 Large Home Appliance Crates #68",
+      "part_number": "?-5",
+      "position": [
+        100.0,
+        150.0,
+        120.0
+      ],
+      "dimensions": [
+        40.0,
+        50.0,
+        50.0
+      ],
+      "weight": 45.0,
+      "fragile": true,
+      "package_id": "?",
+      "zone": "",
+      "sequence": 1,
+      "city": "",
+      "handling": "",
+      "max_load": 100.0
+    },
+    {
+      "name": "PKG-2002 Large Home Appliance Crates #69",
+      "part_number": "?-6",
+      "position": [
+        140.0,
+        0.0,
+        120.0
+      ],
+      "dimensions": [
+        40.0,
+        50.0,
+        50.0
+      ],
+      "weight": 45.0,
+      "fragile": true,
+      "package_id": "?",
+      "zone": "",
+      "sequence": 1,
+      "city": "",
+      "handling": "",
+      "max_load": 100.0
+    },
+    {
+      "name": "PKG-2001 Standard Shipping Cartons (Electronics) #70",
+      "part_number": "?-1",
+      "position": [
+        100.0,
+        200.0,
+        120.0
+      ],
+      "dimensions": [
+        50.0,
+        40.0,
+        40.0
+      ],
+      "weight": 8.5,
+      "fragile": false,
+      "package_id": "?",
+      "zone": "",
+      "sequence": 1,
+      "city": "",
+      "handling": "",
+      "max_load": 100.0
+    },
+    {
+      "name": "PKG-2001 Standard Shipping Cartons (Electronics) #71",
+      "part_number": "?-2",
+      "position": [
+        140.0,
+        50.0,
+        120.0
+      ],
+      "dimensions": [
+        50.0,
+        40.0,
+        40.0
+      ],
+      "weight": 8.5,
+      "fragile": false,
+      "package_id": "?",
+      "zone": "",
+      "sequence": 1,
+      "city": "",
+      "handling": "",
+      "max_load": 100.0
+    },
+    {
+      "name": "PKG-2001 Standard Shipping Cartons (Electronics) #72",
+      "part_number": "?-3",
+      "position": [
+        140.0,
+        90.0,
+        120.0
+      ],
+      "dimensions": [
+        50.0,
+        40.0,
+        40.0
+      ],
+      "weight": 8.5,
+      "fragile": false,
+      "package_id": "?",
+      "zone": "",
+      "sequence": 1,
+      "city": "",
+      "handling": "",
+      "max_load": 100.0
+    },
+    {
+      "name": "PKG-2001 Standard Shipping Cartons (Electronics) #73",
+      "part_number": "?-4",
+      "position": [
+        140.0,
+        130.0,
+        120.0
+      ],
+      "dimensions": [
+        50.0,
+        40.0,
+        40.0
+      ],
+      "weight": 8.5,
+      "fragile": false,
+      "package_id": "?",
+      "zone": "",
+      "sequence": 1,
+      "city": "",
+      "handling": "",
+      "max_load": 100.0
+    },
+    {
+      "name": "PKG-2001 Standard Shipping Cartons (Electronics) #74",
+      "part_number": "?-5",
+      "position": [
+        150.0,
+        170.0,
+        120.0
+      ],
+      "dimensions": [
+        50.0,
+        40.0,
+        40.0
+      ],
+      "weight": 8.5,
+      "fragile": false,
+      "package_id": "?",
+      "zone": "",
+      "sequence": 1,
+      "city": "",
+      "handling": "",
+      "max_load": 100.0
+    },
+    {
+      "name": "PKG-2001 Standard Shipping Cartons (Electronics) #75",
+      "part_number": "?-6",
+      "position": [
+        200.0,
+        0.0,
+        140.0
+      ],
+      "dimensions": [
+        40.0,
+        40.0,
+        50.0
+      ],
+      "weight": 8.5,
+      "fragile": false,
+      "package_id": "?",
+      "zone": "",
+      "sequence": 1,
+      "city": "",
+      "handling": "",
+      "max_load": 100.0
+    },
+    {
+      "name": "PKG-2001 Standard Shipping Cartons (Electronics) #76",
+      "part_number": "?-7",
+      "position": [
+        200.0,
+        40.0,
+        140.0
+      ],
+      "dimensions": [
+        40.0,
+        40.0,
+        50.0
+      ],
+      "weight": 8.5,
+      "fragile": false,
+      "package_id": "?",
+      "zone": "",
+      "sequence": 1,
+      "city": "",
+      "handling": "",
+      "max_load": 100.0
+    },
+    {
+      "name": "PKG-2001 Standard Shipping Cartons (Electronics) #77",
+      "part_number": "?-8",
+      "position": [
+        200.0,
+        80.0,
+        140.0
+      ],
+      "dimensions": [
+        40.0,
+        40.0,
+        50.0
+      ],
+      "weight": 8.5,
+      "fragile": false,
+      "package_id": "?",
+      "zone": "",
+      "sequence": 1,
+      "city": "",
+      "handling": "",
+      "max_load": 100.0
+    },
+    {
+      "name": "PKG-2001 Standard Shipping Cartons (Electronics) #78",
+      "part_number": "?-9",
+      "position": [
+        200.0,
+        120.0,
+        140.0
+      ],
+      "dimensions": [
+        40.0,
+        40.0,
+        50.0
+      ],
+      "weight": 8.5,
+      "fragile": false,
+      "package_id": "?",
+      "zone": "",
+      "sequence": 1,
+      "city": "",
+      "handling": "",
+      "max_load": 100.0
+    },
+    {
+      "name": "PKG-2001 Standard Shipping Cartons (Electronics) #79",
+      "part_number": "?-10",
+      "position": [
+        200.0,
+        160.0,
+        140.0
+      ],
+      "dimensions": [
+        40.0,
+        40.0,
+        50.0
+      ],
+      "weight": 8.5,
+      "fragile": false,
+      "package_id": "?",
+      "zone": "",
+      "sequence": 1,
+      "city": "",
+      "handling": "",
+      "max_load": 100.0
+    },
+    {
+      "name": "PKG-2001 Standard Shipping Cartons (Electronics) #80",
+      "part_number": "?-11",
+      "position": [
+        200.0,
+        200.0,
+        140.0
+      ],
+      "dimensions": [
+        40.0,
+        40.0,
+        50.0
+      ],
+      "weight": 8.5,
+      "fragile": false,
+      "package_id": "?",
+      "zone": "",
+      "sequence": 1,
+      "city": "",
+      "handling": "",
+      "max_load": 100.0
+    },
+    {
+      "name": "PKG-2001 Standard Shipping Cartons (Electronics) #81",
+      "part_number": "?-12",
+      "position": [
+        0.0,
+        0.0,
+        160.0
+      ],
+      "dimensions": [
+        50.0,
+        40.0,
+        40.0
+      ],
+      "weight": 8.5,
+      "fragile": false,
+      "package_id": "?",
+      "zone": "",
+      "sequence": 1,
+      "city": "",
+      "handling": "",
+      "max_load": 100.0
+    },
+    {
+      "name": "PKG-2001 Standard Shipping Cartons (Electronics) #82",
+      "part_number": "?-13",
+      "position": [
+        0.0,
+        40.0,
+        160.0
+      ],
+      "dimensions": [
+        50.0,
+        40.0,
+        40.0
+      ],
+      "weight": 8.5,
+      "fragile": false,
+      "package_id": "?",
+      "zone": "",
+      "sequence": 1,
+      "city": "",
+      "handling": "",
+      "max_load": 100.0
+    },
+    {
+      "name": "PKG-2001 Standard Shipping Cartons (Electronics) #83",
+      "part_number": "?-14",
+      "position": [
+        0.0,
+        80.0,
+        160.0
+      ],
+      "dimensions": [
+        50.0,
+        40.0,
+        40.0
+      ],
+      "weight": 8.5,
+      "fragile": false,
+      "package_id": "?",
+      "zone": "",
+      "sequence": 1,
+      "city": "",
+      "handling": "",
+      "max_load": 100.0
+    },
+    {
+      "name": "PKG-2001 Standard Shipping Cartons (Electronics) #84",
+      "part_number": "?-15",
+      "position": [
+        0.0,
+        120.0,
+        160.0
+      ],
+      "dimensions": [
+        50.0,
+        40.0,
+        40.0
+      ],
+      "weight": 8.5,
+      "fragile": false,
+      "package_id": "?",
+      "zone": "",
+      "sequence": 1,
+      "city": "",
+      "handling": "",
+      "max_load": 100.0
+    },
+    {
+      "name": "PKG-2001 Standard Shipping Cartons (Electronics) #85",
+      "part_number": "?-16",
+      "position": [
+        0.0,
+        160.0,
+        160.0
+      ],
+      "dimensions": [
+        50.0,
+        40.0,
+        40.0
+      ],
+      "weight": 8.5,
+      "fragile": false,
+      "package_id": "?",
+      "zone": "",
+      "sequence": 1,
+      "city": "",
+      "handling": "",
+      "max_load": 100.0
+    },
+    {
+      "name": "PKG-2001 Standard Shipping Cartons (Electronics) #86",
+      "part_number": "?-17",
+      "position": [
+        0.0,
+        200.0,
+        160.0
+      ],
+      "dimensions": [
+        50.0,
+        40.0,
+        40.0
+      ],
+      "weight": 8.5,
+      "fragile": false,
+      "package_id": "?",
+      "zone": "",
+      "sequence": 1,
+      "city": "",
+      "handling": "",
+      "max_load": 100.0
+    },
+    {
+      "name": "PKG-2001 Standard Shipping Cartons (Electronics) #87",
+      "part_number": "?-18",
+      "position": [
+        50.0,
+        0.0,
+        160.0
+      ],
+      "dimensions": [
+        50.0,
+        40.0,
+        40.0
+      ],
+      "weight": 8.5,
+      "fragile": false,
+      "package_id": "?",
+      "zone": "",
+      "sequence": 1,
+      "city": "",
+      "handling": "",
+      "max_load": 100.0
+    },
+    {
+      "name": "PKG-2001 Standard Shipping Cartons (Electronics) #88",
+      "part_number": "?-19",
+      "position": [
+        50.0,
+        40.0,
+        160.0
+      ],
+      "dimensions": [
+        50.0,
+        40.0,
+        40.0
+      ],
+      "weight": 8.5,
+      "fragile": false,
+      "package_id": "?",
+      "zone": "",
+      "sequence": 1,
+      "city": "",
+      "handling": "",
+      "max_load": 100.0
+    },
+    {
+      "name": "PKG-2001 Standard Shipping Cartons (Electronics) #89",
+      "part_number": "?-20",
+      "position": [
+        50.0,
+        80.0,
+        160.0
+      ],
+      "dimensions": [
+        50.0,
+        40.0,
+        40.0
+      ],
+      "weight": 8.5,
+      "fragile": false,
+      "package_id": "?",
+      "zone": "",
+      "sequence": 1,
+      "city": "",
+      "handling": "",
+      "max_load": 100.0
+    },
+    {
+      "name": "PKG-2001 Standard Shipping Cartons (Electronics) #90",
+      "part_number": "?-21",
+      "position": [
+        50.0,
+        120.0,
+        160.0
+      ],
+      "dimensions": [
+        50.0,
+        40.0,
+        40.0
+      ],
+      "weight": 8.5,
+      "fragile": false,
+      "package_id": "?",
+      "zone": "",
+      "sequence": 1,
+      "city": "",
+      "handling": "",
+      "max_load": 100.0
+    },
+    {
+      "name": "PKG-2001 Standard Shipping Cartons (Electronics) #91",
+      "part_number": "?-22",
+      "position": [
+        50.0,
+        160.0,
+        170.0
+      ],
+      "dimensions": [
+        50.0,
+        40.0,
+        40.0
+      ],
+      "weight": 8.5,
+      "fragile": false,
+      "package_id": "?",
+      "zone": "",
+      "sequence": 1,
+      "city": "",
+      "handling": "",
+      "max_load": 100.0
+    },
+    {
+      "name": "PKG-2001 Standard Shipping Cartons (Electronics) #92",
+      "part_number": "?-23",
+      "position": [
+        50.0,
+        200.0,
+        170.0
+      ],
+      "dimensions": [
+        50.0,
+        40.0,
+        40.0
+      ],
+      "weight": 8.5,
+      "fragile": false,
+      "package_id": "?",
+      "zone": "",
+      "sequence": 1,
+      "city": "",
+      "handling": "",
+      "max_load": 100.0
+    },
+    {
+      "name": "PKG-2001 Standard Shipping Cartons (Electronics) #93",
+      "part_number": "?-24",
+      "position": [
+        100.0,
+        0.0,
+        170.0
+      ],
+      "dimensions": [
+        50.0,
+        40.0,
+        40.0
+      ],
+      "weight": 8.5,
+      "fragile": false,
+      "package_id": "?",
+      "zone": "",
+      "sequence": 1,
+      "city": "",
+      "handling": "",
+      "max_load": 100.0
+    },
+    {
+      "name": "PKG-2001 Standard Shipping Cartons (Electronics) #94",
+      "part_number": "?-25",
+      "position": [
+        100.0,
+        40.0,
+        170.0
+      ],
+      "dimensions": [
+        50.0,
+        40.0,
+        40.0
+      ],
+      "weight": 8.5,
+      "fragile": false,
+      "package_id": "?",
+      "zone": "",
+      "sequence": 1,
+      "city": "",
+      "handling": "",
+      "max_load": 100.0
+    },
+    {
+      "name": "PKG-2001 Standard Shipping Cartons (Electronics) #95",
+      "part_number": "?-26",
+      "position": [
+        100.0,
+        80.0,
+        170.0
+      ],
+      "dimensions": [
+        50.0,
+        40.0,
+        40.0
+      ],
+      "weight": 8.5,
+      "fragile": false,
+      "package_id": "?",
+      "zone": "",
+      "sequence": 1,
+      "city": "",
+      "handling": "",
+      "max_load": 100.0
+    },
+    {
+      "name": "PKG-2001 Standard Shipping Cartons (Electronics) #96",
+      "part_number": "?-27",
+      "position": [
+        100.0,
+        120.0,
+        170.0
+      ],
+      "dimensions": [
+        50.0,
+        40.0,
+        40.0
+      ],
+      "weight": 8.5,
+      "fragile": false,
+      "package_id": "?",
+      "zone": "",
+      "sequence": 1,
+      "city": "",
+      "handling": "",
+      "max_load": 100.0
+    },
+    {
+      "name": "PKG-2001 Standard Shipping Cartons (Electronics) #97",
+      "part_number": "?-28",
+      "position": [
+        100.0,
+        160.0,
+        170.0
+      ],
+      "dimensions": [
+        50.0,
+        40.0,
+        40.0
+      ],
+      "weight": 8.5,
+      "fragile": false,
+      "package_id": "?",
+      "zone": "",
+      "sequence": 1,
+      "city": "",
+      "handling": "",
+      "max_load": 100.0
+    },
+    {
+      "name": "PKG-2001 Standard Shipping Cartons (Electronics) #98",
+      "part_number": "?-29",
+      "position": [
+        100.0,
+        200.0,
+        170.0
+      ],
+      "dimensions": [
+        50.0,
+        40.0,
+        40.0
+      ],
+      "weight": 8.5,
+      "fragile": false,
+      "package_id": "?",
+      "zone": "",
+      "sequence": 1,
+      "city": "",
+      "handling": "",
+      "max_load": 100.0
+    },
+    {
+      "name": "PKG-2001 Standard Shipping Cartons (Electronics) #99",
+      "part_number": "?-30",
+      "position": [
+        150.0,
+        0.0,
+        170.0
+      ],
+      "dimensions": [
+        50.0,
+        40.0,
+        40.0
+      ],
+      "weight": 8.5,
+      "fragile": false,
+      "package_id": "?",
+      "zone": "",
+      "sequence": 1,
+      "city": "",
+      "handling": "",
+      "max_load": 100.0
+    },
+    {
+      "name": "PKG-2001 Standard Shipping Cartons (Electronics) #100",
+      "part_number": "?-31",
+      "position": [
+        150.0,
+        40.0,
+        170.0
+      ],
+      "dimensions": [
+        50.0,
+        40.0,
+        40.0
+      ],
+      "weight": 8.5,
+      "fragile": false,
+      "package_id": "?",
+      "zone": "",
+      "sequence": 1,
+      "city": "",
+      "handling": "",
+      "max_load": 100.0
+    },
+    {
+      "name": "PKG-2001 Standard Shipping Cartons (Electronics) #101",
+      "part_number": "?-32",
+      "position": [
+        150.0,
+        80.0,
+        170.0
+      ],
+      "dimensions": [
+        50.0,
+        40.0,
+        40.0
+      ],
+      "weight": 8.5,
+      "fragile": false,
+      "package_id": "?",
+      "zone": "",
+      "sequence": 1,
+      "city": "",
+      "handling": "",
+      "max_load": 100.0
+    },
+    {
+      "name": "PKG-2001 Standard Shipping Cartons (Electronics) #102",
+      "part_number": "?-33",
+      "position": [
+        150.0,
+        120.0,
+        170.0
+      ],
+      "dimensions": [
+        50.0,
+        40.0,
+        40.0
+      ],
+      "weight": 8.5,
+      "fragile": false,
+      "package_id": "?",
+      "zone": "",
+      "sequence": 1,
+      "city": "",
+      "handling": "",
+      "max_load": 100.0
+    },
+    {
+      "name": "PKG-2001 Standard Shipping Cartons (Electronics) #103",
+      "part_number": "?-34",
+      "position": [
+        150.0,
+        160.0,
+        170.0
+      ],
+      "dimensions": [
+        50.0,
+        40.0,
+        40.0
+      ],
+      "weight": 8.5,
+      "fragile": false,
+      "package_id": "?",
+      "zone": "",
+      "sequence": 1,
+      "city": "",
+      "handling": "",
+      "max_load": 100.0
+    },
+    {
+      "name": "PKG-2001 Standard Shipping Cartons (Electronics) #104",
+      "part_number": "?-35",
+      "position": [
+        150.0,
+        200.0,
+        170.0
+      ],
+      "dimensions": [
+        50.0,
+        40.0,
+        40.0
+      ],
+      "weight": 8.5,
+      "fragile": false,
+      "package_id": "?",
+      "zone": "",
+      "sequence": 1,
+      "city": "",
+      "handling": "",
+      "max_load": 100.0
+    },
+    {
+      "name": "PKG-2001 Standard Shipping Cartons (Electronics) #105",
+      "part_number": "?-36",
+      "position": [
+        200.0,
+        0.0,
+        190.0
+      ],
+      "dimensions": [
+        40.0,
+        40.0,
+        50.0
+      ],
+      "weight": 8.5,
+      "fragile": false,
+      "package_id": "?",
+      "zone": "",
+      "sequence": 1,
+      "city": "",
+      "handling": "",
+      "max_load": 100.0
+    },
+    {
+      "name": "PKG-2001 Standard Shipping Cartons (Electronics) #106",
+      "part_number": "?-37",
+      "position": [
+        200.0,
+        40.0,
+        190.0
+      ],
+      "dimensions": [
+        40.0,
+        40.0,
+        50.0
+      ],
+      "weight": 8.5,
+      "fragile": false,
+      "package_id": "?",
+      "zone": "",
+      "sequence": 1,
+      "city": "",
+      "handling": "",
+      "max_load": 100.0
+    },
+    {
+      "name": "PKG-2001 Standard Shipping Cartons (Electronics) #107",
+      "part_number": "?-38",
+      "position": [
+        200.0,
+        80.0,
+        190.0
+      ],
+      "dimensions": [
+        40.0,
+        40.0,
+        50.0
+      ],
+      "weight": 8.5,
+      "fragile": false,
+      "package_id": "?",
+      "zone": "",
+      "sequence": 1,
+      "city": "",
+      "handling": "",
+      "max_load": 100.0
+    },
+    {
+      "name": "PKG-2001 Standard Shipping Cartons (Electronics) #108",
+      "part_number": "?-39",
+      "position": [
+        200.0,
+        120.0,
+        190.0
+      ],
+      "dimensions": [
+        40.0,
+        40.0,
+        50.0
+      ],
+      "weight": 8.5,
+      "fragile": false,
+      "package_id": "?",
+      "zone": "",
+      "sequence": 1,
+      "city": "",
+      "handling": "",
+      "max_load": 100.0
+    },
+    {
+      "name": "PKG-2004 Flat-Pack Furniture Cartons #109",
+      "part_number": "?-1",
+      "position": [
+        0.0,
+        0.0,
+        200.0
+      ],
+      "dimensions": [
+        100.0,
+        60.0,
+        60.0
+      ],
+      "weight": 28.0,
+      "fragile": false,
+      "package_id": "?",
+      "zone": "",
+      "sequence": 1,
+      "city": "",
+      "handling": "",
+      "max_load": 100.0
+    },
+    {
+      "name": "PKG-2004 Flat-Pack Furniture Cartons #110",
+      "part_number": "?-2",
+      "position": [
+        0.0,
+        60.0,
+        200.0
+      ],
+      "dimensions": [
+        100.0,
+        60.0,
+        60.0
+      ],
+      "weight": 28.0,
+      "fragile": false,
+      "package_id": "?",
+      "zone": "",
+      "sequence": 1,
+      "city": "",
+      "handling": "",
+      "max_load": 100.0
+    },
+    {
+      "name": "PKG-2004 Flat-Pack Furniture Cartons #111",
+      "part_number": "?-3",
+      "position": [
+        0.0,
+        120.0,
+        210.0
+      ],
+      "dimensions": [
+        100.0,
+        60.0,
+        60.0
+      ],
+      "weight": 28.0,
+      "fragile": false,
+      "package_id": "?",
+      "zone": "",
+      "sequence": 1,
+      "city": "",
+      "handling": "",
+      "max_load": 100.0
+    },
+    {
+      "name": "PKG-2004 Flat-Pack Furniture Cartons #112",
+      "part_number": "?-4",
+      "position": [
+        0.0,
+        180.0,
+        210.0
+      ],
+      "dimensions": [
+        100.0,
+        60.0,
+        60.0
+      ],
+      "weight": 28.0,
+      "fragile": false,
+      "package_id": "?",
+      "zone": "",
+      "sequence": 1,
+      "city": "",
+      "handling": "",
+      "max_load": 100.0
+    },
+    {
+      "name": "PKG-2004 Flat-Pack Furniture Cartons #113",
+      "part_number": "?-5",
+      "position": [
+        100.0,
+        0.0,
+        210.0
+      ],
+      "dimensions": [
+        100.0,
+        60.0,
+        60.0
+      ],
+      "weight": 28.0,
+      "fragile": false,
+      "package_id": "?",
+      "zone": "",
+      "sequence": 1,
+      "city": "",
+      "handling": "",
+      "max_load": 100.0
+    },
+    {
+      "name": "PKG-2004 Flat-Pack Furniture Cartons #114",
+      "part_number": "?-6",
+      "position": [
+        100.0,
+        60.0,
+        210.0
+      ],
+      "dimensions": [
+        100.0,
+        60.0,
+        60.0
+      ],
+      "weight": 28.0,
+      "fragile": false,
+      "package_id": "?",
+      "zone": "",
+      "sequence": 1,
+      "city": "",
+      "handling": "",
+      "max_load": 100.0
+    },
+    {
+      "name": "PKG-2004 Flat-Pack Furniture Cartons #115",
+      "part_number": "?-7",
+      "position": [
+        100.0,
+        120.0,
+        210.0
+      ],
+      "dimensions": [
+        100.0,
+        60.0,
+        60.0
+      ],
+      "weight": 28.0,
+      "fragile": false,
+      "package_id": "?",
+      "zone": "",
+      "sequence": 1,
+      "city": "",
+      "handling": "",
+      "max_load": 100.0
+    },
+    {
+      "name": "PKG-2004 Flat-Pack Furniture Cartons #116",
+      "part_number": "?-8",
+      "position": [
+        100.0,
+        180.0,
+        210.0
+      ],
+      "dimensions": [
+        100.0,
+        60.0,
+        60.0
+      ],
+      "weight": 28.0,
+      "fragile": false,
+      "package_id": "?",
+      "zone": "",
+      "sequence": 1,
+      "city": "",
+      "handling": "",
+      "max_load": 100.0
+    },
+    {
+      "name": "PKG-2004 Flat-Pack Furniture Cartons #117",
+      "part_number": "?-9",
+      "position": [
+        0.0,
+        0.0,
+        260.0
+      ],
+      "dimensions": [
+        100.0,
+        60.0,
+        60.0
+      ],
+      "weight": 28.0,
+      "fragile": false,
+      "package_id": "?",
+      "zone": "",
+      "sequence": 1,
+      "city": "",
+      "handling": "",
+      "max_load": 100.0
+    },
+    {
+      "name": "PKG-2004 Flat-Pack Furniture Cartons #118",
+      "part_number": "?-10",
+      "position": [
+        0.0,
+        60.0,
+        260.0
+      ],
+      "dimensions": [
+        100.0,
+        60.0,
+        60.0
+      ],
+      "weight": 28.0,
+      "fragile": false,
+      "package_id": "?",
+      "zone": "",
+      "sequence": 1,
+      "city": "",
+      "handling": "",
+      "max_load": 100.0
+    },
+    {
+      "name": "PKG-2008 Precision LED Panels #119",
+      "part_number": "?-1",
+      "position": [
+        100.0,
+        0.0,
+        270.0
+      ],
+      "dimensions": [
+        100.0,
+        80.0,
+        80.0
+      ],
+      "weight": 18.5,
+      "fragile": true,
+      "package_id": "?",
+      "zone": "",
+      "sequence": 1,
+      "city": "",
+      "handling": "",
+      "max_load": 100.0
+    },
+    {
+      "name": "PKG-2008 Precision LED Panels #120",
+      "part_number": "?-2",
+      "position": [
+        100.0,
+        80.0,
+        270.0
+      ],
+      "dimensions": [
+        100.0,
+        80.0,
+        80.0
+      ],
+      "weight": 18.5,
+      "fragile": true,
+      "package_id": "?",
+      "zone": "",
+      "sequence": 1,
+      "city": "",
+      "handling": "",
+      "max_load": 100.0
+    },
+    {
+      "name": "PKG-2008 Precision LED Panels #121",
+      "part_number": "?-3",
+      "position": [
+        100.0,
+        160.0,
+        270.0
+      ],
+      "dimensions": [
+        100.0,
+        80.0,
+        80.0
+      ],
+      "weight": 18.5,
+      "fragile": true,
+      "package_id": "?",
+      "zone": "",
+      "sequence": 1,
+      "city": "",
+      "handling": "",
+      "max_load": 100.0
+    },
+    {
+      "name": "PKG-2008 Precision LED Panels #122",
+      "part_number": "?-4",
+      "position": [
+        0.0,
+        0.0,
+        320.0
+      ],
+      "dimensions": [
+        100.0,
+        80.0,
+        80.0
+      ],
+      "weight": 18.5,
+      "fragile": true,
+      "package_id": "?",
+      "zone": "",
+      "sequence": 1,
+      "city": "",
+      "handling": "",
+      "max_load": 100.0
+    },
+    {
+      "name": "PKG-2008 Precision LED Panels #123",
+      "part_number": "?-5",
+      "position": [
+        0.0,
+        80.0,
+        320.0
+      ],
+      "dimensions": [
+        100.0,
+        80.0,
+        80.0
+      ],
+      "weight": 18.5,
+      "fragile": true,
+      "package_id": "?",
+      "zone": "",
+      "sequence": 1,
+      "city": "",
+      "handling": "",
+      "max_load": 100.0
+    },
+    {
+      "name": "PKG-2008 Precision LED Panels #124",
+      "part_number": "?-6",
+      "position": [
+        0.0,
+        160.0,
+        320.0
+      ],
+      "dimensions": [
+        100.0,
+        80.0,
+        80.0
+      ],
+      "weight": 18.5,
+      "fragile": true,
+      "package_id": "?",
+      "zone": "",
+      "sequence": 1,
+      "city": "",
+      "handling": "",
+      "max_load": 100.0
+    },
+    {
+      "name": "PKG-2008 Precision LED Panels #125",
+      "part_number": "?-7",
+      "position": [
+        100.0,
+        0.0,
+        350.0
+      ],
+      "dimensions": [
+        100.0,
+        80.0,
+        80.0
+      ],
+      "weight": 18.5,
+      "fragile": true,
+      "package_id": "?",
+      "zone": "",
+      "sequence": 1,
+      "city": "",
+      "handling": "",
+      "max_load": 100.0
+    },
+    {
+      "name": "PKG-2008 Precision LED Panels #126",
+      "part_number": "?-8",
+      "position": [
+        100.0,
+        80.0,
+        350.0
+      ],
+      "dimensions": [
+        100.0,
+        80.0,
+        80.0
+      ],
+      "weight": 18.5,
+      "fragile": true,
+      "package_id": "?",
+      "zone": "",
+      "sequence": 1,
+      "city": "",
+      "handling": "",
+      "max_load": 100.0
+    },
+    {
+      "name": "PKG-2006 Industrial Tool Cases #127",
+      "part_number": "?-1",
+      "position": [
+        100.0,
+        160.0,
+        350.0
+      ],
+      "dimensions": [
+        60.0,
+        80.0,
+        50.0
+      ],
+      "weight": 22.0,
+      "fragile": false,
+      "package_id": "?",
+      "zone": "",
+      "sequence": 1,
+      "city": "",
+      "handling": "",
+      "max_load": 100.0
+    },
+    {
+      "name": "PKG-2006 Industrial Tool Cases #128",
+      "part_number": "?-2",
+      "position": [
+        0.0,
+        0.0,
+        400.0
+      ],
+      "dimensions": [
+        60.0,
+        80.0,
+        50.0
+      ],
+      "weight": 22.0,
+      "fragile": false,
+      "package_id": "?",
+      "zone": "",
+      "sequence": 1,
+      "city": "",
+      "handling": "",
+      "max_load": 100.0
+    },
+    {
+      "name": "PKG-2006 Industrial Tool Cases #129",
+      "part_number": "?-3",
+      "position": [
+        0.0,
+        80.0,
+        400.0
+      ],
+      "dimensions": [
+        60.0,
+        80.0,
+        50.0
+      ],
+      "weight": 22.0,
+      "fragile": false,
+      "package_id": "?",
+      "zone": "",
+      "sequence": 1,
+      "city": "",
+      "handling": "",
+      "max_load": 100.0
+    },
+    {
+      "name": "PKG-2006 Industrial Tool Cases #130",
+      "part_number": "?-4",
+      "position": [
+        0.0,
+        160.0,
+        400.0
+      ],
+      "dimensions": [
+        60.0,
+        80.0,
+        50.0
+      ],
+      "weight": 22.0,
+      "fragile": false,
+      "package_id": "?",
+      "zone": "",
+      "sequence": 1,
+      "city": "",
+      "handling": "",
+      "max_load": 100.0
+    },
+    {
+      "name": "PKG-2006 Industrial Tool Cases #131",
+      "part_number": "?-5",
+      "position": [
+        100.0,
+        0.0,
+        430.0
+      ],
+      "dimensions": [
+        60.0,
+        80.0,
+        50.0
+      ],
+      "weight": 22.0,
+      "fragile": false,
+      "package_id": "?",
+      "zone": "",
+      "sequence": 1,
+      "city": "",
+      "handling": "",
+      "max_load": 100.0
+    },
+    {
+      "name": "PKG-2006 Industrial Tool Cases #132",
+      "part_number": "?-6",
+      "position": [
+        100.0,
+        80.0,
+        430.0
+      ],
+      "dimensions": [
+        60.0,
+        80.0,
+        50.0
+      ],
+      "weight": 22.0,
+      "fragile": false,
+      "package_id": "?",
+      "zone": "",
+      "sequence": 1,
+      "city": "",
+      "handling": "",
+      "max_load": 100.0
+    },
+    {
+      "name": "PKG-2006 Industrial Tool Cases #133",
+      "part_number": "?-7",
+      "position": [
+        100.0,
+        160.0,
+        430.0
+      ],
+      "dimensions": [
+        60.0,
+        80.0,
+        50.0
+      ],
+      "weight": 22.0,
+      "fragile": false,
+      "package_id": "?",
+      "zone": "",
+      "sequence": 1,
+      "city": "",
+      "handling": "",
+      "max_load": 100.0
+    },
+    {
+      "name": "PKG-2006 Industrial Tool Cases #134",
+      "part_number": "?-8",
+      "position": [
+        160.0,
+        0.0,
+        430.0
+      ],
+      "dimensions": [
+        60.0,
+        80.0,
+        50.0
+      ],
+      "weight": 22.0,
+      "fragile": false,
+      "package_id": "?",
+      "zone": "",
+      "sequence": 1,
+      "city": "",
+      "handling": "",
+      "max_load": 100.0
+    },
+    {
+      "name": "PKG-2006 Industrial Tool Cases #135",
+      "part_number": "?-9",
+      "position": [
+        160.0,
+        80.0,
+        430.0
+      ],
+      "dimensions": [
+        60.0,
+        80.0,
+        50.0
+      ],
+      "weight": 22.0,
+      "fragile": false,
+      "package_id": "?",
+      "zone": "",
+      "sequence": 1,
+      "city": "",
+      "handling": "",
+      "max_load": 100.0
+    },
+    {
+      "name": "PKG-2006 Industrial Tool Cases #136",
+      "part_number": "?-10",
+      "position": [
+        160.0,
+        160.0,
+        430.0
+      ],
+      "dimensions": [
+        60.0,
+        80.0,
+        50.0
+      ],
+      "weight": 22.0,
+      "fragile": false,
+      "package_id": "?",
+      "zone": "",
+      "sequence": 1,
+      "city": "",
+      "handling": "",
+      "max_load": 100.0
+    },
+    {
+      "name": "PKG-2006 Industrial Tool Cases #137",
+      "part_number": "?-11",
+      "position": [
+        0.0,
+        0.0,
+        450.0
+      ],
+      "dimensions": [
+        60.0,
+        80.0,
+        50.0
+      ],
+      "weight": 22.0,
+      "fragile": false,
+      "package_id": "?",
+      "zone": "",
+      "sequence": 1,
+      "city": "",
+      "handling": "",
+      "max_load": 100.0
+    },
+    {
+      "name": "PKG-2007 Bulk Office Paper Trays #138",
+      "part_number": "?-1",
+      "position": [
+        100.0,
+        0.0,
+        480.0
+      ],
+      "dimensions": [
+        120.0,
+        80.0,
+        30.0
+      ],
+      "weight": 12.5,
+      "fragile": false,
+      "package_id": "?",
+      "zone": "",
+      "sequence": 1,
+      "city": "",
+      "handling": "",
+      "max_load": 100.0
+    },
+    {
+      "name": "PKG-2007 Bulk Office Paper Trays #139",
+      "part_number": "?-2",
+      "position": [
+        100.0,
+        80.0,
+        480.0
+      ],
+      "dimensions": [
+        120.0,
+        80.0,
+        30.0
+      ],
+      "weight": 12.5,
+      "fragile": false,
+      "package_id": "?",
+      "zone": "",
+      "sequence": 1,
+      "city": "",
+      "handling": "",
+      "max_load": 100.0
+    },
+    {
+      "name": "PKG-2007 Bulk Office Paper Trays #140",
+      "part_number": "?-3",
+      "position": [
+        100.0,
+        160.0,
+        480.0
+      ],
+      "dimensions": [
+        120.0,
+        80.0,
+        30.0
+      ],
+      "weight": 12.5,
+      "fragile": false,
+      "package_id": "?",
+      "zone": "",
+      "sequence": 1,
+      "city": "",
+      "handling": "",
+      "max_load": 100.0
+    },
+    {
+      "name": "PKG-2007 Bulk Office Paper Trays #141",
+      "part_number": "?-4",
+      "position": [
+        100.0,
+        0.0,
+        510.0
+      ],
+      "dimensions": [
+        120.0,
+        80.0,
+        30.0
+      ],
+      "weight": 12.5,
+      "fragile": false,
+      "package_id": "?",
+      "zone": "",
+      "sequence": 1,
+      "city": "",
+      "handling": "",
+      "max_load": 100.0
+    },
+    {
+      "name": "PKG-2007 Bulk Office Paper Trays #142",
+      "part_number": "?-5",
+      "position": [
+        100.0,
+        80.0,
+        510.0
+      ],
+      "dimensions": [
+        120.0,
+        80.0,
+        30.0
+      ],
+      "weight": 12.5,
+      "fragile": false,
+      "package_id": "?",
+      "zone": "",
+      "sequence": 1,
+      "city": "",
+      "handling": "",
+      "max_load": 100.0
+    },
+    {
+      "name": "PKG-2007 Bulk Office Paper Trays #143",
+      "part_number": "?-6",
+      "position": [
+        100.0,
         160.0,
         510.0
       ],
       "dimensions": [
-        50.0,
-        40.0,
-        50.0
+        120.0,
+        80.0,
+        30.0
       ],
-      "weight": 45.0,
-      "fragile": true,
-      "package_id": "PKG-2002",
-      "zone": "Zone A-2",
-      "sequence": 6,
-      "city": "Phoenix",
-      "handling": "Fragile - Base load only"
+      "weight": 12.5,
+      "fragile": false,
+      "package_id": "?",
+      "zone": "",
+      "sequence": 1,
+      "city": "",
+      "handling": "",
+      "max_load": 100.0
     },
     {
-      "name": "PKG-2002 Large Home Appliance Crates #2",
-      "part_number": "PKG-2002-2",
-      "position": [
-        0.0,
-        200.0,
-        0.0
-      ],
-      "dimensions": [
-        50.0,
-        40.0,
-        50.0
-      ],
-      "weight": 45.0,
-      "fragile": true,
-      "package_id": "PKG-2002",
-      "zone": "Zone A-2",
-      "sequence": 6,
-      "city": "Phoenix",
-      "handling": "Fragile - Base load only"
-    },
-    {
-      "name": "PKG-2002 Large Home Appliance Crates #3",
-      "part_number": "PKG-2002-3",
-      "position": [
-        50.0,
-        200.0,
-        0.0
-      ],
-      "dimensions": [
-        50.0,
-        40.0,
-        50.0
-      ],
-      "weight": 45.0,
-      "fragile": true,
-      "package_id": "PKG-2002",
-      "zone": "Zone A-2",
-      "sequence": 6,
-      "city": "Phoenix",
-      "handling": "Fragile - Base load only"
-    },
-    {
-      "name": "PKG-2002 Large Home Appliance Crates #4",
-      "part_number": "PKG-2002-4",
+      "name": "PKG-2007 Bulk Office Paper Trays #144",
+      "part_number": "?-7",
       "position": [
         100.0,
-        200.0,
-        0.0
-      ],
-      "dimensions": [
-        50.0,
-        40.0,
-        50.0
-      ],
-      "weight": 45.0,
-      "fragile": true,
-      "package_id": "PKG-2002",
-      "zone": "Zone A-2",
-      "sequence": 6,
-      "city": "Phoenix",
-      "handling": "Fragile - Base load only"
-    },
-    {
-      "name": "PKG-2002 Large Home Appliance Crates #5",
-      "part_number": "PKG-2002-5",
-      "position": [
-        150.0,
-        200.0,
-        0.0
-      ],
-      "dimensions": [
-        50.0,
-        40.0,
-        50.0
-      ],
-      "weight": 45.0,
-      "fragile": true,
-      "package_id": "PKG-2002",
-      "zone": "Zone A-2",
-      "sequence": 6,
-      "city": "Phoenix",
-      "handling": "Fragile - Base load only"
-    },
-    {
-      "name": "PKG-2002 Large Home Appliance Crates #6",
-      "part_number": "PKG-2002-6",
-      "position": [
         0.0,
-        200.0,
-        50.0
+        540.0
       ],
       "dimensions": [
-        50.0,
-        40.0,
-        50.0
+        120.0,
+        80.0,
+        30.0
       ],
-      "weight": 45.0,
-      "fragile": true,
-      "package_id": "PKG-2002",
-      "zone": "Zone A-2",
-      "sequence": 6,
-      "city": "Phoenix",
-      "handling": "Fragile - Base load only"
+      "weight": 12.5,
+      "fragile": false,
+      "package_id": "?",
+      "zone": "",
+      "sequence": 1,
+      "city": "",
+      "handling": "",
+      "max_load": 100.0
+    },
+    {
+      "name": "PKG-2007 Bulk Office Paper Trays #145",
+      "part_number": "?-8",
+      "position": [
+        100.0,
+        80.0,
+        540.0
+      ],
+      "dimensions": [
+        120.0,
+        80.0,
+        30.0
+      ],
+      "weight": 12.5,
+      "fragile": false,
+      "package_id": "?",
+      "zone": "",
+      "sequence": 1,
+      "city": "",
+      "handling": "",
+      "max_load": 100.0
+    },
+    {
+      "name": "PKG-2007 Bulk Office Paper Trays #146",
+      "part_number": "?-9",
+      "position": [
+        100.0,
+        160.0,
+        540.0
+      ],
+      "dimensions": [
+        120.0,
+        80.0,
+        30.0
+      ],
+      "weight": 12.5,
+      "fragile": false,
+      "package_id": "?",
+      "zone": "",
+      "sequence": 1,
+      "city": "",
+      "handling": "",
+      "max_load": 100.0
+    },
+    {
+      "name": "PKG-2007 Bulk Office Paper Trays #147",
+      "part_number": "?-10",
+      "position": [
+        100.0,
+        0.0,
+        570.0
+      ],
+      "dimensions": [
+        120.0,
+        80.0,
+        30.0
+      ],
+      "weight": 12.5,
+      "fragile": false,
+      "package_id": "?",
+      "zone": "",
+      "sequence": 1,
+      "city": "",
+      "handling": "",
+      "max_load": 100.0
+    },
+    {
+      "name": "PKG-2007 Bulk Office Paper Trays #148",
+      "part_number": "?-11",
+      "position": [
+        100.0,
+        80.0,
+        570.0
+      ],
+      "dimensions": [
+        120.0,
+        80.0,
+        30.0
+      ],
+      "weight": 12.5,
+      "fragile": false,
+      "package_id": "?",
+      "zone": "",
+      "sequence": 1,
+      "city": "",
+      "handling": "",
+      "max_load": 100.0
+    },
+    {
+      "name": "PKG-2007 Bulk Office Paper Trays #149",
+      "part_number": "?-12",
+      "position": [
+        100.0,
+        160.0,
+        570.0
+      ],
+      "dimensions": [
+        120.0,
+        80.0,
+        30.0
+      ],
+      "weight": 12.5,
+      "fragile": false,
+      "package_id": "?",
+      "zone": "",
+      "sequence": 1,
+      "city": "",
+      "handling": "",
+      "max_load": 100.0
     }
   ],
   "manifest_summary": [
     {
       "name": "PKG-2005 Glassware & Ceramic Cargo",
       "package_id": "PKG-2005",
-      "description": "Glassware & Ceramic Cargo",
       "quantity": 15,
       "packed": 15,
       "remaining": 0,
@@ -3315,10 +3477,9 @@
     {
       "name": "PKG-2008 Precision LED Panels",
       "package_id": "PKG-2008",
-      "description": "Precision LED Panels",
       "quantity": 8,
-      "packed": 0,
-      "remaining": 8,
+      "packed": 8,
+      "remaining": 0,
       "fragile": true,
       "max_load": 10,
       "weight": 18.5,
@@ -3336,7 +3497,6 @@
     {
       "name": "PKG-2002 Large Home Appliance Crates",
       "package_id": "PKG-2002",
-      "description": "Large Home Appliance Crates",
       "quantity": 6,
       "packed": 6,
       "remaining": 0,
@@ -3357,10 +3517,9 @@
     {
       "name": "PKG-2007 Bulk Office Paper Trays",
       "package_id": "PKG-2007",
-      "description": "Bulk Office Paper Trays",
       "quantity": 19,
-      "packed": 19,
-      "remaining": 0,
+      "packed": 12,
+      "remaining": 7,
       "fragile": false,
       "max_load": 100,
       "weight": 12.5,
@@ -3378,7 +3537,6 @@
     {
       "name": "PKG-2003 Medium Storage Boxes (Apparel)",
       "package_id": "PKG-2003",
-      "description": "Medium Storage Boxes (Apparel)",
       "quantity": 48,
       "packed": 48,
       "remaining": 0,
@@ -3399,7 +3557,6 @@
     {
       "name": "PKG-2006 Industrial Tool Cases",
       "package_id": "PKG-2006",
-      "description": "Industrial Tool Cases",
       "quantity": 11,
       "packed": 11,
       "remaining": 0,
@@ -3420,7 +3577,6 @@
     {
       "name": "PKG-2001 Standard Shipping Cartons (Electronics)",
       "package_id": "PKG-2001",
-      "description": "Standard Shipping Cartons (Electronics)",
       "quantity": 39,
       "packed": 39,
       "remaining": 0,
@@ -3441,7 +3597,6 @@
     {
       "name": "PKG-2004 Flat-Pack Furniture Cartons",
       "package_id": "PKG-2004",
-      "description": "Flat-Pack Furniture Cartons",
       "quantity": 10,
       "packed": 10,
       "remaining": 0,
@@ -3461,43 +3616,55 @@
     }
   ],
   "total_items_expected": 156,
-  "packed_count": 148,
-  "unfitted_count": 8,
+  "packed_count": 149,
+  "unfitted_count": 7,
   "unfitted_detail": [
     {
-      "name": "PKG-2008 Precision LED Panels",
-      "package_id": "PKG-2008"
+      "name": "PKG-2007 Bulk Office Paper Trays #150",
+      "part_number": "PKG-2007 Bulk Office Paper Trays #150"
     },
     {
-      "name": "PKG-2008 Precision LED Panels",
-      "package_id": "PKG-2008"
+      "name": "PKG-2007 Bulk Office Paper Trays #151",
+      "part_number": "PKG-2007 Bulk Office Paper Trays #151"
     },
     {
-      "name": "PKG-2008 Precision LED Panels",
-      "package_id": "PKG-2008"
+      "name": "PKG-2007 Bulk Office Paper Trays #152",
+      "part_number": "PKG-2007 Bulk Office Paper Trays #152"
     },
     {
-      "name": "PKG-2008 Precision LED Panels",
-      "package_id": "PKG-2008"
+      "name": "PKG-2007 Bulk Office Paper Trays #153",
+      "part_number": "PKG-2007 Bulk Office Paper Trays #153"
     },
     {
-      "name": "PKG-2008 Precision LED Panels",
-      "package_id": "PKG-2008"
+      "name": "PKG-2007 Bulk Office Paper Trays #154",
+      "part_number": "PKG-2007 Bulk Office Paper Trays #154"
     },
     {
-      "name": "PKG-2008 Precision LED Panels",
-      "package_id": "PKG-2008"
+      "name": "PKG-2007 Bulk Office Paper Trays #155",
+      "part_number": "PKG-2007 Bulk Office Paper Trays #155"
     },
     {
-      "name": "PKG-2008 Precision LED Panels",
-      "package_id": "PKG-2008"
-    },
-    {
-      "name": "PKG-2008 Precision LED Panels",
-      "package_id": "PKG-2008"
+      "name": "PKG-2007 Bulk Office Paper Trays #156",
+      "part_number": "PKG-2007 Bulk Office Paper Trays #156"
     }
   ],
   "status": "LOADING",
-  "gemini_analysis": {},
-  "anomaly_history": []
+  "gemini_analysis": {
+    "Space Volume Utilization": "75.5%",
+    "Structural Safety Score": "\u2605\u2605\u2605\u2605\u2606 (Good)",
+    "Offloading Score": "\u2605\u2605\u2605\u2605\u2605 (Excellent)"
+  },
+  "anomaly_history": [],
+  "metrics": {
+    "utilization": 75.51,
+    "safety_rate": 91.95,
+    "offloading_score": 100.0,
+    "floating_count": 0,
+    "blocked_count": 0,
+    "blocking": {
+      "blocked_count": 0,
+      "blocked_names": [],
+      "blocked_fraction": 0.0
+    }
+  }
 }
