@@ -227,10 +227,13 @@ def build_fleet_from_packing_result(
         })
 
     for item in unfitted:
+        _reason = getattr(item, 'rejection_reason', None) or 'no_space'
         layout_data['unfitted_items'].append({
             'name': item.name,
             'part_number': item.partno,
             'weight': float(item.weight),
+            'reason': _reason,
+            'detail': getattr(item, 'rejection_detail', '') or '',
         })
 
     truck_volume_cm = float(truck_w) * float(truck_h) * float(truck_d) * 1e6

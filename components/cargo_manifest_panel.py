@@ -74,10 +74,22 @@ def render_cargo_manifest(fleet: Fleet):
     # --- Unfitted Items ---
     unfitted_items = fleet.packing_layout.get('layout', {}).get('unfitted_items', [])
     if unfitted_items:
+        # 3 canonical rejection buckets (mirrors app.py's report).
+        _REASON_LABELS = {
+            'no_space': 'No space / geometry conflict',
+            'overweight': 'Exceeds truck weight capacity',
+            'footprint_instability': 'Footprint instability (< 75% support)',
+        }
         st.markdown("---")
         st.subheader("Unpacked Items (Rejected by Constraints)")
         for item in unfitted_items:
-            st.error(f"**{item['name']}** could not be packed securely.")
+            reason = item.get('reason', 'no_space') or 'no_space'
+            label = _REASON_LABELS.get(reason, _REASON_LABELS['no_space'])
+            detail = item.get('detail', '')
+            message = f"**{item['name']}** — {label}."
+            if detail:
+                message += f" ({detail})"
+            st.error(message)
 
     # --- Total Weight & Volume Summary ---
     st.markdown("---")
