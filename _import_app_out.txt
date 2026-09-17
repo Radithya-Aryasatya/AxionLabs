@@ -1,8 +1,0 @@
-IMPORT OK
-has PackedItem       : True
-has calculate_util   : True
-has load_distribution: True
-has detect_floating  : True
-has offloading_score : True
-has pack_soft_lifo   : True
-has overlap_area     : True

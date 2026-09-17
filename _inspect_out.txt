@@ -1,9 +1,0 @@
-solver_common/__init__.py: lines=16 bytes=607 OK
-solver_common/schemas.py: lines=102 bytes=3356 OK
-solver_common/interface.py: lines=110 bytes=4218 OK
-solver_classic/__init__.py: lines=13 bytes=395 OK
-solver_classic/adapter.py: lines=183 bytes=5516 OK
-solver_sardine/__init__.py: lines=42 bytes=2105 OK
-solver_sardine/baseline.py: lines=466 bytes=15507 OK
-solver_sardine/memory.py: lines=349 bytes=12433 SYNTAX_ERROR line 163: expected 'except' or 'finally' block
-solver_sardine/improver.py: lines=96 bytes=3448 OK

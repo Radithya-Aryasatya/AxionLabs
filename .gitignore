@@ -10,10 +10,6 @@ setup.py
 venv
 debug.log
 test*
-# ...but the repository's own pytest suite lives in tests/ and MUST be
-# tracked, so re-include it after the blanket "test*" rule above.
-!tests/
-!tests/**
 .venv/
 .venv/
 .venv
@@ -22,10 +18,3 @@ venv
 *.env
 assets/virtual_cctv/
 assets/cctv_uploads/
-
-# AI progress store — git-ignored contents except placeholder + README.
-# The folder itself is tracked so new clones get the structure; runtime
-# learning data (history, best solutions, weights) is never committed.
-ai_progress/*
-!ai_progress/.gitkeep
-!ai_progress/README.md

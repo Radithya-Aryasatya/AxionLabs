@@ -1,6 +1,0 @@
-streamlit 1.59.1
-AppTest available: <class 'streamlit.testing.v1.app_test.AppTest'>
-py3dbp ?
-pandas 2.3.3
-plotly 6.8.0
-

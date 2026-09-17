@@ -1,6 +1,0 @@
-CHANGED=True
-total lines = 1967
-no-EOL tail = 1
-CRLF lines  = 1966
-tab-indented lines = 0
-COMPILE OK

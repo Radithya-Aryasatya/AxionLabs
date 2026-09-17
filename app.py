@@ -1428,53 +1428,6 @@ if st.session_state.editing_orientation is not None:
     st.stop()
 
 # --- RUN EXECUTION SOLVER ---
-# Engine selector: user chooses between the classic py3dbp engine (default)
-# and the Sardine-Can Extreme Point Insertion engine (new).
-engine_choice = st.sidebar.radio(
-    "Packing Engine",
-    options=["Classic (py3dbp)", "Sardine-Can AI"],
-    index=0,
-    help=(
-        "Classic (py3dbp): the original first-fit engine that has always "
-        "powered this app. Sardine-Can AI: a Python port of the "
-        "Extreme-Point-Insertion heuristic from the sardine-can project "
-        "(SC.Core). It shares the same input manifest and output shape, "
-        "and optionally tries alternative strategies to improve the result."
-    ),
-    key="engine_choice",
-)
-
-use_sardine = engine_choice == "Sardine-Can AI"
-
-if use_sardine:
-    ai_improve = st.sidebar.checkbox(
-        "AI Self-Improvement",
-        value=True,
-        help=(
-            "When ON, the Sardine-Can engine first runs the plain EPI "
-            "baseline, then tries alternative orderings/rotations inside a "
-            "time budget and keeps the result only if it is *strictly "
-            "better*. It never makes the layout worse than the baseline. "
-            "Learning is persisted to the ``ai_progress/`` folder."
-        ),
-    )
-    ai_budget = st.sidebar.slider(
-        "AI Budget (seconds)",
-        min_value=0.0, max_value=30.0, value=5.0, step=0.5,
-        help="Max time the improver may spend searching for a better layout.",
-    )
-else:
-    ai_improve = False
-    ai_budget = 0.0
-
-# Ensure AI progress dirs exist on every run.
-try:
-    from solver_sardine.memory import ensure_dirs, hydrate_session_state, manifest_hash
-    ensure_dirs()
-    hydrate_session_state(st.session_state)
-except Exception:
-    pass  # AI memory is optional; classic path must never depend on it
-
 prioritize_sequence = st.checkbox(
     "Prioritize unloading sequence over space efficiency",
     value=False,
@@ -1511,112 +1464,33 @@ if st.button("Run AI Optimization"):
             st.session_state.manifest
         )
 
+        # All items keep level=1. Sequence ordering is handled one of two
+        # ways depending on the checkbox:
+        #
+        #  - Checkbox OFF (default): we hand py3dbp the loading_order
+        #    (build_loading_priority sorts by -sequence first), but py3dbp
+        #    re-sorts internally by level -> loadbear -> volume right before
+        #    packing (see Packer.pack), so the sequence order only survives
+        #    as a free tie-break between otherwise-identical items. The
+        #    greedy first-fit-against-already-placed-items algorithm then
+        #    packs for maximum space efficiency. Sequence has no real
+        #    influence on placement - identical to pre-sequence-feature
+        #    behavior, zero efficiency risk.
+        #
+        #  - Checkbox ON: we bypass packer.pack() entirely and call
+        #    pack_soft_lifo(), which packs highest-sequence-first and lets
+        #    the engine enforce soft-LIFO accessibility at each placement
+        #    (no depth zones, no clamps). Earlier-stop boxes can backfill
+        #    gaps beside/above later-stop boxes but never get trapped behind
+        #    them. This is the correct unloading order but can cost space
+        #    efficiency.
         def sequence_to_level(sequence):
             return 1
 
         with st.spinner("Running 3D bin packing optimization..."):
-            if use_sardine:
+            packer = Packer()
 
-                # ── Sardine-Can AI engine ──────────────────────────────
-                # Routes the same manifest/truck params through the solver
-                # package.  The result is a Solution dataclass; we wrap it
-                # in a lightweight object that mimics Bin so the existing
-                # visualization + metrics code below works unchanged.
-                from solver_sardine.baseline import solve_sardine
-                from solver_sardine.improver import solve_with_improvement
-
-                _mhash = manifest_hash(st.session_state.manifest,
-                                       (truck_w, truck_h, truck_d),
-                                       truck_weight)
-                _cfg = st.session_state.get("ai_config", {})
-                _improve = ai_improve and _cfg.get("improve_enabled", True)
-
-                if _improve:
-                    _sol = solve_with_improvement(
-                        st.session_state.manifest,
-                        truck_w, truck_h, truck_d, truck_weight,
-                        prioritize_sequence=prioritize_sequence,
-                        budget_seconds=ai_budget,
-                        config=_cfg,
-                    )
-                else:
-                    _sol = solve_sardine(
-                        st.session_state.manifest,
-                        truck_w, truck_h, truck_d, truck_weight,
-                        prioritize_sequence=prioritize_sequence,
-                    )
-                st.session_state.sardine_solution = _sol
-                st.session_state.sardine_hash = _mhash
-                st.session_state.sardine_improved = _sol.extra.get(
-                    "improved", False)
-
-                class _PlacementItems:
-                    """List-like yielding fake Item-like objects."""
-                    def __init__(self, placements):
-                        self._list = placements
-                    def __iter__(self):
-                        for p in self._list:
-                            yield _FakeItem(p)
-                    def __len__(self):
-                        return len(self._list)
-                    def __getitem__(self, i):
-                        return _FakeItem(self._list[i])
-
-                class _FakeItem:
-                    """Mimics py3dbp Item enough for app.py's output loop."""
-                    def __init__(self, p):
-                        self.partno = p.partno
-                        self.name = p.name
-                        self.position = [p.x * 100, p.y * 100, p.z * 100]
-                        self.width = p.w * 100
-                        self.height = p.h * 100
-                        self.depth = p.d * 100
-                        self.weight = p.weight
-                        self.rotation_type = p.rotation_type
-                        self.loadbear = p.max_load
-                        self.updown = False
-                        self.color = p.color
-
-                    def getDimension(self):
-                        from py3dbp.constants import RotationType as RT
-                        rt = self.rotation_type
-                        w, h, d = self.width, self.height, self.depth
-                        mapping = {
-                            RT.RT_WHD: [w, h, d],
-                            RT.RT_HWD: [h, w, d],
-                            RT.RT_HDW: [h, d, w],
-                            RT.RT_DHW: [d, h, w],
-                            RT.RT_DWH: [d, w, h],
-                            RT.RT_WDH: [w, d, h],
-                        }
-                        return mapping.get(rt, [w, h, d])
-
-                class _SardineBin:
-                    """Minimal Bin-compatible wrapper around Solution."""
-                    def __init__(self, sol):
-                        self.partno = sol.truck.name
-                        self.width = sol.truck.width * 100
-                        self.height = sol.truck.height * 100
-                        self.depth = sol.truck.depth * 100
-                        self.max_weight = sol.truck.max_weight
-                        self.put_type = 2
-                        self.gravity = sol.extra.get("gravity", [])
-                        self.items = _PlacementItems(sol.packed)
-                        self.unfitted_items = _PlacementItems(sol.unfitted)
-
-                class _FakePacker:
-                    """Minimal Packer-compatible wrapper."""
-                    def __init__(self, sol):
-                        self.bins = [_SardineBin(sol)]
-                        self.items = []
-                        self.unfit_items = []
-
-                packer = _FakePacker(_sol)
-
-            else:
-                packer = Packer()
-
-                packer.addBin(
+            packer.addBin(
                     Bin(
                         "Truck",
                         (
@@ -1628,16 +1502,9 @@ if st.button("Run AI Optimization"):
                     )
                 )
 
-            # The classic loader below feeds py3dbp only — the
-            # Sardine-Can engine already packed the manifest inside
-            # solve_sardine()/solve_with_improvement(). Iterating an
-            # empty list therefore skips it without re-indenting the
-            # whole block.
-            _classic_order = [] if use_sardine else loading_order
-
             counter = 0
 
-            for obj in _classic_order:
+            for obj in loading_order:
 
                     for i in range(obj["quantity"]):
 
@@ -1685,13 +1552,7 @@ if st.button("Run AI Optimization"):
 
                         counter += 1
 
-            if use_sardine:
-                # Sardine-Can applied its own ordering — including the
-                # soft-LIFO accessibility rule when the checkbox is on —
-                # inside the solver call above. pack_soft_lifo() and
-                # Packer.pack() exist only on the py3dbp packer.
-                _blocked_count, _blocked_names = 0, []
-            elif prioritize_sequence:
+            if prioritize_sequence:
                 # Soft-LIFO: pack highest-sequence-first and let the engine
                 # enforce accessibility at each placement (no depth zones, no
                 # clamps). Earlier-stop boxes can backfill gaps beside/above
@@ -1715,8 +1576,7 @@ if st.button("Run AI Optimization"):
 
                 )
 
-            if not use_sardine:
-                packer.putOrder()
+            packer.putOrder()
 
             packed_geometries = []
 
