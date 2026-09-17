@@ -29,7 +29,6 @@
       "zone": "Zone A-1",
       "sequence": 1,
       "city": "Boston",
-      "handling": "Standard stackable",
       "tracking": "TRK-9101"
     },
     {
@@ -49,7 +48,6 @@
       "zone": "Zone C-2",
       "sequence": 2,
       "city": "Atlanta",
-      "handling": "Fragile - Base load only",
       "tracking": "TRK-9102"
     },
     {
@@ -69,7 +67,6 @@
       "zone": "Zone A-3",
       "sequence": 3,
       "city": "Phoenix",
-      "handling": "Standard stackable",
       "tracking": "TRK-9103"
     },
     {
@@ -89,7 +86,6 @@
       "zone": "Zone B-1",
       "sequence": 4,
       "city": "Portland",
-      "handling": "Side-wall vertical placement",
       "tracking": "TRK-9104"
     },
     {
@@ -109,7 +105,6 @@
       "zone": "Zone C-1",
       "sequence": 5,
       "city": "Austin",
-      "handling": "Fragile - Top load only",
       "tracking": "TRK-9105"
     },
     {
@@ -129,7 +124,6 @@
       "zone": "Zone B-3",
       "sequence": 6,
       "city": "Nashville",
-      "handling": "Heavy load - Lower deck",
       "tracking": "TRK-9106"
     },
     {
@@ -149,7 +143,6 @@
       "zone": "Zone A-2",
       "sequence": 7,
       "city": "Vegas",
-      "handling": "Standard stackable",
       "tracking": "TRK-9107"
     },
     {
@@ -169,7 +162,6 @@
       "zone": "Zone C-3",
       "sequence": 8,
       "city": "Charlotte",
-      "handling": "Fragile - Handle with care",
       "tracking": "TRK-9108"
     }
   ],
@@ -193,7 +185,7 @@
       "zone": "Zone C-3",
       "sequence": 8,
       "city": "Charlotte",
-      "handling": "Fragile - Handle with care",
+      "handling": "",
       "max_load": 10.0
     },
     {
@@ -215,7 +207,7 @@
       "zone": "Zone C-3",
       "sequence": 8,
       "city": "Charlotte",
-      "handling": "Fragile - Handle with care",
+      "handling": "",
       "max_load": 10.0
     },
     {
@@ -237,7 +229,7 @@
       "zone": "Zone C-3",
       "sequence": 8,
       "city": "Charlotte",
-      "handling": "Fragile - Handle with care",
+      "handling": "",
       "max_load": 10.0
     },
     {
@@ -259,7 +251,7 @@
       "zone": "Zone C-3",
       "sequence": 8,
       "city": "Charlotte",
-      "handling": "Fragile - Handle with care",
+      "handling": "",
       "max_load": 10.0
     },
     {
@@ -281,7 +273,7 @@
       "zone": "Zone C-3",
       "sequence": 8,
       "city": "Charlotte",
-      "handling": "Fragile - Handle with care",
+      "handling": "",
       "max_load": 10.0
     },
     {
@@ -303,7 +295,7 @@
       "zone": "Zone C-3",
       "sequence": 8,
       "city": "Charlotte",
-      "handling": "Fragile - Handle with care",
+      "handling": "",
       "max_load": 10.0
     },
     {
@@ -325,7 +317,7 @@
       "zone": "Zone C-3",
       "sequence": 8,
       "city": "Charlotte",
-      "handling": "Fragile - Handle with care",
+      "handling": "",
       "max_load": 10.0
     },
     {
@@ -347,7 +339,7 @@
       "zone": "Zone C-3",
       "sequence": 8,
       "city": "Charlotte",
-      "handling": "Fragile - Handle with care",
+      "handling": "",
       "max_load": 10.0
     },
     {
@@ -369,7 +361,7 @@
       "zone": "Zone C-3",
       "sequence": 8,
       "city": "Charlotte",
-      "handling": "Fragile - Handle with care",
+      "handling": "",
       "max_load": 10.0
     },
     {
@@ -391,7 +383,7 @@
       "zone": "Zone C-3",
       "sequence": 8,
       "city": "Charlotte",
-      "handling": "Fragile - Handle with care",
+      "handling": "",
       "max_load": 10.0
     },
     {
@@ -413,7 +405,7 @@
       "zone": "Zone A-2",
       "sequence": 7,
       "city": "Vegas",
-      "handling": "Standard stackable",
+      "handling": "",
       "max_load": 100.0
     },
     {
@@ -435,7 +427,7 @@
       "zone": "Zone A-2",
       "sequence": 7,
       "city": "Vegas",
-      "handling": "Standard stackable",
+      "handling": "",
       "max_load": 100.0
     },
     {
@@ -457,7 +449,7 @@
       "zone": "Zone A-2",
       "sequence": 7,
       "city": "Vegas",
-      "handling": "Standard stackable",
+      "handling": "",
       "max_load": 100.0
     },
     {
@@ -479,7 +471,7 @@
       "zone": "Zone A-2",
       "sequence": 7,
       "city": "Vegas",
-      "handling": "Standard stackable",
+      "handling": "",
       "max_load": 100.0
     },
     {
@@ -501,7 +493,7 @@
       "zone": "Zone A-2",
       "sequence": 7,
       "city": "Vegas",
-      "handling": "Standard stackable",
+      "handling": "",
       "max_load": 100.0
     },
     {
@@ -523,7 +515,7 @@
       "zone": "Zone A-2",
       "sequence": 7,
       "city": "Vegas",
-      "handling": "Standard stackable",
+      "handling": "",
       "max_load": 100.0
     },
     {
@@ -545,7 +537,7 @@
       "zone": "Zone A-2",
       "sequence": 7,
       "city": "Vegas",
-      "handling": "Standard stackable",
+      "handling": "",
       "max_load": 100.0
     },
     {
@@ -567,7 +559,7 @@
       "zone": "Zone A-2",
       "sequence": 7,
       "city": "Vegas",
-      "handling": "Standard stackable",
+      "handling": "",
       "max_load": 100.0
     },
     {
@@ -589,7 +581,7 @@
       "zone": "Zone A-2",
       "sequence": 7,
       "city": "Vegas",
-      "handling": "Standard stackable",
+      "handling": "",
       "max_load": 100.0
     },
     {
@@ -611,7 +603,7 @@
       "zone": "Zone A-2",
       "sequence": 7,
       "city": "Vegas",
-      "handling": "Standard stackable",
+      "handling": "",
       "max_load": 100.0
     },
     {
@@ -633,7 +625,7 @@
       "zone": "Zone A-2",
       "sequence": 7,
       "city": "Vegas",
-      "handling": "Standard stackable",
+      "handling": "",
       "max_load": 100.0
     },
     {
@@ -655,7 +647,7 @@
       "zone": "Zone A-2",
       "sequence": 7,
       "city": "Vegas",
-      "handling": "Standard stackable",
+      "handling": "",
       "max_load": 100.0
     },
     {
@@ -677,7 +669,7 @@
       "zone": "Zone A-2",
       "sequence": 7,
       "city": "Vegas",
-      "handling": "Standard stackable",
+      "handling": "",
       "max_load": 100.0
     },
     {
@@ -699,7 +691,7 @@
       "zone": "Zone A-2",
       "sequence": 7,
       "city": "Vegas",
-      "handling": "Standard stackable",
+      "handling": "",
       "max_load": 100.0
     },
     {
@@ -4461,7 +4453,6 @@
       "zone": "Zone A-1",
       "sequence": 1,
       "city": "Boston",
-      "handling": "Standard stackable",
       "tracking": "TRK-9101"
     },
     {
@@ -4481,7 +4472,6 @@
       "zone": "Zone C-2",
       "sequence": 2,
       "city": "Atlanta",
-      "handling": "Fragile - Base load only",
       "tracking": "TRK-9102"
     },
     {
@@ -4501,7 +4491,6 @@
       "zone": "Zone A-3",
       "sequence": 3,
       "city": "Phoenix",
-      "handling": "Standard stackable",
       "tracking": "TRK-9103"
     },
     {
@@ -4521,7 +4510,6 @@
       "zone": "Zone B-1",
       "sequence": 4,
       "city": "Portland",
-      "handling": "Side-wall vertical placement",
       "tracking": "TRK-9104"
     },
     {
@@ -4541,7 +4529,6 @@
       "zone": "Zone C-1",
       "sequence": 5,
       "city": "Austin",
-      "handling": "Fragile - Top load only",
       "tracking": "TRK-9105"
     },
     {
@@ -4561,7 +4548,6 @@
       "zone": "Zone B-3",
       "sequence": 6,
       "city": "Nashville",
-      "handling": "Heavy load - Lower deck",
       "tracking": "TRK-9106"
     },
     {
@@ -4581,7 +4567,6 @@
       "zone": "Zone A-2",
       "sequence": 7,
       "city": "Vegas",
-      "handling": "Standard stackable",
       "tracking": "TRK-9107"
     },
     {
@@ -4601,7 +4586,6 @@
       "zone": "Zone C-3",
       "sequence": 8,
       "city": "Charlotte",
-      "handling": "Fragile - Handle with care",
       "tracking": "TRK-9108"
     }
   ],

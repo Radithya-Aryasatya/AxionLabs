@@ -4,7 +4,10 @@ components/manager_controls.py
 Manager action strip + @st.dialog override modal for the tri-view panel.
 
 - render_manager_controls(fleet): the always-visible action strip
-  (Resolve / Override / Re-analyze / Mark Inspected).
+  (Resolve / Override / Re-analyze / Mark Inspected), plus the
+  "🖨 Print Invoice" download button once the dock has been
+  marked finished (services/invoice_generator.py builds the .docx
+  live from the fleet's packing data).
 - _override_dialog(fleet): a @st.dialog requiring a reason code before
   clearing a BLOCKED fleet — adds audit-theater for the pitch.
 """
@@ -105,6 +108,32 @@ def render_manager_controls(fleet: Fleet):
                             fleet.status = FleetStatus.INSPECTED_CLEAR
                         fleet.last_updated = datetime.now()
                         st.rerun()
+                elif has_packed_items and fleet.status == FleetStatus.INSPECTED_CLEAR:
+                    # "Mark as Finished" was pressed — offer the printable
+                    # Load & Packing Invoice, generated live from THIS dock's
+                    # fleet data (no demo numbers, no hardcoding).
+                    from services.invoice_generator import (
+                        build_invoice_docx, invoice_doc_id, invoice_filename,
+                        MIME_DOCX,
+                    )
+                    seq_key = f"invoice_seq_{fleet.dock_number}"
+                    doc_id = invoice_doc_id(
+                        fleet.dock_number, st.session_state.get(seq_key, 1))
+
+                    def _bump_invoice_seq(key=seq_key):
+                        # Bump AFTER a download so the next print gets a new
+                        # document-ID suffix (…-01, …-02, …).
+                        st.session_state[key] = st.session_state.get(key, 1) + 1
+
+                    st.download_button(
+                        "🖨 Print Invoice",
+                        data=build_invoice_docx(fleet, doc_id=doc_id),
+                        file_name=invoice_filename(fleet),
+                        mime=MIME_DOCX,
+                        key=f"invoice_{fleet.id}",
+                        on_click=_bump_invoice_seq,
+                        width="stretch",
+                    )
 
             # RIGHT slot — Run Re-Analysis (always the right-hand button).
             with slot_right:

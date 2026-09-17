@@ -1260,7 +1260,20 @@ if import_manifest and uploaded_file is not None:
                         else float("inf")
                     ),
 
-                    "sequence": int(row["Unloading Sequence"])
+                    "sequence": int(row["Unloading Sequence"]),
+
+                    # Optional enrichments for the printable Load & Packing
+                    # Invoice — older manifests without these columns
+                    # keep working (they simply stay blank).
+                    "package_id": (
+                        "" if pd.isna(row.get("Package ID"))
+                        else str(row.get("Package ID")).strip()
+                    ),
+
+                    "city": (
+                        "" if pd.isna(row.get("Destination City"))
+                        else str(row.get("Destination City")).strip()
+                    )
                 })
 
             st.session_state.import_queue = imported_items

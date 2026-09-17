@@ -21,6 +21,10 @@ class OrientationItem:
     quantity: int
     max_load: float
     sequence: int
+    # Invoice enrichments carried through untouched (the editor never edits
+    # them) — from the Excel import, for the Load & Packing Invoice.
+    package_id: str = ""
+    city: str = ""
 
 
 # ------------------------------------------------------------
@@ -310,6 +314,8 @@ def orientation_editor(item):
 
         info = {
             "Name": item.name,
+            "Package ID": item.package_id or "—",
+            "Destination": item.city or "—",
             "Weight": f"{item.weight} kg",
             "Quantity": item.quantity,
             "Maximum Supported Load": f"{item.max_load} kg",
@@ -400,6 +406,10 @@ def orientation_editor(item):
 
             "sequence": item.sequence,
 
+            "package_id": item.package_id,
+
+            "city": item.city,
+
             "orientation_index": st.session_state.orientation_index
         }
 
@@ -426,7 +436,9 @@ def launch_orientation_editor(
     weight,
     quantity,
     max_load,
-    sequence
+    sequence,
+    package_id="",
+    city=""
 ):
     """
     Launches the orientation editor.
@@ -459,7 +471,11 @@ def launch_orientation_editor(
 
         max_load=max_load,
 
-        sequence=sequence
+        sequence=sequence,
+
+        package_id=package_id,
+
+        city=city
     )
 
     return orientation_editor(item)

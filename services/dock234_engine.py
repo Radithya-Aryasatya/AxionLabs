@@ -419,7 +419,6 @@ def read_manifest_from_excel(xlsx_path: str):
         sequence = int(_c("unloading sequence"))
         city = str(_c("destination city"))
         zone = str(_c("storage zone"))
-        handling = str(_c("handling instructions"))
         out.append({
             "name": f"{package_id} {description}",
             "package_id": package_id,
@@ -431,7 +430,7 @@ def read_manifest_from_excel(xlsx_path: str):
             "sequence": sequence,
             "max_load": MAX_LOAD_FRAGILE if fragile else MAX_LOAD_SOLID,
             "fragile": fragile,
-            "city": city, "zone": zone, "handling": handling,
+            "city": city, "zone": zone,
             "tracking": str(_c("tracking number")),
             "description": description,
         })
@@ -467,7 +466,7 @@ def _normalize_row(r: dict) -> dict:
             "sequence": int(r["sequence"]),
             "max_load": MAX_LOAD_FRAGILE if r["fragile"] else MAX_LOAD_SOLID,
             "fragile": bool(r["fragile"]),
-            "city": r["city"], "zone": r["zone"], "handling": r["handling"],
+            "city": r["city"], "zone": r["zone"],
             "tracking": r["tracking"], "description": r["description"],
         }
     return r  # already a meters manifest dict
@@ -499,7 +498,7 @@ def build_layout(dock_number: int, manifest):
             "fragile": m["fragile"], "max_load": m["max_load"],
             "weight": m["weight"], "dimensions": [round(m["w"] * 100, 1), round(m["h"] * 100, 1), round(m["d"] * 100, 1)],
             "zone": m["zone"], "sequence": m["sequence"],
-            "city": m["city"], "handling": m["handling"],
+            "city": m["city"],
             "tracking": m["tracking"],
         })
 

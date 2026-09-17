@@ -9,8 +9,9 @@ How to swap a dock's cargo (VSCODE only — nothing to click in the app)
    Keep the FILE NAME the same. Keep the COLUMN NAMES the same:
      Package ID | Tracking Number | Item Description | Box Quantity |
      Box Weight (kg) | Length (cm) | Width (cm) | Height (cm) | Fragile |
-     Handling Instructions | Storage Zone | Unloading Sequence |
-     Destination City
+     Storage Zone | Unloading Sequence | Destination City
+   (Handling Instructions is intentionally NOT read anywhere anymore —
+   the app relies on the Fragile flag instead.)
    Sheet rule: the `Dock 2 - Demo` sheet is used when present,
    otherwise the first sheet.
 3. Refresh the Streamlit app (or press "Reset Mock Docks" once under
