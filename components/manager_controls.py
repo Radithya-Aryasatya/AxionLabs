@@ -61,33 +61,79 @@ def render_manager_controls(fleet: Fleet):
         [a for a in fleet.anomaly_history if not a.resolved]
     )
 
-    col1, col2, col3, col4 = st.columns(4)
+    # --- Centered action group (matches approved mockup): a narrow bordered
+    # box centered on the page holding TWO side-by-side buttons. Layout only —
+    # every button keeps its original label, key, condition and action.
+    left_pad, center_box, right_pad = st.columns([1, 2, 1])
+    with center_box:
+        with st.container(border=True):
+            slot_left, slot_right = st.columns(2)
 
-    with col1:
-        if has_unresolved_anomaly:
-            if st.button("✅ Resolve Anomaly", key=f"resolve_{fleet.id}",
-                         type="secondary", width="stretch"):
-                resolve_anomaly(fleet)
-                set_dock_stage(fleet.dock_number, DockStage.MONITORED)
-                push_notification(
-                    dock_number=fleet.dock_number, fleet_id=fleet.id,
-                    level="RESOLVED",
-                    title=f"Dock {fleet.dock_number} — anomaly resolved",
-                    body="Marked resolved by manager.",
-                )
-                st.toast(f"✅ Dock {fleet.dock_number} anomaly resolved",
-                         icon="✅")
-                st.rerun()
+            # LEFT slot — single primary action picked by dock state:
+            # Resolve (anomaly open) -> Manager Override (blocked) ->
+            # Mark Inspected (loading, scan done).
+            with slot_left:
+                if has_unresolved_anomaly:
+                    if st.button("✅ Resolve Anomaly", key=f"resolve_{fleet.id}",
+                                 type="secondary", width="stretch"):
+                        resolve_anomaly(fleet)
+                        set_dock_stage(fleet.dock_number, DockStage.MONITORED)
+                        push_notification(
+                            dock_number=fleet.dock_number, fleet_id=fleet.id,
+                            level="RESOLVED",
+                            title=f"Dock {fleet.dock_number} — anomaly resolved",
+                            body="Marked resolved by manager.",
+                        )
+                        st.toast(f"✅ Dock {fleet.dock_number} anomaly resolved",
+                                 icon="✅")
+                        st.rerun()
+                elif fleet.status == FleetStatus.BLOCKED:
+                    if st.button("🔓 Manager Override", key=f"override_{fleet.id}",
+                                 type="primary", width="stretch"):
+                        # Toggle an inline reason-code confirmation form
+                        st.session_state["override_open_" + fleet.id] = True
+                        st.rerun()
+                elif has_packed_items and fleet.status == FleetStatus.LOADING:
+                    if st.button("📋 Mark as Finished", key=f"inspected_{fleet.id}",
+                                 width="stretch"):
+                        if fleet.anomaly_history:
+                            unresolved = [a for a in fleet.anomaly_history
+                                          if not a.resolved]
+                            fleet.status = (FleetStatus.ANOMALY_DETECTED if unresolved
+                                            else FleetStatus.INSPECTED_CLEAR)
+                        else:
+                            fleet.status = FleetStatus.INSPECTED_CLEAR
+                        fleet.last_updated = datetime.now()
+                        st.rerun()
 
-    with col2:
-        if fleet.status == FleetStatus.BLOCKED:
-            if st.button("🔓 Manager Override", key=f"override_{fleet.id}",
-                         type="primary", width="stretch"):
-                # Toggle an inline reason-code confirmation form
-                st.session_state["override_open_" + fleet.id] = True
-                st.rerun()
-            # Inline confirmation form (renders right below the button)
-            if st.session_state.get("override_open_" + fleet.id):
+            # RIGHT slot — Run Re-Analysis (always the right-hand button).
+            with slot_right:
+                if has_packed_items and st.button("🔄 Run Re-Analysis", key=f"reanalyze_{fleet.id}",
+                             width="stretch"):
+                    from services.anomaly_engine import AnomalyEngine
+                    engine = AnomalyEngine()
+                    decision = engine.run_full_analysis(fleet)
+                    result = getattr(engine, 'last_result', None)
+                    if result is not None:
+                        fleet.gemini_analysis = result.to_dict()
+                    fleet.status = decision.fleet_status
+                    if decision.severity in ("WARNING", "CRITICAL"):
+                        fleet.anomaly_history.append(AnomalyRecord(
+                            anomaly_type=decision.anomaly_type,
+                            severity=decision.severity,
+                            timestamp=datetime.now(),
+                            analysis_paragraph=result.analysis_paragraph if result
+                            else decision.banner_message,
+                            affected_items=result.affected_items if result else [],
+                            recommended_actions=result.recommended_actions if result else [],
+                        ))
+                    fleet.last_updated = datetime.now()
+                    st.rerun()
+
+            # Override's inline reason form renders below the buttons, still
+            # inside the centered box (unchanged behaviour, same keys).
+            if fleet.status == FleetStatus.BLOCKED and st.session_state.get(
+                    "override_open_" + fleet.id):
                 st.markdown("**Select override reason:**")
                 reason = st.selectbox("Reason code", OVERRIDE_REASONS,
                                       key=f"override_reason_{fleet.id}")
@@ -106,40 +152,3 @@ def render_manager_controls(fleet: Fleet):
                         st.session_state["override_open_" + fleet.id] = False
                         _apply_override(fleet, reason, note)
                         st.rerun()
-
-    with col3:
-        if has_packed_items and st.button("🔄 Run Re-Analysis", key=f"reanalyze_{fleet.id}",
-                     width="stretch"):
-            from services.anomaly_engine import AnomalyEngine
-            engine = AnomalyEngine()
-            decision = engine.run_full_analysis(fleet)
-            result = getattr(engine, 'last_result', None)
-            if result is not None:
-                fleet.gemini_analysis = result.to_dict()
-            fleet.status = decision.fleet_status
-            if decision.severity in ("WARNING", "CRITICAL"):
-                fleet.anomaly_history.append(AnomalyRecord(
-                    anomaly_type=decision.anomaly_type,
-                    severity=decision.severity,
-                    timestamp=datetime.now(),
-                    analysis_paragraph=result.analysis_paragraph if result
-                    else decision.banner_message,
-                    affected_items=result.affected_items if result else [],
-                    recommended_actions=result.recommended_actions if result else [],
-                ))
-            fleet.last_updated = datetime.now()
-            st.rerun()
-
-    with col4:
-        if has_packed_items and fleet.status == FleetStatus.LOADING:
-            if st.button("📋 Mark Inspected", key=f"inspected_{fleet.id}",
-                         width="stretch"):
-                if fleet.anomaly_history:
-                    unresolved = [a for a in fleet.anomaly_history
-                                  if not a.resolved]
-                    fleet.status = (FleetStatus.ANOMALY_DETECTED if unresolved
-                                    else FleetStatus.INSPECTED_CLEAR)
-                else:
-                    fleet.status = FleetStatus.INSPECTED_CLEAR
-                fleet.last_updated = datetime.now()
-                st.rerun()

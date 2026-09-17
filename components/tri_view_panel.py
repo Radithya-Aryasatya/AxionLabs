@@ -91,7 +91,7 @@ def render_tri_view_panel(fleet: Fleet):
 
     # Panel 3: Cargo Manifest + Gemini Audit (full width)
     st.markdown("---")
-    st.markdown("### Cargo Manifest & Gemini AI Audit")
+    st.markdown("### Cargo Manifest Summary")
 
     col_right1, col_right2 = st.columns([1, 1])
 
