@@ -1,6 +1,11 @@
 #app.py
 import streamlit as st
 from py3dbp import Packer, Bin, Item
+from py3dbp import (
+    REJECTION_NO_SPACE,
+    REJECTION_OVERWEIGHT,
+    REJECTION_UNSTABLE,
+)
 from py3dbp.constants import RotationType
 import plotly.graph_objects as go
 from dataclasses import dataclass
@@ -249,6 +254,26 @@ def detect_floating_items(items: list[PackedItem], support_threshold: float = 0.
     return len(floating), floating
 
 
+# --- Human-readable labels for the 3 canonical rejection buckets -----------
+REJECTION_LABELS = {
+    REJECTION_NO_SPACE: "No space / geometry conflict",
+    REJECTION_OVERWEIGHT: "Exceeds truck weight capacity",
+    REJECTION_UNSTABLE: "Footprint instability (< 75% support)",
+}
+
+
+def get_engine_rejection_reason(item, bin_obj=None):
+    """Read an unpacked item's rejection reason (R1/R2/R3 taxonomy).
+
+    Priority: sticky-note on the item itself -> bin.unfitted_reasons map ->
+    safe default 'no_space'.
+    """
+    reason = getattr(item, "rejection_reason", None)
+    if not reason and bin_obj is not None:
+        reason = (getattr(bin_obj, "unfitted_reasons", {}) or {}).get(item.partno)
+    return reason or REJECTION_NO_SPACE
+
+
 
 def calculate_offloading_score(items, manifest_lookup):
     """
@@ -398,8 +423,14 @@ def pack_soft_lifo(packer, manifest):
         _still = []
         for _it in _bin.items:
             if _it.updown is False and _it.rotation_type not in RotationType.Notupdown:
+                # Tag the rejection reason so the report shows this item in
+                # the correct unpacked bucket (geometry conflict with an
+                # explicit orientation detail).
+                _it.rejection_reason = REJECTION_NO_SPACE
+                _it.rejection_detail = "forbidden tipped orientation (updown=False)"
                 try:
                     _bin.unfitted_items.append(_it)
+                    _bin.unfitted_reasons.setdefault(_it.partno, REJECTION_NO_SPACE)
                 except AttributeError:
                     pass
             else:
@@ -1742,6 +1773,51 @@ if 'last_packer' in st.session_state:
                 )
             )
 
+        # --- Rejection accounting: 3 reasons, exact packed/unpacked split ---
+        # 1) Engine-unpacked items (never placed) carry a rejection_reason tag
+        #    set by Bin.putItem: no_space / overweight / footprint_instability.
+        # 2) Post-layout floating check: the engine's stability math uses
+        #    int-truncated fit_items, so an item the engine accepted can still
+        #    rest on <75% of its footprint in float space. Such an item is
+        #    RECLASSIFIED from packed -> unpacked (footprint_instability) so
+        #    packed + unpacked == manifest total and no item is double counted.
+        floating_count, floating_names = detect_floating_items(
+            packed_geometries,
+            support_threshold=0.75
+        )
+        floating_set = set(floating_names)
+        reclassified_unstable = [
+            g for g in packed_geometries if g.name in floating_set
+        ]
+        if reclassified_unstable:
+            packed_geometries = [
+                g for g in packed_geometries if g.name not in floating_set
+            ]
+
+        # Build the unpacked report: engine rejects first (with their reason),
+        # then the reclassified unstable items.
+        unpacked_entries = []
+        seen_unpacked_names = set()
+        unfitted = getattr(b, 'unfitted_items', [])
+        for item in unfitted:
+            reason = get_engine_rejection_reason(item, b)
+            detail = getattr(item, 'rejection_detail', '') or ''
+            unpacked_entries.append(
+                {"name": item.name, "reason": reason, "detail": detail}
+            )
+            seen_unpacked_names.add(item.name)
+        for g in reclassified_unstable:
+            if g.name in seen_unpacked_names:
+                continue
+            unpacked_entries.append({
+                "name": g.name,
+                "reason": REJECTION_UNSTABLE,
+                "detail": "resting on less than 75% of its footprint (post-layout check)",
+            })
+            seen_unpacked_names.add(g.name)
+
+        # All utilization / safety / offloading metrics and the 3D view are
+        # computed on the FILTERED packed list only.
         utilization_rate = calculate_utilization(packed_geometries, truck_vol)
         load_distribution, support_graph = calculate_load_distribution(packed_geometries)
         offloading_score = calculate_offloading_score(
@@ -1763,6 +1839,15 @@ if 'last_packer' in st.session_state:
         with col1:
             total_items = sum(x["quantity"] for x in st.session_state.manifest)
             st.metric("Total Packed Count", f"{len(packed_geometries)} / {total_items}")
+            if unpacked_entries:
+                _reason_counts = {}
+                for e in unpacked_entries:
+                    _reason_counts[e["reason"]] = _reason_counts.get(e["reason"], 0) + 1
+                _breakdown = " · ".join(
+                    f"{REJECTION_LABELS.get(r, r).split(' (<')[0]}: {c}"
+                    for r, c in _reason_counts.items()
+                )
+                st.caption(f"Unpacked: {len(unpacked_entries)} — {_breakdown}")
         with col2:
             st.metric("Space Volume Utilization", f"{utilization_rate:.1f}%")
         with col3:
@@ -1776,14 +1861,10 @@ if 'last_packer' in st.session_state:
             st.caption(offloading_text)
 
         # --- Floating / cantilevered-item check (TASK 4.1B) ---
-        floating_count, floating_names = detect_floating_items(
-            packed_geometries,
-            support_threshold=0.75
-        )
-        if floating_count:
-            names_preview = ", ".join(floating_names[:8])
-            if len(floating_names) > 8:
-                names_preview += f" (+{len(floating_names) - 8} more)"
+        # floating_names were already RECLASSIFIED out of packed_geometries
+        # above; here we only surface the result.
+        if reclassified_unstable:
+            _names_preview = ", ".join(g.name for g in reclassified_unstable[:8])
         else:
             st.caption(
                 "✅ Floating-item check passed — every item rests on at least 75% "
@@ -1810,14 +1891,28 @@ if 'last_packer' in st.session_state:
                     f"cannot be unloaded without moving them first: {_preview}."
                 )
                 st.caption("💡 Try reducing the number of unloading sequences, or turn off \"Prioritize unloading sequence\" to let the AI optimize for space instead.")
-        unfitted = getattr(b, 'unfitted_items', [])
-        has_problems = bool(unfitted) or bool(floating_count)
-        if has_problems:
+        if unpacked_entries:
             st.subheader("⚠️ Unpacked Items (Rejected By Constraints)")
-            for item in unfitted:
-                st.error(f"**{item.name}** could not be packed securely. Adjust dimensions or stack settings.")
-            for name in floating_names:
-                st.error(f"**{name}** unstable: resting on less than 75% of its footprint.")
+            for _reason in (REJECTION_NO_SPACE, REJECTION_OVERWEIGHT, REJECTION_UNSTABLE):
+                _grp = [e for e in unpacked_entries if e["reason"] == _reason]
+                if not _grp:
+                    continue
+                st.markdown(
+                    f"**{REJECTION_LABELS.get(_reason, _reason)}** "
+                    f"— {len(_grp)} item(s)"
+                )
+                for e in _grp:
+                    if _reason == REJECTION_NO_SPACE:
+                        _msg = "could not fit — no space / geometry conflict."
+                    elif _reason == REJECTION_OVERWEIGHT:
+                        _msg = "exceeds the truck's maximum weight capacity."
+                    else:
+                        _msg = "unstable: resting on less than 75% of its footprint."
+                    st.error(f"**{e['name']}** {_msg}")
+        else:
+            st.caption(
+                "✅ All cargo packed — packed + unpacked matches the manifest total."
+            )
 
         # --------------------------------------------------
         # 3D Render + Depth-Reveal Slider (isolated fragment)

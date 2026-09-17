@@ -11,6 +11,30 @@ import copy
 DEFAULT_NUMBER_OF_DECIMALS = 0
 START_POSITION = [0, 0, 0]
 
+# --- Rejection-reason taxonomy (3 canonical buckets) -------------------------
+# Every item that fails to pack is tagged with exactly ONE of these on the
+# item itself (item.rejection_reason) AND recorded per-bin in
+# bin.unfitted_reasons[partno]. Reporting layers (app.py, fleet_state) read
+# these instead of guessing, so "packed vs unpacked" accounting is exact and
+# packed + unpacked == total_items always holds.
+REJECTION_NO_SPACE = "no_space"
+REJECTION_OVERWEIGHT = "overweight"
+REJECTION_UNSTABLE = "footprint_instability"
+
+
+def _set_rejection(item, reason, detail=""):
+    '''Tag an item with its rejection reason (sticky-note, side-channel).
+
+    Kept as a side attribute so Bin.putItem keeps its plain bool return
+    value — no existing caller breaks. detail is a human-readable hint that
+    reporting layers may show.
+    '''
+    try:
+        item.rejection_reason = reason
+        item.rejection_detail = detail
+    except AttributeError:
+        pass
+
 
 
 class Item:
@@ -35,6 +59,11 @@ class Item:
         self.rotation_type = 0
         self.position = START_POSITION
         self.number_of_decimals = DEFAULT_NUMBER_OF_DECIMALS
+        # Rejection sticky-note: WHY this item could not be packed (if not).
+        # None while packed/untouched; one of the REJECTION_* constants once
+        # a placement attempt failed. Preserved through copy.deepcopy.
+        self.rejection_reason = None
+        self.rejection_detail = ""
 
 
     def formatNumbers(self, number_of_decimals):
@@ -100,6 +129,10 @@ class Bin:
         self.items = []
         self.fit_items = np.array([[0,WHD[0],0,WHD[1],0,0]])
         self.unfitted_items = []
+        # partno -> REJECTION_* constant. Written by Packer.pack2Bin whenever
+        # an item lands in unfitted_items, so the report can split unpacked
+        # items into no_space / overweight / footprint_instability.
+        self.unfitted_reasons = {}
         self.number_of_decimals = DEFAULT_NUMBER_OF_DECIMALS
         self.fix_point = False
         self.check_stable = False
@@ -156,6 +189,10 @@ class Bin:
         fit = False
         valid_item_position = item.position
         item.position = pivot
+        # Sticky-note default: R1 (no_space) until a more specific failure
+        # overwrites it. Cleared again the moment the item is placed, so a
+        # packed item never carries a stale rejection reason.
+        _set_rejection(item, REJECTION_NO_SPACE, "no valid placement found")
         rotate = RotationType.ALL if item.updown == True else RotationType.Notupdown
 
         # Iterate over the rotation types themselves (not their positions in
@@ -181,12 +218,23 @@ class Bin:
                 float(self.height) < _py + _dh or
                 float(self.depth) < _pz + _dd
             ):
+                # Out of bounds for this pose: R1 (no_space). Try next
+                # rotation before giving up.
+                _set_rejection(
+                    item, REJECTION_NO_SPACE,
+                    "exceeds bin bounds in every allowed orientation",
+                )
                 continue
             fit = True
 
             for current_item_in_bin in self.items:
                 if intersect(current_item_in_bin, item):
                     fit = False
+                    # Collides with an already-placed box at this pivot: R1.
+                    _set_rejection(
+                        item, REJECTION_NO_SPACE,
+                        "overlaps an already-packed box at every tried position",
+                    )
                     break
 
             # Soft-LIFO accessibility at the pivot: reject a pivot that would
@@ -196,11 +244,23 @@ class Bin:
             # other, so they are always allowed.
             if fit and not self._isAccessibleAt(_px, _py, _pz, _dw, _dh, _dd, seq):
                 fit = False
+                # Sub-tag of R1: this pivot would trap the box behind a
+                # later-unloading box (soft-LIFO accessibility).
+                _set_rejection(
+                    item, REJECTION_NO_SPACE,
+                    "trapped behind a later-unloading box (soft-LIFO)",
+                )
 
             if fit:
                 # cal total weight
                 if self.getTotalWeight() + item.weight > self.max_weight:
                     fit = False
+                    # R2: bin payload would be exceeded. No later rotation
+                    # changes the weight, so fail immediately.
+                    _set_rejection(
+                        item, REJECTION_OVERWEIGHT,
+                        "bin max weight would be exceeded",
+                    )
                     return fit
 
                 # Sequence-mode fast path: prefer placing the box exactly at the
@@ -212,6 +272,10 @@ class Bin:
                     if self._tryPlaceAtPivot(
                         item, _px, _py, _pz, _dw, _dh, _dd, seq=seq,
                     ):
+                        # Placed: clear the sticky-note left by earlier failed
+                        # rotations of this same call so a packed item never
+                        # carries a stale rejection reason.
+                        _set_rejection(item, None)
                         return True
                     # fall through to settling
 
@@ -247,6 +311,12 @@ class Bin:
                         if intersect(current_item_in_bin, item):
                             item.position = valid_item_position
                             fit = False
+                            # R1: collides at the SETTLED position (after
+                            # checkHeight/Width/Depth slid it there).
+                            _set_rejection(
+                                item, REJECTION_NO_SPACE,
+                                "collides with a packed box after position settling",
+                            )
                             return fit
 
                     # Soft-LIFO accessibility re-check at the settled position:
@@ -259,6 +329,11 @@ class Bin:
                     ):
                         item.position = valid_item_position
                         fit = False
+                        # Sub-tag of R1: trapped behind a later-unloading box.
+                        _set_rejection(
+                            item, REJECTION_NO_SPACE,
+                            "trapped behind a later-unloading box (soft-LIFO)",
+                        )
                         return fit
 
                     # check stability on item
@@ -303,12 +378,17 @@ class Bin:
 
                         # Check stability rules
                         stable = True
+                        stability_detail = ""
                         if support_area_upper is not None:
                             # Rule 1: support ratio must meet threshold
                             if support_area_upper / item_area_lower < self.support_surface_ratio:
                                 # Rule 2: four vertices (only if minimum support met)
                                 if support_area_upper / item_area_lower < MIN_VERTEX_RULE_SUPPORT:
                                     stable = False
+                                    stability_detail = (
+                                        "rests on less than 25% of its footprint "
+                                        "(below minimum vertex-rule support)"
+                                    )
                                 else:
                                     four_vertices = [[x,z],[x+float(w),z],[x,z+float(d)],[x+float(w),z+float(d)]]
                                     c = [False,False,False,False]
@@ -319,9 +399,14 @@ class Bin:
                                                     c[jdx] = True
                                     if False in c:
                                         stable = False
+                                        stability_detail = (
+                                            "support below threshold and not all 4 "
+                                            "footprint corners are supported"
+                                        )
                             # Rule 3: center of mass must be supported
                             if stable and not center_supported:
                                 stable = False
+                                stability_detail = "center of mass is not supported"
 
                         if not stable:
                             # Slide-to-support rescue: try sliding toward the largest supporter
@@ -405,12 +490,25 @@ class Bin:
                             if not rescued:
                                 item.position = valid_item_position
                                 fit = False
+                                # R3: footprint instability — THE reported bug.
+                                # An item that fails the support/stability rules
+                                # must be strictly UNPACKED, never counted as
+                                # packed. Tag the reason so reporting can show
+                                # it in the footprint_instability bucket.
+                                _set_rejection(
+                                    item, REJECTION_UNSTABLE,
+                                    stability_detail or
+                                    "footprint not sufficiently supported",
+                                )
                                 return fit
 
                     self.fit_items = np.append(self.fit_items,np.array([[x,x+float(w),y,y+float(h),z,z+float(d)]]),axis=0)
                     item.position = [set2Decimal(x),set2Decimal(y),set2Decimal(z)]
 
                 if fit :
+                    # Placed: clear the sticky-note left by earlier failed
+                    # rotations of this same call.
+                    _set_rejection(item, None)
                     self.items.append(copy.deepcopy(item))
 
             else :
@@ -738,6 +836,11 @@ class Packer:
             response = bin.putItem(item, item.position, seq=seq)
             if not response:
                 bin.unfitted_items.append(item)
+                # Record WHY (no_space / overweight / footprint_instability)
+                # so the packed-vs-unpacked report is exact.
+                bin.unfitted_reasons[item.partno] = (
+                    item.rejection_reason or REJECTION_NO_SPACE
+                )
             return
 
         # Soft-LIFO: when a sequence is set, STACK vertically first
@@ -769,6 +872,12 @@ class Packer:
 
         if not fitted:
             bin.unfitted_items.append(item)
+            # Record WHY (no_space / overweight / footprint_instability).
+            # item.rejection_reason holds the failure of the LAST attempted
+            # pivot/rotation, which is the most specific reason available.
+            bin.unfitted_reasons[item.partno] = (
+                item.rejection_reason or REJECTION_NO_SPACE
+            )
 
 
     def sortBinding(self,bin):
@@ -1368,7 +1477,15 @@ class Packer:
             still_fitted = []
             for item in bin.items:
                 if item.updown == False and item.rotation_type not in RotationType.Notupdown:
+                    # Tag the reason before moving to unpacked: forbidden
+                    # tipped orientation is a geometry rejection (R1 bucket)
+                    # with an explicit detail.
+                    _set_rejection(
+                        item, REJECTION_NO_SPACE,
+                        "forbidden tipped orientation (updown=False)",
+                    )
                     bin.unfitted_items.append(item)
+                    bin.unfitted_reasons.setdefault(item.partno, REJECTION_NO_SPACE)
                 else:
                     still_fitted.append(item)
             bin.items = still_fitted
@@ -1378,10 +1495,70 @@ class Packer:
 
         if self.items != []:
             self.unfit_items = copy.deepcopy(self.items)
+            for _it in self.unfit_items:
+                # Items that never made it into ANY bin keep whatever reason
+                # their last placement attempt produced; default to R1.
+                if getattr(_it, 'rejection_reason', None) is None:
+                    _set_rejection(_it, REJECTION_NO_SPACE, "remaining after packing")
             self.items = []
         # for item in self.items.copy():
         #     if item in bin.unfitted_items:
         #         self.items.remove(item)
+
+    def summary_counts(self):
+        '''Accurate packed/unpacked accounting with rejection reasons.
+
+        Guarantees the report invariant:
+            len(packed_items) + len(unpacked_items) == total items offered
+        and no item is ever counted as BOTH packed and unpacked (deduped by
+        partno across bins, leftover packer.items and packer.unfit_items).
+
+        Returns dict:
+            packed         -> int
+            unpacked       -> int
+            by_reason      -> {REJECTION_*: count}
+            packed_items   -> [Item]
+            unpacked_items -> [Item]
+        '''
+        packed_items = []
+        unpacked_items = []
+        seen_packed = set()
+        seen_unpacked = set()
+
+        for bin in self.bins:
+            for it in bin.items:
+                if it.partno not in seen_packed:
+                    seen_packed.add(it.partno)
+                    packed_items.append(it)
+            for it in getattr(bin, 'unfitted_items', []):
+                if it.partno in seen_packed or it.partno in seen_unpacked:
+                    continue
+                seen_unpacked.add(it.partno)
+                unpacked_items.append(it)
+
+        # Items still in the queue (the soft-LIFO path leaves them here) or
+        # moved to the leftover list by pack(): both mean "unpacked".
+        for source in (self.items, self.unfit_items):
+            for it in source:
+                if it.partno in seen_packed or it.partno in seen_unpacked:
+                    continue
+                seen_unpacked.add(it.partno)
+                unpacked_items.append(it)
+
+        by_reason = {}
+        for it in unpacked_items:
+            reason = getattr(it, 'rejection_reason', None)
+            if not reason:
+                reason = REJECTION_NO_SPACE
+            by_reason[reason] = by_reason.get(reason, 0) + 1
+
+        return {
+            "packed": len(packed_items),
+            "unpacked": len(unpacked_items),
+            "by_reason": by_reason,
+            "packed_items": packed_items,
+            "unpacked_items": unpacked_items,
+        }
 
 
 
