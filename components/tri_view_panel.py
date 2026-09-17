@@ -16,7 +16,11 @@ from state.fleet_state import (
 )
 from services.anomaly_engine import AnomalyEngine
 from components.cctv_feed import render_cctv_feed
-from components.digital_twin import render_digital_twin
+from components.digital_twin import (
+    render_digital_twin,
+    render_digital_twin_body,
+    render_digital_twin_more,
+)
 from components.cargo_manifest_panel import render_cargo_manifest
 from components.gemini_audit import render_gemini_audit
 from components.manager_controls import render_manager_controls
@@ -43,8 +47,9 @@ def render_tri_view_panel(fleet: Fleet):
 
     st.markdown("---")
 
-    # --- Three-Panel Layout ---
-    # Panel 1: CCTV Feed | Panel 2: Digital Twin
+    # --- Two-Panel Layout, split into TWO ROWS so we get TWO alignment
+    # locks: Row 1 (same row => tops align) holds the headings + pictures;
+    # Row 2 (same row => the two "More" buttons align) holds the expanders.
     col_left, col_center = st.columns([1, 1])
 
     with col_left:
@@ -56,11 +61,6 @@ def render_tri_view_panel(fleet: Fleet):
             dock_number=fleet.dock_number,
             cctv_frame_path=effective_cctv,
         )
-        # Task 4.1: allow changing the CCTV image from the individual dock
-        # screening/inspection view only. The dashboard must NOT expose this.
-        with st.expander("More", expanded=False):
-            from services.cctv_manager import render_cctv_change_control
-            render_cctv_change_control(fleet.dock_number)
 
         # Surface staleness: if the CCTV evidence changed after the last scan,
         # tell the operator the displayed result no longer reflects the current
@@ -75,7 +75,19 @@ def render_tri_view_panel(fleet: Fleet):
 
     with col_center:
         st.markdown("### Digital Twin (3D Bin Packing Plan)")
-        render_digital_twin(fleet)
+        render_digital_twin_body(fleet)
+
+    # --- Row 2: the two "More" expanders, side by side so they always
+    # start at the same height (same-row alignment lock).
+    more_left, more_center = st.columns([1, 1])
+    with more_left:
+        # Task 4.1: allow changing the CCTV image from the individual dock
+        # screening/inspection view only. The dashboard must NOT expose this.
+        with st.expander("More", expanded=False):
+            from services.cctv_manager import render_cctv_change_control
+            render_cctv_change_control(fleet.dock_number)
+    with more_center:
+        render_digital_twin_more(fleet)
 
     # Panel 3: Cargo Manifest + Gemini Audit (full width)
     st.markdown("---")
