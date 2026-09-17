@@ -2,9 +2,9 @@
   "id": "Fleet Monitoring | Dock 4",
   "truck_name": "Placeholder Truck Dock-4",
   "truck_dimensions": [
-    2.0,
-    2.0,
-    4.0
+    2.4,
+    2.4,
+    6.0
   ],
   "fill_percentage": 72.5,
   "loading_in_progress": true,

@@ -43,14 +43,30 @@ def render_digital_twin(fleet: Fleet):
         unfitted = layout.get('unfitted_items', [])
         st.metric("Unfitted", f"{len(unfitted)}")
 
-    # --- Extract and display the exact figure from the worker panel ---
+    # --- Extract and display the figure ---
     # Per-fleet lookup keyed by bin part number (matches
-    # fleet.packing_layout['layout']['part_number'] set in
-    # register_fleet_from_packing_result), so each fleet's twin shows its own
-    # layout. Falls back to the latest rendered figure for compatibility.
+    # fleet.packing_layout['layout']['part_number']). Falls back to a
+    # live rebuild from packed_items (Gold-Standard shared painter), so a
+    # stale/missing cache can NEVER render an empty truck again. Final
+    # fallback is the latest worker figure for backwards compatibility.
     figures = st.session_state.get('fleet_3d_figures', {})
     part_no = layout.get('part_number', '')
-    fig = figures.get(part_no) or st.session_state.get('last_3d_figure')
+    fig = figures.get(part_no)
+    if fig is None and packed_items:
+        try:
+            from services.twin_figure import build_twin_figure
+            fig = build_twin_figure(
+                packed_items,
+                tuple(fleet.truck_dimensions),
+                part_no,
+            )
+            if fig is not None and part_no:
+                st.session_state.setdefault(
+                    'fleet_3d_figures', {})[part_no] = fig
+        except Exception:
+            fig = None
+    if fig is None:
+        fig = st.session_state.get('last_3d_figure')
 
     if fig is not None:
         st.plotly_chart(

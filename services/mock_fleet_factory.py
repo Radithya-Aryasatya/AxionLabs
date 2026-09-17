@@ -4,14 +4,15 @@ services/mock_fleet_factory.py
 Editable placeholder mock fleets for the Hybrid Executive Fleet Diagnostic Center.
 
 Docks 2, 3, 4 are IDENTICAL pages to Dock 1 (same tri-view panel) but driven by
-EDITABLE placeholder files you can swap without touching code:
+SWAPPABLE manifest Excels (VSCODE only, no UI control):
 
   1. CCTV feed  ->  assets/cctv_frames/cctv_dock{N}.jpg   (replace the file)
-  2. 3D layout  ->  assets/mock_docks/mock_layout_dock{N}.json  (edit the JSON)
+  2. Cargo      ->  dock_manifests/dock{N}_manifest.xlsx  (overwrite the file,
+      keep the name + column headers, refresh the app - the twin rebuilds)
 
-On first run each missing file is written with a sensible default
-(All docks = LOADING) so the demo works
-out-of-the-box. Edit the JSON -> the page updates on next rerun.
+The built 3D JSON (assets/mock_docks/mock_layout_dock{N}.json) is GENERATED
+output - do not hand-edit it; it is rebuilt from the Excel automatically.
+All docks share the Dock-1 truck: 2.4 x 2.4 x 6.0 m.
 """
 
 import json
@@ -29,6 +30,7 @@ _BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 _IMG_DIR = os.path.join(_BASE_DIR, "img")
 _CCTV_DIR = os.path.join(_BASE_DIR, "assets", "cctv_frames")
 _MOCK_DIR = os.path.join(_BASE_DIR, "assets", "mock_docks")
+_MANIFEST_DIR = os.path.join(_BASE_DIR, "dock_manifests")
 
 
 # --- CCTV asset pinning (deterministic) ---
@@ -79,7 +81,7 @@ def _default_layout(dock_number: int) -> dict:
     base = {
         'id': f'Fleet Monitoring | Dock {dock_number}',
         'truck_name': f'Placeholder Truck Dock-{dock_number}',
-        'truck_dimensions': [2.0, 2.0, 4.0],
+        'truck_dimensions': [2.4, 2.4, 6.0],
         'fill_percentage': 72.5,
         'loading_in_progress': False,
         'doors_closing': False,
@@ -111,6 +113,45 @@ def _default_layout(dock_number: int) -> dict:
     return base
 
 
+def _manifest_file_path(dock_number: int) -> str:
+    """Swap-folder Excel for a dock (VSCODE drop-in, no UI)."""
+    return os.path.join(_MANIFEST_DIR, f"dock{dock_number}_manifest.xlsx")
+
+
+def _rebuild_layout_from_manifest(dock_number: int) -> bool:
+    """Rebuild a dock's JSON twin from its swap-folder Excel.
+
+    Returns True when the JSON was regenerated. Missing Excel = keep the
+    current JSON (placeholder docks). Broken Excel = keep last good JSON
+    and print a terminal warning (dashboard never crashes).
+    """
+    xlsx = _manifest_file_path(dock_number)
+    if not os.path.isfile(xlsx):
+        return False
+    try:
+        import importlib.util
+        spec = importlib.util.spec_from_file_location(
+            "build_dock_twins",
+            os.path.join(_BASE_DIR, "tools", "build_dock_twins.py"),
+        )
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        rows = mod.read_demo_sheet(xlsx)
+        layout = mod.build_layout(dock_number, rows)
+    except Exception as exc:  # keep last good JSON, warn in terminal only
+        print(f"[dock_manifests] WARNING: dock{dock_number}_manifest.xlsx "
+              f"could not be read ({exc}); keeping last good layout.")
+        return False
+    try:
+        with open(_layout_file_path(dock_number), "w") as fh:
+            json.dump(layout, fh, indent=2)
+        return True
+    except Exception as exc:
+        print(f"[dock_manifests] WARNING: could not write layout for dock "
+              f"{dock_number} ({exc}).")
+        return False
+
+
 def _load_mock_layout(dock_number: int) -> dict:
     """Load a mock dock's editable layout from its JSON file,
     writing the default file if it doesn't exist yet."""
@@ -126,71 +167,31 @@ def _load_mock_layout(dock_number: int) -> dict:
 
 
 # --- Deterministic 3D twin figure builder ---
+# Gold Standard: every dock uses the SAME solid-box painter as Dock 1
+# (services/twin_figure.py). The old translucent per-face drawer is gone.
 
-def _build_twin_figure(packed_items, part_number):
-    """Build a lightweight Plotly 3D figure from packed-item dicts.
-    Deterministic — no randomness — so the twin is stable across reruns."""
+
+def _build_twin_figure(packed_items, part_number, truck_dims_m=(2.4, 2.4, 6.0)):
+    """Build the Gold-Standard twin figure via the shared painter."""
     try:
-        import plotly.graph_objects as go
+        from services.twin_figure import build_twin_figure
     except ImportError:
         return None
-
-    traces = []
-    if packed_items:
-        max_x = max(i['position'][0] + i['dimensions'][0] for i in packed_items)
-        max_y = max(i['position'][1] + i['dimensions'][1] for i in packed_items)
-        max_z = max(i['position'][2] + i['dimensions'][2] for i in packed_items)
-    else:
-        max_x, max_y, max_z = 200, 200, 400
-    corners = [(0, 0, 0), (max_x, 0, 0), (max_x, max_y, 0), (0, max_y, 0),
-               (0, 0, max_z), (max_x, 0, max_z), (max_x, max_y, max_z), (0, max_y, max_z)]
-    edges = [(0, 1), (1, 2), (2, 3), (3, 0), (4, 5), (5, 6), (6, 7), (7, 4),
-             (0, 4), (1, 5), (2, 6), (3, 7)]
-    for a, b in edges:
-        traces.append(go.Scatter3d(
-            x=[corners[a][0], corners[b][0]],
-            y=[corners[a][1], corners[b][1]],
-            z=[corners[a][2], corners[b][2]],
-            mode='lines', line=dict(color='#475569', width=2),
-            showlegend=False, hoverinfo='skip',
-        ))
-
-    palette = ["#3B82F6", "#10B981", "#F59E0B", "#EF4444", "#8B5CF6", "#06B6D4"]
-    for i, item in enumerate(packed_items):
-        px, py, pz = item['position']
-        dx, dy, dz = item['dimensions']
-        color = palette[i % len(palette)]
-        v = [(px, py, pz), (px + dx, py, pz), (px + dx, py + dy, pz), (px, py + dy, pz),
-             (px, py, pz + dz), (px + dx, py, pz + dz),
-             (px + dx, py + dy, pz + dz), (px, py + dy, pz + dz)]
-        faces = [(0, 1, 2, 3), (4, 5, 6, 7), (0, 1, 5, 4),
-                 (2, 3, 7, 6), (0, 3, 7, 4), (1, 2, 6, 5)]
-        for f in faces:
-            traces.append(go.Mesh3d(
-                x=[v[idx][0] for idx in f], y=[v[idx][1] for idx in f],
-                z=[v[idx][2] for idx in f],
-                color=color, opacity=0.7, alphahull=0, hoverinfo='skip',
-                showlegend=False,
-            ))
-
-    fig = go.Figure(data=traces)
-    fig.update_layout(
-        scene=dict(xaxis_title='X', yaxis_title='Y', zaxis_title='Z',
-                   aspectmode='data'),
-        margin=dict(l=0, r=0, t=0, b=0),
-        paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
-    )
-    return fig
+    return build_twin_figure(packed_items, truck_dims_m, part_number)
 
 
 def _build_fleet_from_layout(data: dict):
     """Construct a Fleet + packed_items from an editable layout dict."""
     packed = data['packed_items']
+    # All docks share the Dock-1 truck: 2.4 x 2.4 x 6.0 m = 240 x 240 x 600 cm.
+    truck_dims_m = tuple(data.get('truck_dimensions', [2.4, 2.4, 6.0]))
+    whd_cm = (truck_dims_m[0] * 100.0, truck_dims_m[1] * 100.0, truck_dims_m[2] * 100.0)
     layout_data = {
         'part_number': f"MOCK-D{data.get('dock_number', '?')}",
-        'WHD': (200.0, 200.0, 400.0),
+        'WHD': whd_cm,
         'packed_items': packed,
-        'unfitted_items': [],
+        'unfitted_items': [{'name': u.get('name', ''), 'part_number': ''}
+                            for u in data.get('unfitted_detail', [])],
         'gravity': [25, 25, 25, 25],
     }
     status_map = {
@@ -216,7 +217,7 @@ def _build_fleet_from_layout(data: dict):
     fleet = Fleet(
         id=data.get('id', 'Fleet Monitoring | Dock 2'),
         dock_number=data.get('dock_number', 2),
-        truck_dimensions=tuple(data.get('truck_dimensions', [2.0, 2.0, 4.0])),
+        truck_dimensions=tuple(data.get('truck_dimensions', [2.4, 2.4, 6.0])),
         manifest=data.get('manifest', []),
         packing_layout={
             'layout': layout_data,
@@ -301,6 +302,16 @@ def seed_mock_docks():
     fleet_id_map = _mock_fleet_id_map()
 
     for dock_number in (2, 3, 4):
+        # Swap-folder pipeline: a newer Excel in dock_manifests/ rebuilds
+        # the JSON twin BEFORE the hash check, so dropping in a new file
+        # in VSCODE is enough - no UI control, no code edit.
+        xlsx_hash = _file_content_hash(_manifest_file_path(dock_number))
+        old_xlsx_hash = st.session_state.get('mock_manifest_hashes', {}).get(
+            dock_number)
+        if xlsx_hash and xlsx_hash != old_xlsx_hash:
+            _rebuild_layout_from_manifest(dock_number)
+            st.session_state.setdefault(
+                'mock_manifest_hashes', {})[dock_number] = xlsx_hash
         layout_path = _layout_file_path(dock_number)
         new_hash = _file_content_hash(layout_path)
         old_hash = st.session_state.get('mock_layout_hashes', {}).get(dock_number)
@@ -350,11 +361,15 @@ def seed_mock_docks():
         ]
         st.session_state.active_fleets.append(fleet)
 
-        # Per-dock twin figure so each dock shows its own layout
-        fig = _build_twin_figure(packed, f'MOCK-D{dock_number}')
+        # Per-dock twin figure (Gold-Standard shared painter), keyed by the
+        # SAME part_number the tri-view panel looks up, so the lookup can
+        # never miss. Truck dims come from the JSON (2.4 x 2.4 x 6.0 m).
+        part_no = fleet.packing_layout['layout']['part_number']
+        fig = _build_twin_figure(packed, part_no,
+                                 tuple(data.get('truck_dimensions',
+                                                [2.4, 2.4, 6.0])))
         if fig is not None:
-            st.session_state.setdefault('fleet_3d_figures', {})[
-                f'MOCK-D{dock_number}'] = fig
+            st.session_state.setdefault('fleet_3d_figures', {})[part_no] = fig
 
         upsert_dock_fleet(dock_number, fleet.id)
         set_dock_stage(dock_number, DockStage.MONITORED)
