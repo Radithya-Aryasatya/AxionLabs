@@ -3605,31 +3605,45 @@
   "unfitted_detail": [
     {
       "name": "PKG-2007 Bulk Office Paper Trays #150",
-      "part_number": "PKG-2007 Bulk Office Paper Trays #150"
+      "part_number": "ITEM-149",
+      "reason": "no_space",
+      "detail": "exceeds bin bounds in every allowed orientation"
     },
     {
       "name": "PKG-2007 Bulk Office Paper Trays #151",
-      "part_number": "PKG-2007 Bulk Office Paper Trays #151"
+      "part_number": "ITEM-150",
+      "reason": "no_space",
+      "detail": "exceeds bin bounds in every allowed orientation"
     },
     {
       "name": "PKG-2007 Bulk Office Paper Trays #152",
-      "part_number": "PKG-2007 Bulk Office Paper Trays #152"
+      "part_number": "ITEM-151",
+      "reason": "no_space",
+      "detail": "exceeds bin bounds in every allowed orientation"
     },
     {
       "name": "PKG-2007 Bulk Office Paper Trays #153",
-      "part_number": "PKG-2007 Bulk Office Paper Trays #153"
+      "part_number": "ITEM-152",
+      "reason": "no_space",
+      "detail": "exceeds bin bounds in every allowed orientation"
     },
     {
       "name": "PKG-2007 Bulk Office Paper Trays #154",
-      "part_number": "PKG-2007 Bulk Office Paper Trays #154"
+      "part_number": "ITEM-153",
+      "reason": "no_space",
+      "detail": "exceeds bin bounds in every allowed orientation"
     },
     {
       "name": "PKG-2007 Bulk Office Paper Trays #155",
-      "part_number": "PKG-2007 Bulk Office Paper Trays #155"
+      "part_number": "ITEM-154",
+      "reason": "no_space",
+      "detail": "exceeds bin bounds in every allowed orientation"
     },
     {
       "name": "PKG-2007 Bulk Office Paper Trays #156",
-      "part_number": "PKG-2007 Bulk Office Paper Trays #156"
+      "part_number": "ITEM-155",
+      "reason": "no_space",
+      "detail": "exceeds bin bounds in every allowed orientation"
     }
   ],
   "status": "LOADING",

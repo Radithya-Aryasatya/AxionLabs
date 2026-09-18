@@ -190,8 +190,11 @@ def _build_fleet_from_layout(data: dict):
         'part_number': f"MOCK-D{data.get('dock_number', '?')}",
         'WHD': whd_cm,
         'packed_items': packed,
-        'unfitted_items': [{'name': u.get('name', ''), 'part_number': ''}
-                            for u in data.get('unfitted_detail', [])],
+        'unfitted_items': [{'name': u.get('name', ''),
+                            'part_number': u.get('part_number', ''),
+                            'reason': u.get('reason', 'no_space') or 'no_space',
+                            'detail': u.get('detail', '')}
+                           for u in data.get('unfitted_detail', [])],
         'gravity': [25, 25, 25, 25],
     }
     status_map = {

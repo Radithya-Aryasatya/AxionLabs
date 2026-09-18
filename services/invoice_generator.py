@@ -55,6 +55,14 @@ _INVOICE_COMPANY = "PT. Kawan Lama Sejahtera"
 _INVOICE_TITLE = "LOAD & PACKING INVOICE"
 _DASH = "—"
 
+# Same labels the worker / executive dashboards use for the 3 canonical
+# rejection buckets (mirrors REJECTION_LABELS in app.py).
+REJECTION_LABELS = {
+    "no_space": "No space / geometry conflict",
+    "overweight": "Exceeds truck weight capacity",
+    "footprint_instability": "Footprint instability (< 75% support)",
+}
+
 
 # --- low-level docx styling helpers -----------------------------------------
 
@@ -227,12 +235,15 @@ def _collect(fleet):
     plan = fleet.packing_layout or {}
     layout = plan.get("layout", {}) or {}
     packed_items = layout.get("packed_items", []) or []
+    rejected_items = layout.get("unfitted_items", []) or []
     rows = _manifest_rows(plan, packed_items, list(fleet.manifest or []))
 
     total_expected = int(_to_f(plan.get("total_items_expected")) or 0) or sum(
         r["quantity"] for r in rows)
     packed_count = int(_to_f(plan.get("packed_count")) or 0) or (
         len(packed_items) if packed_items else sum(r["packed"] for r in rows))
+    rejected_count = int(_to_f(plan.get("unfitted_count")) or 0) or len(
+        rejected_items)
 
     planned_weight = sum(
         r["quantity"] * r["weight"] for r in rows if r["weight"] is not None)
@@ -263,12 +274,33 @@ def _collect(fleet):
     status_display = ("FINISHED" if status_value == "INSPECTED - CLEAR"
                       else status_value)
 
+    # --- rejected / not-loaded packages (same source as the dashboards) ----
+    rejected_rows = []
+    for item in rejected_items:
+        reason = str(item.get("reason") or "no_space")
+        detail = str(item.get("detail") or "")
+        name = str(item.get("name") or _DASH)
+        pkg_id = str(item.get("part_number") or item.get("package_id")
+                     or name)
+        m = next((m for m in (fleet.manifest or [])
+                  if str(m.get("name")) == name.split("#")[0].strip()), None)
+        rejected_rows.append({
+            "package_id": pkg_id,
+            "description": _description_of(m) if m else
+            name.split("#")[0].strip(),
+            "reason": reason,
+            "reason_label": REJECTION_LABELS.get(reason, reason),
+            "detail": detail,
+        })
+
+
     return {
         "rows": rows, "plan": plan,
         "total_expected": total_expected, "packed_count": packed_count,
         "planned_weight": planned_weight, "packed_weight": packed_weight,
         "truck_vol": truck_vol, "packed_vol": packed_vol,
         "fill": fill, "fragile_count": fragile_count,
+        "rejected_rows": rejected_rows, "rejected_count": rejected_count,
         "status_display": status_display,
         "seq_priority": plan.get("sequence_priority") or "ON",
     }
@@ -356,7 +388,9 @@ def build_invoice_docx(fleet, doc_id=None):
     kpis = [
         ("PACKAGES", f"{d['packed_count']:,}",
          (f"{d['packed_count']:,} packages packed / "
-          f"{d['total_expected']:,} from manifest"), TEAL, PANEL),
+          f"{d['total_expected']:,} from manifest"
+          + (f" — {d['rejected_count']:,} rejected"
+             if d["rejected_count"] else "")), TEAL, PANEL),
         ("LOADED WEIGHT", f"{d['packed_weight']:,.0f} kg",
          f"{d['planned_weight']:,.0f} kg planned total", NAVY, PANEL),
         ("VOLUME UTILIZATION", f"{d['fill']:.1f}%",
@@ -451,6 +485,50 @@ def build_invoice_docx(fleet, doc_id=None):
             color = (AMBER if (text == "Yes" and headers[i] == "Fragile")
                      else BODY)
             _cell_par(cells[i], [(text, 7.5, False, color)], after=0)
+
+    # --- rejected / not-loaded packages (mirrors the dashboards) ---
+    rejected = d["rejected_rows"]
+    _section_header(
+        doc, "REJECTED / NOT LOADED PACKAGES",
+        "Manifest packages refused by truck constraints "
+        "(weight, footprint stability, or space)",
+    )
+    if rejected:
+        r_headers = ["Package ID", "Description", "Rejection Reason",
+                     "Detail"]
+        r_widths = [1.9, 2.15, 1.9, 1.9]
+        rtbl = doc.add_table(rows=1, cols=len(r_headers))
+        rtbl.alignment = WD_TABLE_ALIGNMENT.CENTER
+        _table_borders(rtbl, TRACK, 4)
+        _cell_margins(rtbl, top=40, bottom=40, left=60, right=60)
+        _fixed_layout(rtbl)
+        for i, cell in enumerate(rtbl.rows[0].cells):
+            cell.width = Inches(r_widths[i])
+            _shade(cell, NAVY)
+            _cell_par(cell, [(r_headers[i], 7.5, True, WHITE)], after=0)
+        for r in rejected:
+            detail = r["detail"] or r["reason_label"]
+            vals = [
+                r["package_id"],
+                r["description"],
+                r["reason_label"],
+                detail,
+            ]
+            cells = rtbl.add_row().cells
+            for i, text in enumerate(vals):
+                cells[i].width = Inches(r_widths[i])
+                _cell_par(cells[i], [
+                    (str(text), 7.5, i == 2, AMBER if i == 2 else BODY)
+                ], after=0)
+        _doc_par(doc, [
+            (f"Packed {d['packed_count']:,} of {d['total_expected']:,} "
+             f"packages — {len(rejected):,} rejected by constraints.",
+             8, True, NAVY),
+        ], before=4, after=2)
+    else:
+        _doc_par(doc, [
+            ("All manifest items packed and loaded.", 8, False, SLATE),
+        ], after=2)
 
     # --- unloading sequence chain ---
     _section_header(doc, "UNLOADING SEQUENCE")

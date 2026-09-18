@@ -248,6 +248,10 @@ def build_fleet_from_packing_result(
             1 for p in packed_items
             if p.name.split('#')[0].strip() == m_item['name']
         )
+        unfitted_for_item = sum(
+            1 for u in unfitted
+            if u.name.split('#')[0].strip() == m_item['name']
+        )
         manifest_summary.append({
             'name': m_item['name'],
             'package_id': m_item.get('package_id', ''),
@@ -255,6 +259,7 @@ def build_fleet_from_packing_result(
             'total_expected': m_item.get('quantity', 1),
             'packed': packed_for_item,
             'remaining': max(0, m_item.get('quantity', 1) - packed_for_item),
+            'unfitted': unfitted_for_item,
             'fragile': m_item.get('fragile', False),
             'max_load': m_item.get('max_load', 100),
             'city': m_item.get('city', ''),

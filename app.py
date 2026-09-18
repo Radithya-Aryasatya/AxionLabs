@@ -274,6 +274,39 @@ def get_engine_rejection_reason(item, bin_obj=None):
     return reason or REJECTION_NO_SPACE
 
 
+def reclassify_floating_items(bin_obj, floating_names):
+    """Move post-layout unstable items from bin.items -> bin.unfitted_items.
+
+    The engine's stability math accepts an item whose float-space support
+    turns out to be < 75%; the worker report reclassifies it later. This
+    helper does the SAME reclassification on the py3dbp bin itself so it
+    MUST run BEFORE register_fleet_from_packing_result() — otherwise the
+    executive dashboard, cargo manifest panel and invoice still count the
+    unstable boxes as packed.
+    """
+    if not floating_names:
+        return 0
+    floating_set = set(floating_names)
+    moved = [
+        it for it in getattr(bin_obj, "items", [])
+        if it.name in floating_set
+    ]
+    if not moved:
+        return 0
+    bin_obj.items = [
+        it for it in bin_obj.items if it.name not in floating_set
+    ]
+    for it in moved:
+        it.rejection_reason = REJECTION_UNSTABLE
+        it.rejection_detail = (
+            "resting on less than 75% of its footprint (post-layout check)"
+        )
+        bin_obj.unfitted_items.append(it)
+        if hasattr(bin_obj, "unfitted_reasons"):
+            bin_obj.unfitted_reasons.setdefault(it.partno, REJECTION_UNSTABLE)
+    return len(moved)
+
+
 
 def calculate_offloading_score(items, manifest_lookup):
     """
@@ -1736,6 +1769,17 @@ if st.button("Run AI Optimization"):
                 best_layout = all_layouts[0]
 
                 st.session_state.last_packer = best_layout["packer"]
+
+                # --- Reclassify post-layout floating items FIRST (Step A) ---
+                # Same reclassification the worker report does, applied to the
+                # py3dbp bin itself, so the registered fleet (executive
+                # dashboard / manifest panel / invoice) sees the identical
+                # packed + unpacked split with the footprint_instability reason.
+                _packer_now = best_layout["packer"]
+                for _b_now in _packer_now.bins:
+                    reclassify_floating_items(
+                        _b_now, best_layout["floating_names"]
+                    )
 
                 # --- Register fleet in View 2 (Executive Control Tower) ---
                 # Auto-register this packing result as an active fleet

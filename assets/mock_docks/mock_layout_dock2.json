@@ -4595,19 +4595,27 @@
   "unfitted_detail": [
     {
       "name": "PKG-2002 Large Home Appliance Crates #145",
-      "part_number": "PKG-2002 Large Home Appliance Crates #145"
+      "part_number": "ITEM-144",
+      "reason": "no_space",
+      "detail": "exceeds bin bounds in every allowed orientation"
     },
     {
       "name": "PKG-2002 Large Home Appliance Crates #146",
-      "part_number": "PKG-2002 Large Home Appliance Crates #146"
+      "part_number": "ITEM-145",
+      "reason": "no_space",
+      "detail": "exceeds bin bounds in every allowed orientation"
     },
     {
       "name": "PKG-2002 Large Home Appliance Crates #147",
-      "part_number": "PKG-2002 Large Home Appliance Crates #147"
+      "part_number": "ITEM-146",
+      "reason": "no_space",
+      "detail": "exceeds bin bounds in every allowed orientation"
     },
     {
       "name": "PKG-2002 Large Home Appliance Crates #148",
-      "part_number": "PKG-2002 Large Home Appliance Crates #148"
+      "part_number": "ITEM-147",
+      "reason": "no_space",
+      "detail": "exceeds bin bounds in every allowed orientation"
     }
   ],
   "status": "LOADING",

@@ -355,7 +355,18 @@ def pack_manifest(manifest, prioritize_sequence: bool = False):
                 "max_load": float(m.get("max_load", MAX_LOAD_SOLID)),
             })
 
-    unfitted = [it.name for it in packer.bins[0].unfitted_items]
+    # Carry the WHY (no_space / overweight / footprint_instability) alongside
+    # each rejected package so downstream reports (executive dashboard cargo
+    # manifest) can bucket it correctly instead of defaulting to no_space.
+    unfitted = [
+        {
+            "name": it.name,
+            "part_number": it.partno,
+            "reason": getattr(it, "rejection_reason", None) or "no_space",
+            "detail": getattr(it, "rejection_detail", "") or "",
+        }
+        for it in packer.bins[0].unfitted_items
+    ]
     utilization = calculate_utilization(packed_geometries, truck_vol_m)
     load_distribution, _ = calculate_load_distribution(packed_geometries)
     fp_lookup = {
@@ -542,7 +553,7 @@ def build_layout(dock_number: int, manifest):
         "total_items_expected": total_expected,
         "packed_count": len(packed_items),
         "unfitted_count": len(res["unfitted"]),
-        "unfitted_detail": [{"name": n, "part_number": n} for n in res["unfitted"]],
+        "unfitted_detail": list(res["unfitted"]),
         "status": "LOADING",
         "gemini_analysis": {
             "Space Volume Utilization": f"{res['utilization']:.1f}%",
