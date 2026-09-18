@@ -13,6 +13,7 @@ from orientation_editor import launch_orientation_editor
 import pandas as pd
 import math
 import json
+import uuid
 import streamlit.components.v1 as components
 from html import escape as html_escape
 import os
@@ -1251,6 +1252,15 @@ add_item = st.sidebar.button("Add Item to Manifest")
 if 'manifest' not in st.session_state:
     st.session_state.manifest = []
 
+# Migration: assign stable `id` to any pre-existing manifest item that lacks one.
+# Stable IDs are the backbone of correct row targeting in the manifest editor;
+# without them Streamlit's value-key reuse makes deletions and edits corrupt
+# the wrong rows after a pop/shift.
+for _cargo in st.session_state.manifest:
+    if "id" not in _cargo or not _cargo["id"]:
+        _cargo["id"] = uuid.uuid4().hex
+
+
 if "editing_orientation" not in st.session_state:
     st.session_state.editing_orientation = None
 
@@ -1324,7 +1334,13 @@ if import_manifest and uploaded_file is not None:
                         else float("inf")
                     ),
 
-                    "sequence": int(row["Unloading Sequence"]),
+                                        "sequence": int(row["Unloading Sequence"]),
+
+                    # Stable per-row ID so the manifest editor can target a
+                    # specific package for delete/edit without relying on
+                    # fragile positional indices (which Streamlit reorders on
+                    # every rerun, causing wrong-row mutations).
+                    "id": uuid.uuid4().hex,
 
                     # Optional enrichments for the printable Load & Packing
                     # Invoice — older manifests without these columns
@@ -1363,25 +1379,37 @@ if add_item:
     else:
         st.session_state.editing_orientation = {
 
-                "name": item_name,
-                "width": item_w / 100,  # Convert cm to m
-                "height": item_h / 100,  # Convert cm to m
-                "depth": item_d / 100,  # Convert cm to m
-                "weight": item_weight,
-                
-                "quantity": quantity,
-                "max_load": max_supported_load,
-                "sequence": unloading_sequence
-            }
+            "name": item_name,
+            "width": item_w / 100,  # Convert cm to m
+            "height": item_h / 100,  # Convert cm to m
+            "depth": item_d / 100,  # Convert cm to m
+            "weight": item_weight,
+
+            "quantity": quantity,
+            "max_load": max_supported_load,
+            "sequence": unloading_sequence,
+
+            # Stable per-row ID assigned NOW (before orientation editing)
+            # so the editor's appended result keeps a stable identity for
+            # the manifest editor's delete/edit targeting.
+            "id": uuid.uuid4().hex,
+        }
         st.rerun()
 
 if "name_reverts" not in st.session_state:
     st.session_state.name_reverts = {}
 if "pending_warning" not in st.session_state:
     st.session_state.pending_warning = None
+# Deferred delete: we never pop() while rendering (mutating a list during
+# enumerate() shifts indices and corrupts remaining rows). Instead the
+# button sets a flag keyed by the row's stable `id`; the actual removal is
+# performed AFTER the loop completes.
+if "pending_delete_id" not in st.session_state:
+    st.session_state.pending_delete_id = None
 
-for idx, old_name in st.session_state.name_reverts.items():
-    st.session_state[f"name_{idx}"] = old_name   # safe: widget hasn't run yet this pass
+for cargo_id, old_name in st.session_state.name_reverts.items():
+    # safe: widget hasn't run yet this pass — pre-seed the reverted value
+    st.session_state[f"name_{cargo_id}"] = old_name
 st.session_state.name_reverts = {}
 
 if st.session_state.pending_warning:
@@ -1403,48 +1431,68 @@ else:
     h7.markdown("**Seq**")
     st.caption("Seq = unloading order. 1 unloads first and lands nearest the truck door; higher numbers unload later and pack deeper inside.")
 
-    for i, cargo in enumerate(st.session_state.manifest):
+    for cargo in st.session_state.manifest:
+        cid = cargo["id"]
         c1, c2, c3, c4, c5, c6, c7, c8 = st.columns([2, 1, 1, 1, 1, 1, 1, 0.6])
 
         new_name = c1.text_input(
-            "Name", value=cargo["name"], key=f"name_{i}", label_visibility="collapsed"
+            "Name", value=cargo["name"], key=f"name_{cid}", label_visibility="collapsed"
         )
 
         if new_name != cargo["name"]:
             is_duplicate = any(
-                other_i != i and other["name"] == new_name
-                for other_i, other in enumerate(st.session_state.manifest)
+                other["id"] != cid and other["name"] == new_name
+                for other in st.session_state.manifest
             )
             if is_duplicate:
                 st.session_state.pending_warning = f"'{new_name}' already exists. Reverted to '{cargo['name']}'."
-                st.session_state.name_reverts[i] = cargo["name"]
+                st.session_state.name_reverts[cid] = cargo["name"]
                 st.rerun()
             else:
                 cargo["name"] = new_name
 
         cargo["w"] = c2.number_input(
-            "W", value=float(cargo["w"]), step=0.1, key=f"w_{i}", label_visibility="collapsed"
+            "W", value=float(cargo["w"]), step=0.1, key=f"w_{cid}", label_visibility="collapsed"
         )
         cargo["h"] = c3.number_input(
-            "H", value=float(cargo["h"]), step=0.1, key=f"h_{i}", label_visibility="collapsed"
+            "H", value=float(cargo["h"]), step=0.1, key=f"h_{cid}", label_visibility="collapsed"
         )
         cargo["d"] = c4.number_input(
-            "D", value=float(cargo["d"]), step=0.1, key=f"d_{i}", label_visibility="collapsed"
+            "D", value=float(cargo["d"]), step=0.1, key=f"d_{cid}", label_visibility="collapsed"
         )
         cargo["weight"] = c5.number_input(
-            "Weight", value=float(cargo["weight"]), key=f"weight_{i}", label_visibility="collapsed"
+            "Weight", value=float(cargo["weight"]), key=f"weight_{cid}", label_visibility="collapsed"
         )
         cargo["quantity"] = c6.number_input(
-            "Qty", value=int(cargo["quantity"]), min_value=1, step=1, key=f"qty_{i}", label_visibility="collapsed"
+            "Qty", value=int(cargo["quantity"]), min_value=1, step=1, key=f"qty_{cid}", label_visibility="collapsed"
         )
         cargo["sequence"] = c7.number_input(
-            "Seq", value=int(cargo["sequence"]), min_value=1, step=1, key=f"seq_{i}", label_visibility="collapsed",
+            "Seq", value=int(cargo["sequence"]), min_value=1, step=1, key=f"seq_{cid}", label_visibility="collapsed",
             help="Unloading order: 1 unloads first (packed last, nearest the door). Higher = unloads later (packed earlier, deeper in truck)."
         )
 
-        if c8.button("🗑️", key=f"delete_{i}"):
-            st.session_state.manifest.pop(i)
-            st.rerun()
+        # Delete is deferred (see pending_delete_id above): just record which
+        # stable ID to remove, then act after the loop so the list isn't
+        # mutated mid-enumeration.
+        if c8.button("🗑️", key=f"delete_{cid}"):
+            st.session_state.pending_delete_id = cid
+
+    # Deferred delete — runs only AFTER every row has been rendered for this
+    # pass, so no index shifting or skipped rows can corrupt the remaining
+    # widgets / persisted values.
+    if st.session_state.pending_delete_id:
+        target_id = st.session_state.pending_delete_id
+        st.session_state.manifest = [
+            c for c in st.session_state.manifest if c["id"] != target_id
+        ]
+        # Purge orphaned widget-state keys tied to the removed row so a later
+        # re-add can never resurrect stale values.
+        for prefix in (
+            "name_", "w_", "h_", "d_", "weight_", "qty_", "seq_", "delete_",
+        ):
+            st.session_state.pop(f"{prefix}{target_id}", None)
+        st.session_state.pending_delete_id = None
+        st.rerun()
 
 
 # --------------------------------------------------
