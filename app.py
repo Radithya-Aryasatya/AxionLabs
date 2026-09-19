@@ -1255,17 +1255,18 @@ def _resolved_truck_name() -> str:
 
 
 if "selected_truck" not in st.session_state:
-    # Fuso Fighter matches the historical default dims (2.4 x 2.4 x 6.0 m).
-    st.session_state.selected_truck = "Fuso Fighter"
+    # Mitsubishi Canter is the default truck; its dims (2.1 x 2.1 x 4.5 m)
+    # are seeded below so the manual inputs stay in sync with the picker.
+    st.session_state.selected_truck = "Mitsubishi Canter"
 # Seed default dimensions into session state so the manual number inputs below
 # never emit Streamlit's "default value + key" collision warning — when a key
 # is present the session-state value wins and is overwritten by the picker.
 if "truck_w" not in st.session_state:
-    st.session_state.truck_w = 2.4
+    st.session_state.truck_w = 2.1
 if "truck_h" not in st.session_state:
-    st.session_state.truck_h = 2.4
+    st.session_state.truck_h = 2.1
 if "truck_d" not in st.session_state:
-    st.session_state.truck_d = 6.0
+    st.session_state.truck_d = 4.5
 
 st.sidebar.header("1. Define Vehicle Space")
 
@@ -1307,7 +1308,7 @@ import_manifest = st.sidebar.button(
 
 st.sidebar.header("Or")
 
-st.sidebar.header("Manual Truck Dimensions")
+st.sidebar.header("1. Manual Truck Dimensions")
 truck_w = st.sidebar.number_input(
     "Truck Width (m)",
     step=0.1,

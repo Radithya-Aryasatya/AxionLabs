@@ -553,7 +553,7 @@ how it compares to the intended layout).
 
 OUTPUT STRICT JSON:
 {{
-  "anomaly_type": "MESSY_STACKING" | "LOADING_BIAS" | "SPATIAL_DEVIATION" | "WASTED_VOLUME" | "UNSAFE_ARRANGEMENT" | "NONE" | "OTHER",
+  "anomaly_type": "MESSY_STACKING" | "LOADING_BIAS" | "SPATIAL_DEVIATION" | "UNSAFE_ARRANGEMENT" | "NONE" | "OTHER",
   "severity": "WARNING" | "NONE",
   "analysis_paragraph": "Detailed narrative of what the ACTUAL CCTV footage shows (and, when a twin was provided, how it compares to the intended layout. Please note that the digital twin has colorful visualizations for box-type differentiations. Therefore, colour of the boxes should not be a factor for CCTV image and digital twin discrepancy)...", 
   "recommended_actions": ["actionable steps"]
