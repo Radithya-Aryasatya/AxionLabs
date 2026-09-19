@@ -1151,7 +1151,7 @@ def render_packing_visual(bin_partno: str, packed_geometries: list[PackedItem], 
 
 # --- USER INTERFACE PRESENTATION LAYER ---
 st.set_page_config(page_title="Axion Labs Fleet Optimizer", layout="wide", initial_sidebar_state="expanded")
-st.title("Axion Labs: Fleet Space Optimization")
+st.title("Axion Labs: Fleet Space Optimization, Dock 1")
 
 # --- SIDEBAR RESTORE CONTROL (v2) ---
 # Streamlit's own collapse/expand arrow lives at a DOM location that has

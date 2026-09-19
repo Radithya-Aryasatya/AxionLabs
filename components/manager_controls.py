@@ -51,7 +51,10 @@ def _apply_override(fleet: Fleet, reason: str, note: str):
 
 def render_manager_controls(fleet: Fleet):
     """Render the manager action strip for a fleet. Returns nothing."""
-    st.markdown("### 🛠 Manager Action Controls")
+    st.markdown(
+        '<h3 style="text-align: center; margin: 0 0 8px 0;">🛠 Manager Action Controls</h3>',
+        unsafe_allow_html=True,
+    )
 
     # Gate controls on having actual packing data (not monitor placeholder)
     layout = fleet.packing_layout.get('layout', {}) if fleet.packing_layout else {}
