@@ -1197,11 +1197,75 @@ if st.button(
     st.session_state.sidebar_visible = not st.session_state.sidebar_visible
     st.rerun()
 
+# --- PRESET TRUCK FLEET -------------------------------------------------------
+# Real fleet vehicles with their cargo-box dimensions in meters. Each entry is
+# stored as (width, height, depth); the fleet spec sheet lists them L x W x H.
+PRESET_TRUCKS = {
+    "Mitsubishi Canter": (2.1, 2.1, 4.5),          # 4.5 x 2.1 x 2.1
+    "Hino 300": (2.2, 2.2, 5.0),                   # 5.0 x 2.2 x 2.2
+    "Isuzu Forward Short Chassis": (2.3, 2.35, 5.5),  # 5.5 x 2.3 x 2.35
+    "Fuso Fighter": (2.4, 2.4, 6.0),               # 6.0 x 2.4 x 2.4
+    "Hino 500": (2.4, 2.3, 7.2),                   # 7.2 x 2.4 x 2.3
+}
+CUSTOM_TRUCK_OPTION = "Custom / Manual Dimensions"
+
+
+def _format_truck_option(option):
+    """Label each preset truck with its L x W x H dimensions in the picker."""
+    if option in PRESET_TRUCKS:
+        w, h, d = PRESET_TRUCKS[option]
+        return f"{option} — {d} × {w} × {h} m (L×W×H)"
+    return option
+
+
+def _apply_selected_truck():
+    """Copy the chosen preset's dimensions into the manual dimension inputs."""
+    preset = PRESET_TRUCKS.get(st.session_state.selected_truck)
+    if preset:
+        (
+            st.session_state.truck_w,
+            st.session_state.truck_h,
+            st.session_state.truck_d,
+        ) = preset
+
+
+def _mark_manual_truck():
+    """Hand-editing any dimension flips the picker to the custom option."""
+    st.session_state.selected_truck = CUSTOM_TRUCK_OPTION
+
+
+if "selected_truck" not in st.session_state:
+    # Fuso Fighter matches the historical default dims (2.4 x 2.4 x 6.0 m).
+    st.session_state.selected_truck = "Fuso Fighter"
+# Seed default dimensions into session state so the manual number inputs below
+# never emit Streamlit's "default value + key" collision warning — when a key
+# is present the session-state value wins and is overwritten by the picker.
+if "truck_w" not in st.session_state:
+    st.session_state.truck_w = 2.4
+if "truck_h" not in st.session_state:
+    st.session_state.truck_h = 2.4
+if "truck_d" not in st.session_state:
+    st.session_state.truck_d = 6.0
+
 st.sidebar.header("1. Define Vehicle Space")
-truck_w = st.sidebar.number_input("Truck Width (m)", value=2.4, step = 1.0)
-truck_h = st.sidebar.number_input("Truck Height (m)", value=2.4, step = 1.0)
-truck_d = st.sidebar.number_input("Truck Depth (m)", value=6.0, step = 1.0)
-truck_weight = st.sidebar.number_input("Max Weight Capacity (kg)", value=4000)
+
+if st.session_state.selected_truck == CUSTOM_TRUCK_OPTION:
+    truck_picker_label = "Select Truck — Custom Dimensions"
+else:
+    truck_picker_label = "Select Truck — " + st.session_state.selected_truck
+
+with st.sidebar.expander(truck_picker_label, expanded=False):
+    st.radio(
+        "Fleet vehicles — L × W × H (m)",
+        options=list(PRESET_TRUCKS) + [CUSTOM_TRUCK_OPTION],
+        key="selected_truck",
+        on_change=_apply_selected_truck,
+        format_func=_format_truck_option,
+    )
+    st.caption(
+        "Pick your truck to auto-fill its dimensions — "
+        "manual inputs are kept below."
+    )
 
 st.sidebar.header("2. Import Cargo Manifest")
 uploaded_file = st.sidebar.file_uploader(
@@ -1214,6 +1278,33 @@ import_manifest = st.sidebar.button(
 )
 
 st.sidebar.header("Or")
+
+st.sidebar.header("Manual Truck Dimensions")
+truck_w = st.sidebar.number_input(
+    "Truck Width (m)",
+    step=0.1,
+    min_value=0.1,
+    format="%.2f",
+    key="truck_w",
+    on_change=_mark_manual_truck,
+)
+truck_h = st.sidebar.number_input(
+    "Truck Height (m)",
+    step=0.1,
+    min_value=0.1,
+    format="%.2f",
+    key="truck_h",
+    on_change=_mark_manual_truck,
+)
+truck_d = st.sidebar.number_input(
+    "Truck Depth (m)",
+    step=0.1,
+    min_value=0.1,
+    format="%.2f",
+    key="truck_d",
+    on_change=_mark_manual_truck,
+)
+truck_weight = st.sidebar.number_input("Max Weight Capacity (kg)", value=4000)
 
 st.sidebar.header("2. Add Cargo Item Manually")
 item_name = st.sidebar.text_input("Item Name", value="Generic Box")
