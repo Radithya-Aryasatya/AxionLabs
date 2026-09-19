@@ -540,7 +540,7 @@ def build_layout(dock_number: int, manifest):
 
     return {
         "id": f"Fleet Monitoring | Dock {dock_number}",
-        "truck_name": f"Truck-Dock{dock_number}",
+        "truck_name": "Fuso Fighter",
         "truck_dimensions": [TRUCK_W_M, TRUCK_H_M, TRUCK_D_M],
         "sequence_priority": "ON" if sequence_on else "OFF",
         "fill_percentage": round(packed_vol / truck_vol * 100, 1),

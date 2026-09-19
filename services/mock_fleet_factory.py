@@ -80,7 +80,7 @@ def _default_layout(dock_number: int) -> dict:
     ]
     base = {
         'id': f'Fleet Monitoring | Dock {dock_number}',
-        'truck_name': f'Placeholder Truck Dock-{dock_number}',
+        'truck_name': 'Fuso Fighter',
         'truck_dimensions': [2.4, 2.4, 6.0],
         'fill_percentage': 72.5,
         'loading_in_progress': False,
