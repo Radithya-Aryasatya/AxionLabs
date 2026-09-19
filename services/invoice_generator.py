@@ -138,9 +138,20 @@ def _cell_par(cell, runs, first=True, after=0):
 
 
 def _section_header(doc, title, subtitle=None, before=14):
-    _doc_par(doc, [(title, 13, True, NAVY)], before=before, after=1)
+    title_par=_doc_par(doc, [(title, 13, True, NAVY)], before=before, after=1)
+    title_par.paragraph_format.keep_with_next=True
     if subtitle:
-        _doc_par(doc, [(subtitle, 7.5, False, SLATE)], after=6)
+        sub_par=_doc_par(doc, [(subtitle, 7.5, False, SLATE)], after=6)
+        sub_par.paragraph_format.keep_with_next=True
+    return title_par
+
+
+def _lock_rows(table):
+    for i, row in enumerate(table.rows):
+        tr_pr = row._tr.get_or_add_trPr()
+        tr_pr.append(OxmlElement('w:cantSplit'))
+        if i == 0:
+            tr_pr.append(OxmlElement('w:tblHeader'))
 
 
 # --- live data collection ----------------------------------------------------
@@ -520,6 +531,7 @@ def build_invoice_docx(fleet, doc_id=None):
                 _cell_par(cells[i], [
                     (str(text), 7.5, i == 2, AMBER if i == 2 else BODY)
                 ], after=0)
+        _lock_rows(rtbl)
         _doc_par(doc, [
             (f"Packed {d['packed_count']:,} of {d['total_expected']:,} "
              f"packages — {len(rejected):,} rejected by constraints.",
