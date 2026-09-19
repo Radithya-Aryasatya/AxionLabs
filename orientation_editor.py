@@ -3,6 +3,7 @@ import streamlit as st
 import plotly.graph_objects as go
 from dataclasses import dataclass
 from itertools import permutations
+import uuid
 
 
 # ============================================================
@@ -25,6 +26,10 @@ class OrientationItem:
     # them) — from the Excel import, for the Load & Packing Invoice.
     package_id: str = ""
     city: str = ""
+    # Stable per-row identity from the manifest editor, so an appended cargo
+    # item keeps a stable handle for delete/edit targeting. Empty string /
+    # None when not provided by the caller.
+    id: str = ""
 
 
 # ------------------------------------------------------------
@@ -410,7 +415,11 @@ def orientation_editor(item):
 
             "city": item.city,
 
-            "orientation_index": st.session_state.orientation_index
+            "orientation_index": st.session_state.orientation_index,
+
+            # Preserve the manifest editor's stable row identity so the
+            # appended cargo can be targeted for delete/edit.
+            "id": item.id or uuid.uuid4().hex,
         }
 
         reset_orientation_editor()
@@ -438,7 +447,8 @@ def launch_orientation_editor(
     max_load,
     sequence,
     package_id="",
-    city=""
+    city="",
+    id=""
 ):
     """
     Launches the orientation editor.
@@ -475,7 +485,9 @@ def launch_orientation_editor(
 
         package_id=package_id,
 
-        city=city
+        city=city,
+
+        id=id
     )
 
     return orientation_editor(item)
