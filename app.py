@@ -1235,6 +1235,25 @@ def _mark_manual_truck():
     st.session_state.selected_truck = CUSTOM_TRUCK_OPTION
 
 
+def _resolved_truck_name() -> str:
+    """Return the truck name/ID to register for a fleet, based on the picker.
+
+    Preset trucks keep their real name (e.g. 'Fuso Fighter') so the executive
+    dashboard and the final invoice both show the truck the user selected. The
+    'Custom / Manual Dimensions' option uses the name the user typed in the
+    sidebar; if they left it blank we fall back to the historical auto-numbered
+    form ('Truck-1', 'Truck-2', ...) so a blank name never appears.
+    """
+    chosen = st.session_state.get("selected_truck", "")
+    if chosen and chosen != CUSTOM_TRUCK_OPTION:
+        return chosen
+    custom = (st.session_state.get("custom_truck_name") or "").strip()
+    if custom:
+        return custom
+    active = st.session_state.get("active_fleets", [])
+    return f"Truck-{len(active) + 1}"
+
+
 if "selected_truck" not in st.session_state:
     # Fuso Fighter matches the historical default dims (2.4 x 2.4 x 6.0 m).
     st.session_state.selected_truck = "Fuso Fighter"
@@ -1267,6 +1286,14 @@ with st.sidebar.expander(truck_picker_label, expanded=False):
         "Pick your truck to auto-fill its dimensions — "
         "manual inputs are kept below."
     )
+    # Custom dimensions have no preset name, so offer a text box to name the
+    # truck. The typed name flows to the executive dashboard and the invoice;
+    # blank falls back to auto-numbering (Truck-N) inside _resolved_truck_name.
+    if st.session_state.selected_truck == CUSTOM_TRUCK_OPTION:
+        st.text_input(
+            "Name this truck (shown on dashboard & invoice)",
+            key="custom_truck_name",
+        )
 
 st.sidebar.header("2. Import Cargo Manifest")
 uploaded_file = st.sidebar.file_uploader(
@@ -1928,7 +1955,11 @@ if st.button("Run AI Optimization"):
                     truck_w=truck_w,
                     truck_h=truck_h,
                     truck_d=truck_d,
-                    truck_name=f"Truck-{len(st.session_state.get('active_fleets', [])) + 1}",
+                    # Use the truck the user selected in the sidebar picker
+                    # (Fuso Fighter / Hino 500 / etc.) — or the custom name
+                    # they typed — so the dashboard card and the invoice show
+                    # the real truck identity instead of a generic "Truck-N".
+                    truck_name=_resolved_truck_name(),
                 )
 
 
