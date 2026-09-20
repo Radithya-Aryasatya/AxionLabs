@@ -435,7 +435,14 @@ def read_manifest_from_excel(xlsx_path: str):
             "package_id": package_id,
             # Excel columns are in CM -> store METERS so pack_manifest's
             # x100 conversion (a faithful app.py photocopy) is correct.
-            "w": l_cm / 100.0, "h": w_cm / 100.0, "d": h_cm / 100.0,
+            # Axis convention MUST match app.py: py3dbp's WHD tuple is
+            # (X width, Y = vertical height, Z = depth/door-axis). Excel
+            # provides Length along the truck depth (Z), so:
+            #   w (X) <- Width,  h (Y) <- Height,  d (Z) <- Length.
+            # The previous L/W/H cyclic swap stood every box on the wrong
+            # face; with updown=False (Notupdown rotations only) the engine
+            # cannot correct a transposed stance at pack time.
+            "w": w_cm / 100.0, "h": h_cm / 100.0, "d": l_cm / 100.0,
             "weight": weight,
             "quantity": quantity,
             "sequence": sequence,
@@ -471,8 +478,10 @@ def _normalize_row(r: dict) -> dict:
         return {
             "name": f"{r['package_id']} {r['description']}",
             "package_id": r["package_id"],
-            "w": float(r["L"]) / 100.0, "h": float(r["W"]) / 100.0,
-            "d": float(r["H"]) / 100.0,
+            # tools shape L/W/H (cm) -> app.py axis convention (X=Width,
+            # Y=Height, Z=Length). Same fix as read_manifest_from_excel.
+            "w": float(r["W"]) / 100.0, "h": float(r["H"]) / 100.0,
+            "d": float(r["L"]) / 100.0,
             "weight": float(r["weight"]), "quantity": int(r["quantity"]),
             "sequence": int(r["sequence"]),
             "max_load": MAX_LOAD_FRAGILE if r["fragile"] else MAX_LOAD_SOLID,
