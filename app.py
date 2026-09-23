@@ -779,6 +779,43 @@ def render_support_tree(graph: dict, node: str, level: int = 0):
     for child in graph.get(node, []):
         render_support_tree(graph, child, level + 1)
 
+# --- Render lifecycle helpers ------------------------------------------------
+def clear_worker_render():
+    """Retire the current 3D packing render without a full-page refresh.
+
+    Resets every worker-side marker the output layer and the 3D viewer consult
+    so that, after clearing, no stale layout report or cached Plotly figure can
+    be re-surfaced on the next rerun:
+
+      * every per-bin ``show_render_{bin}`` visibility flag -> False
+      * ``last_packer``            -> dropped  (kills the "Optimal Layout
+                                       Assignment" report block)
+      * ``layouts``                -> dropped  (re-built on the next "Pack")
+      * ``last_3d_figure`` & all
+        ``fleet_3d_figures`` entries -> dropped
+
+    Worker-side only: the Dock-1 fleet that was auto-registered on the Executive
+    dashboard is deliberately preserved, since clearing a render does not mean
+    the loaded cargo has been physically removed from the dock.
+    """
+    # 1) Clear every per-bin render flag (robust to a dynamic number of bins).
+    for key in list(st.session_state.keys()):
+        if isinstance(key, str) and key.startswith("show_render_"):
+            st.session_state[key] = False
+
+    # 2) Drop the post-pack report / layouts so the output layer (which keys
+    #    off `last_packer`) retracts completely.
+    st.session_state.pop("last_packer", None)
+    st.session_state.pop("layouts", None)
+
+    # 3) Clear the cached Plotly figures so a future render can't reuse a
+    #    stale blob keyed under the now-orphaned bin part number. Mock-dock
+    #    twin figures (Docks 2-4 / Dock 1 monitor) are rebuilt by
+    #    seed_mock_docks() on the next run, so emptying the whole map is safe.
+    st.session_state.pop("last_3d_figure", None)
+    st.session_state["fleet_3d_figures"] = {}
+
+
 # --- ISOLATED RERUN SCOPE FOR THE 3D VIEWER ---
 @st.fragment
 def render_packing_visual(bin_partno: str, packed_geometries: list[PackedItem], truck_dims: tuple[float, float, float]):
@@ -803,8 +840,30 @@ def render_packing_visual(bin_partno: str, packed_geometries: list[PackedItem], 
     if render_key not in st.session_state:
         st.session_state[render_key] = False
 
-    if st.button("Render 3D Packing Layout Matrix", key=f"render_plot_{bin_partno}"):
-        st.session_state[render_key] = True
+    # ONE button slot that swaps, so the worker never sees a dead control:
+    #   nothing rendered -> "Render 3D Packing Layout Matrix"
+    #   already rendered -> "Remove Render"   (same slot, exactly the same spot)
+    # The two are mutually exclusive: while a render is live the Render button
+    # has no function left (re-setting the flag is a no-op), so it is not drawn.
+    #
+    # Remove retires every worker-side render marker (see `clear_worker_render`)
+    # so the layout report and the 3D viewer both retract, letting the worker
+    # re-pack a new manifest WITHOUT a hard page refresh.
+    #
+    # Both buttons use a plain (full-app) rerun on purpose: `st.rerun()` is legal
+    # in every context, whereas `scope="fragment"` raises StreamlitAPIException
+    # unless the fragment happens to be running as a fragment-triggered rerun
+    # (verified with a probe). The figure is still built only ONCE per click --
+    # the rerun halts the current pass before the figure code and the next pass
+    # draws the correct button together with the figure.
+    if st.session_state[render_key]:
+        if st.button("Remove Render", key=f"clear_render_{bin_partno}"):
+            clear_worker_render()
+            st.rerun()
+    else:
+        if st.button("Render 3D Packing Layout Matrix", key=f"render_plot_{bin_partno}"):
+            st.session_state[render_key] = True
+            st.rerun()
 
     if not st.session_state[render_key]:
         return
@@ -1476,6 +1535,13 @@ if import_manifest and uploaded_file is not None:
                 })
 
             st.session_state.import_queue = imported_items
+
+            # A new manifest supersedes whatever was last packed: retire the
+            # current render (layout report + 3D viewer + cached figures) so the
+            # worker can immediately re-pack against the freshly imported
+            # manifest — no manual "Remove Render" or hard refresh required.
+            clear_worker_render()
+
             st.session_state.importing_manifest = True
 
             st.success(
