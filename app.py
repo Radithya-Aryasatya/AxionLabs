@@ -1266,6 +1266,7 @@ PRESET_TRUCKS = {
     "Isuzu Forward Short Chassis": (2.3, 2.35, 5.5),  # 5.5 x 2.3 x 2.35
     "Fuso Fighter": (2.4, 2.4, 6.0),               # 6.0 x 2.4 x 2.4
     "Hino 500": (2.4, 2.3, 7.2),                   # 7.2 x 2.4 x 2.3
+    "Hyundai Porter II": (1.2, 1.1, 3.0),          # 3.0 x 1.2 x 1.1
 }
 CUSTOM_TRUCK_OPTION = "Custom / Manual Dimensions"
 
